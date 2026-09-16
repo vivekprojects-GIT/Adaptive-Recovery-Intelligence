@@ -76,7 +76,34 @@ export default function App() {
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 px-5 py-6 lg:px-9 lg:py-8">
+      <main className="min-w-0 flex-1 px-4 py-5 sm:px-5 sm:py-6 lg:px-9 lg:py-8">
+        <div className="sticky top-0 z-30 -mx-4 mb-5 border-b border-white/10 bg-ink-950/90 px-4 pb-3 pt-3 backdrop-blur sm:-mx-5 sm:px-5 lg:hidden">
+          <div className="mb-2.5 flex items-center gap-2">
+            <div className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-brand-500 to-emerald-500">
+              <Activity className="h-3.5 w-3.5 text-white" strokeWidth={2.5} />
+            </div>
+            <p className="text-sm font-bold text-white">
+              ARI <span className="font-normal text-slate-400">· Adaptive Recovery Intelligence</span>
+            </p>
+          </div>
+          <nav className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5">
+            {NAV.map(({ to, label, icon: Icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) =>
+                  "flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium " +
+                  (isActive
+                    ? "bg-brand-500/15 text-white ring-1 ring-inset ring-brand-500/30"
+                    : "bg-white/5 text-slate-400")
+                }
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </NavLink>
+            ))}
+          </nav>
+        </div>
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />

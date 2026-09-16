@@ -209,7 +209,7 @@ export function ErrorBox({ message }: { message: string }) {
       <p className="font-semibold">Could not reach the ARI API.</p>
       <p className="mt-1 text-xs text-rose-300/80">{message}</p>
       <p className="mt-2 text-xs text-slate-400">
-        Start the backend with <code className="font-mono text-slate-300">uvicorn app.main:app --reload --port 8000</code>
+        The server may still be waking up. Refresh the page in a few seconds.
       </p>
     </div>
   );

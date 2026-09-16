@@ -35,6 +35,37 @@ customers). Interactive API docs are at <http://localhost:8000/docs>.
 
 ---
 
+## Deploy to Render (free tier)
+
+The repo ships as a single Docker web service. The build compiles the React app, and FastAPI serves
+it at `/` with the API under `/api`. One URL, one cold start, no CORS.
+
+**Option A: Blueprint (recommended).** In Render, go to **New → Blueprint**, pick this repository,
+and apply. `render.yaml` configures everything: Docker runtime, free plan, health check at
+`/healthz`, and auto-deploy on push.
+
+**Option B: Manual.** Go to **New → Web Service**, pick this repository, and set:
+
+| Setting | Value |
+| --- | --- |
+| Language | Docker |
+| Instance type | Free |
+| Health check path | `/healthz` |
+
+No environment variables are required. Render sets `PORT`, and the container honours it.
+
+### What the free tier means for a demo
+
+- **It sleeps after 15 minutes idle.** The first request after that takes about a minute. Open
+  the link a couple of minutes before a client call.
+- **The disk resets on every restart or deploy.** The database re-seeds itself on boot, so the
+  demo always starts clean. Any bandit learning from *Run 50 rounds* is lost when the instance
+  sleeps. That is usually what you want before a demo.
+- **All admin endpoints are public.** `/api/bandit/reset` and `/api/admin/reseed` have no
+  authentication. That is fine for a demo link, but don't put real data behind this.
+
+---
+
 ## The seven screens
 
 | # | Screen | What it shows |
