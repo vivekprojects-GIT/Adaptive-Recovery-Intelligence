@@ -1,41 +1,47 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  html,
-  body,
-  #root {
-    height: 100%;
-  }
-  body {
-    @apply bg-ink-950 text-slate-200 antialiased;
-    background-image: radial-gradient(
-        900px 500px at 8% -8%,
-        rgba(99, 102, 241, 0.16),
-        transparent 60%
-      ),
-      radial-gradient(800px 500px at 96% 0%, rgba(16, 185, 129, 0.1), transparent 55%);
-    background-attachment: fixed;
-  }
-  ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-  }
-  ::-webkit-scrollbar-thumb {
-    @apply bg-ink-700 rounded-full;
-  }
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
+/* Chart roles - Capgemini Zodiak hues, validated as a categorical set
+   (lightness band, chroma floor, colour-vision-deficiency separation).
+   Orange and peacock sit below 3:1 on white, so every chart carries
+   direct labels or a table. Red is last so it is rarely read as "bad". */
+:root {
+  --chart-surface: #ffffff;
+  --chart-grid: #edf0f3;
+  --chart-axis: #636977;
+  --series-1: #0058ab;  /* azure */
+  --series-2: #f68f40;  /* orange-500 */
+  --series-3: #00ae9d;  /* peacock-700 */
+  --series-4: #5685c6;  /* capgemini blue-300 */
+  --series-5: #c00036;  /* red-700 */
+  --control: #6e7480;   /* neutral-500: the comparison group, never a hue */
+  --seq-1: #dfe1eb;
+  --seq-2: #8ea6d5;
+  --seq-3: #3573c0;
+  --seq-4: #1c4076;
 }
 
-@layer components {
-  .card {
-    @apply rounded-2xl border border-white/10 bg-ink-900/70 shadow-card backdrop-blur;
+@layer base {
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-app font-sans text-fg antialiased;
+    font-size: 14px;
   }
-  .label {
-    @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500;
-  }
+  h1, h2, h3 { letter-spacing: -0.005em; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { @apply rounded-full bg-line-strong; border: 2px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::selection { background: #dfe1eb; }
 }
+
+@layer utilities {
+  /* Figures align in columns: Inter's tabular numerals inside Ubuntu text. */
+  .num { font-family: "Inter", ui-sans-serif, system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+  .label { @apply text-2xs font-medium uppercase tracking-[0.07em] text-fg-3; }
+  .brand-gradient { background-image: linear-gradient(135deg, #3573c0 0%, #1c4076 55%, #121a38 100%); }
+}
+
+.recharts-surface:focus, .recharts-wrapper:focus { outline: none; }
+.recharts-text { font-family: "Inter", ui-sans-serif, system-ui, sans-serif; }

@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from .main import app as api, _startup
+from .main import app as api, lifespan
 
 STATIC_DIR = os.getenv(
     "STATIC_DIR",
@@ -31,10 +31,9 @@ class SPAStaticFiles(StaticFiles):
             raise
 
 
-app = FastAPI(title="Adaptive Recovery Intelligence", docs_url=None, redoc_url=None)
-
-# Mounted sub-apps do not run their own startup hooks, so seed from here.
-app.add_event_handler("startup", _startup)
+# Mounted sub-apps do not run their own lifespan, so seeding and the MCP
+# transport start from here. The MCP endpoint is then /api/mcp.
+app = FastAPI(title="Adaptive Recovery Intelligence", docs_url=None, redoc_url=None, lifespan=lifespan)
 
 
 @app.get("/healthz")

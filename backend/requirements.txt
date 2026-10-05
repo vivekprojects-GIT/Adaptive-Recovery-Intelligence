@@ -3,3 +3,9 @@ uvicorn[standard]==0.34.0
 sqlalchemy==2.0.36
 pydantic==2.10.4
 numpy==2.2.1
+# MCP server for agent access (app/console/mcp_server.py). The 1.12 line is the
+# newest that fits FastAPI 0.115's Starlette pin; starlette and sse-starlette are
+# pinned so pip cannot drift Starlette past what FastAPI supports.
+mcp==1.12.4
+starlette==0.41.3
+sse-starlette==3.0.3
