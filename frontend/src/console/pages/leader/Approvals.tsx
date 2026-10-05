@@ -24,7 +24,7 @@ export default function Approvals() {
           <Card key={s.campaign_id}
             title={<button className="text-left hover:text-primary-500" onClick={() => navigate(`/strategies/${s.campaign_id}`)}>{s.name}</button>}
             subtitle={`${s.campaign_id} · v${s.version} · submitted by ${s.owner} ${ago(s.submitted_at)}`}
-            actions={<><StatusChip status={s.status} />{s.source !== "manual" && <Chip tone="ai">{s.source.replace("_", " ")}</Chip>}</>}
+            actions={<><StatusChip status={s.status} />{s.source !== "manual" && <Chip tone="neutral">{s.source.replace("_", " ")}</Chip>}</>}
             footer={<div className="flex justify-end"><StrategyActions s={s} onChange={() => { reload(); refresh(); }} /></div>}>
             <p className="mb-3 text-[13px] leading-5 text-fg-2">{s.description}</p>
             <div className="grid gap-4 md:grid-cols-2">

@@ -60,7 +60,7 @@ function Detail({ row }: { row: AnalyticsRow }) {
                     <span className="flex items-center gap-1.5">
                       <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: SERIES[i % 5] }} />
                       <span className={a.code === ls.lead?.code ? "font-medium" : "text-fg-2"}>{a.name}</span>
-                      {a.prior === "uniform" && <Chip tone="ai" title="No track record: started from a flat prior">new</Chip>}
+                      {a.prior === "uniform" && <Chip tone="info" title="No track record: started from a flat prior">new</Chip>}
                     </span>
                   </Td>
                   <Td align="right">{pct(a.mean, 0)}<span className="block text-2xs text-fg-3">{pct(a.low, 0)}–{pct(a.high, 0)}</span></Td>
@@ -123,7 +123,7 @@ export default function StrategyAnalytics() {
     .sort(BY[sort]), [all, view, q, sort]);
 
   if (error) return <ErrorState message={error} onRetry={reload} />;
-  if (loading && !data) return <Spinner label="Reading every strategy's results" />;
+  if (loading && !data) return <Spinner label="Loading strategy analytics" />;
 
   const count = (f: (r: AnalyticsRow) => boolean) => running.filter(f).length;
   const proven = count((r) => r.results_state.state === "Proven");

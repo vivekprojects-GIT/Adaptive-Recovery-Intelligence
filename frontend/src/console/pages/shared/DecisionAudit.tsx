@@ -108,7 +108,7 @@ export default function DecisionAudit() {
             <Card title="Decision metadata">
               <KV items={[
                 { label: "Decision ID", value: <span className="font-mono">{m.decision_id}</span> },
-                { label: "Requested by", value: m.origin === "mcp" ? <Chip tone="ai">Nova agent · MCP</Chip> : "Strategy wave" },
+                { label: "Requested by", value: m.origin === "mcp" ? "Nova agent (MCP)" : "Strategy wave" },
                 { label: "Timestamp", value: dateTime(String(m.timestamp)) },
                 { label: "AI model", value: m.model },
                 { label: "Strategy", value: <Link className="text-primary-500 hover:underline" to={`/strategies/${m.strategy}`}>{m.strategy} v{m.strategy_version}</Link> },

@@ -44,7 +44,7 @@ export default function Decisions() {
                 {data?.rows.map((d) => (
                   <Tr key={d.decision_id} onClick={() => navigate(`/decisions/${d.decision_id}`)}>
                     <Td mono className="font-medium text-primary-500">
-                      <span className="flex items-center gap-1.5">{d.decision_id}{d.origin === "mcp" && <Chip tone="ai" title="Asked for by Nova's agent over MCP">Nova</Chip>}</span>
+                      <span className="flex items-center gap-1.5">{d.decision_id}{d.origin === "mcp" && <Chip tone="info" title="Asked for by Nova's agent over MCP">Nova</Chip>}</span>
                     </Td>
                     <Td>{d.customer}<span className="block text-2xs text-fg-3">#{d.customer_id}</span></Td>
                     <Td className="text-xs">{d.campaign_id}</Td><Td>{d.wave}</Td>

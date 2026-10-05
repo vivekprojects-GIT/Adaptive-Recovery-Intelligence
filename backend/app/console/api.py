@@ -101,6 +101,29 @@ def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
     }
 
 
+@router.get("/status")
+def platform_status(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """The header status menu: each part of the platform, its state and when it
+    last did something. Read by every signed-in user, so nothing sensitive."""
+    shadow = cfg(db, "shadow_mode") == "true"
+    m = METRICS.snapshot()
+    scanned = db.get(PlatformConfig, "_compliance_scanned_until")
+    components = [
+        {"name": "Decision service", "status": "Operational" if m["error_rate"] < 0.01 else "Degraded",
+         "detail": "Last decision", "at": db.query(func.max(Decision.decided_at))
+            .filter(Decision.decided_at <= now()).scalar()},
+        {"name": "Customer channels", "status": "Simulated" if shadow else "Operational",
+         "detail": "Messages are simulated" if shadow else "Messages go to customers", "at": None},
+        {"name": "Collections handoff", "status": "Operational", "detail": "Last handoff",
+         "at": db.query(func.max(Handoff.at)).scalar()},
+        {"name": "Compliance monitor", "status": "Operational", "detail": "Last scan",
+         "at": scanned.value if scanned else None},
+    ]
+    degraded = any(c["status"] == "Degraded" for c in components)
+    return {"overall": "Degraded" if degraded else "Operational", "mode": "shadow" if shadow else "live",
+            "model_version": cfg(db, "model_version"), "components": components}
+
+
 # =========================================================================== strategies
 class StrategyIn(BaseModel):
     name: str = Field(min_length=3, max_length=100)

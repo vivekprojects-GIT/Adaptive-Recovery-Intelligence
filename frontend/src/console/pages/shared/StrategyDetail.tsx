@@ -52,7 +52,7 @@ export default function StrategyDetail() {
             <Link to={`/strategies/${data.parent_id}`}><Chip tone="info" icon={<GitBranch className="h-3 w-3" />}>replaces {data.parent_id}</Chip></Link>
           )}
           <Chip tone="neutral">Owner {data.owner}</Chip>{data.approver && <Chip tone="info">Approved by {data.approver}</Chip>}
-          {data.source !== "manual" && data.source !== "revision" && <Chip tone="ai">{data.source.replace("_", " ")}</Chip>}
+          {data.source !== "manual" && data.source !== "revision" && <Chip tone="neutral">{data.source.replace("_", " ")}</Chip>}
           {data.pool_remaining !== null && (
             <span title="Customers in this audience that no strategy has decided yet">
               <Chip tone={data.pool_remaining > 0 ? "neutral" : "warn"} icon={<Users className="h-3 w-3" />}>{num(data.pool_remaining)} left to decide</Chip>

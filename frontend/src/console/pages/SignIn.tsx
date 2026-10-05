@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { ArrowRight, BarChart3, KeyRound, Lock, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, BarChart3, KeyRound, Lock, Scale, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import type { Role } from "../lib/api";
@@ -29,11 +29,9 @@ export default function SignIn() {
     <div className="flex min-h-full">
       {/* brand panel */}
       <section className="brand-gradient relative hidden w-[46%] max-w-[640px] flex-col justify-between overflow-hidden p-10 text-white lg:flex">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-ai-300/10 blur-2xl" />
-        <div className="pointer-events-none absolute -bottom-32 -left-16 h-96 w-96 rounded-full bg-primary-300/20 blur-3xl" />
         <BrandMark onDark size="lg" />
         <div className="relative">
-          <p className="text-sm font-medium uppercase tracking-[0.14em] text-ai-300">ARI Console</p>
+          <p className="text-sm font-medium uppercase tracking-[0.14em] text-primary-200">ARI Console</p>
           <h1 className="mt-3 text-[40px] font-light leading-[1.1] tracking-tight">Adaptive Recovery<br />Intelligence</h1>
           <p className="mt-4 max-w-md text-[15px] leading-6 text-primary-100">
             Decide which collections treatment works for which customer, and prove it against a randomised control group.
@@ -42,7 +40,7 @@ export default function SignIn() {
             {[
               [BarChart3, "Every result reported as uplift over its own control group"],
               [ShieldCheck, "Maker-checker approval, contact guard and compliance monitoring built in"],
-              [Sparkles, "Contextual Thompson sampling over business-approved treatments"],
+              [Scale, "Contextual Thompson sampling over business-approved treatments"],
             ].map(([Icon, t], i) => {
               const I = Icon as typeof BarChart3;
               return (

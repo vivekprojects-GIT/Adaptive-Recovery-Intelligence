@@ -267,7 +267,7 @@ export default function TreatmentsPage() {
                   <Td align="right">{money(t.cost)}</Td>
                   <Td>{t.historical_n > 0
                     ? <span className="num text-xs">{pct(t.historical_rate, 0)}<span className="block text-2xs text-fg-3">raw, n={num(t.historical_n)}</span></span>
-                    : <Chip tone="ai" title="Thompson sampling explores it from a flat prior">None yet</Chip>}</Td>
+                    : <Chip tone="neutral" title="Thompson sampling explores it from a flat prior">None yet</Chip>}</Td>
                   <Td>{t.human_review ? <Chip tone="warn">human review</Chip> : <Chip tone="neutral">automatic</Chip>}</Td>
                   <Td className="text-xs">
                     {t.usage.strategies.length ? (

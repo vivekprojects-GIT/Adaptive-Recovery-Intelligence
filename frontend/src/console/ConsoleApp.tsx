@@ -1,8 +1,8 @@
 import clsx from "clsx";
 import {
-  Bell, BookOpen, ChartColumnBig, ChevronDown, ChevronsLeft, ChevronsRight, CircleHelp, ClipboardCheck, FileText, FlaskConical,
-  Gauge, GitCompare, HeartPulse, Layers, LayoutDashboard, Library, Lightbulb, ListChecks, Lock, LogOut, MessageSquare,
-  Plug, Route as RouteIcon, ScrollText, Search, Send, ShieldCheck, SlidersHorizontal, Sparkles, UserCog, Users,
+  Activity, Bell, BookOpen, ChartColumnBig, ChevronDown, ChevronsLeft, ChevronsRight, CircleHelp, ClipboardCheck, FileText,
+  FlaskConical, Gauge, GitCompare, HeartPulse, Layers, LayoutDashboard, Library, Lightbulb, ListChecks, Lock, LogOut,
+  MessageSquare, Plug, Route as RouteIcon, ScrollText, Search, Send, ShieldCheck, SlidersHorizontal, UserCog, Users,
   Wrench, type LucideIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -10,9 +10,9 @@ import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-r
 
 import { api, type Alert, type Role } from "./lib/api";
 import { SessionProvider, useSession } from "./lib/session";
-import { num } from "./lib/format";
+import { ago, num } from "./lib/format";
 import { ProductLockup } from "./ui/brand";
-import { Avatar, Drawer, KV, Spinner, ToastProvider } from "./ui/ui";
+import { Avatar, Drawer, KV, Spinner, StatusChip, ToastProvider } from "./ui/ui";
 
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AlertRules from "./pages/admin/AlertRules";
@@ -65,7 +65,7 @@ const NAV: Record<Role, { section?: string; items: NavItem[] }[]> = {
       { to: "/customers", label: "Customers", icon: Users, perm: "view_customer_list" },
       { to: "/campaigns", label: "Live Campaigns", icon: FlaskConical, badge: (b) => b.live_campaigns },
       { to: "/review", label: "Review Queue", icon: ClipboardCheck, perm: "override_decisions", badge: (b) => b.pending_review },
-      { to: "/activity", label: "AI Activity", icon: Sparkles, perm: "view_ai_decisions" },
+      { to: "/activity", label: "AI Activity", icon: Activity, perm: "view_ai_decisions" },
     ] },
     { section: "Analyse", items: [
       { to: "/journeys", label: "Journeys", icon: RouteIcon, perm: "view_customer_list" },
@@ -189,6 +189,64 @@ function Notifications() {
   );
 }
 
+interface PlatformStatus {
+  overall: "Operational" | "Degraded"; mode: "shadow" | "live"; model_version: string;
+  components: { name: string; status: string; detail: string; at: string | null }[];
+}
+
+/** Platform status: the mode at a glance, the detail on click. Static - it
+ *  reports state, it does not perform activity. */
+function StatusMenu() {
+  const { me, can } = useSession();
+  const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState<PlatformStatus | null>(null);
+  const ref = useOutside(open, () => setOpen(false));
+  useEffect(() => {
+    if (open) api.get<PlatformStatus>("/status").then(setStatus).catch(() => setStatus(null));
+  }, [open]);
+  if (!me) return null;
+  const shadow = me.agent.shadow_mode;
+  return (
+    <div ref={ref} className="relative">
+      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Platform status"
+        className="flex h-8 items-center gap-2 rounded-md border border-white/15 px-2.5 text-xs font-medium text-primary-50 hover:bg-white/10">
+        <span className={clsx("h-2 w-2 rounded-full", shadow ? "bg-warn" : "bg-good")} />
+        {shadow ? "Shadow mode" : "Live"}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-11 z-50 w-[360px] overflow-hidden rounded-lg border border-line bg-surface text-fg shadow-pop">
+          <div className="flex items-center justify-between border-b border-line px-4 py-3">
+            <p className="text-[13px] font-medium">Platform status</p>
+            {status && <StatusChip status={status.overall} />}
+          </div>
+          {shadow && (
+            <p className="border-b border-line bg-warn-bg px-4 py-2 text-xs leading-4 text-warn">
+              Shadow mode: decisions are real; messages are simulated and no customer is contacted.
+            </p>
+          )}
+          <ul className="divide-y divide-line">
+            {status ? status.components.map((c) => (
+              <li key={c.name} className="flex items-start justify-between gap-3 px-4 py-2.5">
+                <div className="min-w-0">
+                  <p className="text-[13px] font-medium">{c.name}</p>
+                  <p className="text-2xs leading-4 text-fg-3">{c.detail}{c.at ? ` ${ago(c.at)}` : ""}</p>
+                </div>
+                <StatusChip status={c.status} />
+              </li>
+            )) : <li className="px-4 py-6 text-center text-xs text-fg-3">Checking status</li>}
+          </ul>
+          <div className="flex items-center justify-between border-t border-line px-4 py-2.5 text-2xs text-fg-3">
+            <span>Decision model {status?.model_version ?? me.agent.model_version}</span>
+            {can("view_system_health") && (
+              <Link to="/admin/health" onClick={() => setOpen(false)} className="font-medium text-azure hover:underline">System health</Link>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function UserMenu() {
   const { me, users, switchUser, signOut } = useSession();
   const [open, setOpen] = useState(false);
@@ -285,9 +343,10 @@ function ShellBar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () =>
         onSubmit={(e) => { e.preventDefault(); if (q.trim()) navigate(`/customers?q=${encodeURIComponent(q.trim())}`); }}>
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary-200" />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search customers by name or ID"
-          className="h-9 w-full rounded-md border border-white/10 bg-white/[0.08] pl-9 pr-3 text-[13px] text-white placeholder:text-primary-200 focus:border-ai-300/60 focus:bg-white/[0.12] focus:outline-none" />
+          className="h-9 w-full rounded-md border border-white/10 bg-white/[0.08] pl-9 pr-3 text-[13px] text-white placeholder:text-primary-200 focus:border-primary-200/60 focus:bg-white/[0.12] focus:outline-none" />
       </form>
       <div className="ml-auto flex items-center gap-1.5">
+        <StatusMenu />
         <button onClick={() => setAbout(true)} aria-label="About this environment"
           className="flex h-9 w-9 items-center justify-center rounded-md text-primary-100 hover:bg-white/10 hover:text-white"><CircleHelp className="h-[18px] w-[18px]" /></button>
         <Notifications />
@@ -308,17 +367,11 @@ function Sidebar({ collapsed }: { collapsed: boolean }) {
   const groups = NAV[me.user.role];
   return (
     <aside className={clsx("flex shrink-0 flex-col border-r border-line bg-surface transition-[width] duration-200", collapsed ? "w-[64px]" : "w-[248px]")}>
-      <div className={clsx("border-b border-line", collapsed ? "px-2 py-3" : "px-4 py-3.5")}>
-        {!collapsed && <p className="label">{WORKSPACE[me.user.role]}</p>}
-        <div className={clsx("flex items-center gap-2 rounded-md border border-ai-400/25 bg-ai-50 text-2xs font-medium text-ai-600",
-          collapsed ? "mt-0 justify-center px-0 py-2" : "mt-2 px-2.5 py-1.5")} title={`Agent active · ${num(me.agent.decisions_total)} decisions`}>
-          <span className="relative flex h-2 w-2 shrink-0">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-ai-400 opacity-60" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-ai-400" />
-          </span>
-          {!collapsed && <>Agent active · <span className="num">{num(me.agent.decisions_total)}</span> decisions</>}
+      {!collapsed && (
+        <div className="border-b border-line px-4 py-3">
+          <p className="label">{WORKSPACE[me.user.role]}</p>
         </div>
-      </div>
+      )}
       <nav className="flex-1 overflow-y-auto px-2 py-3">
         {groups.map((g, gi) => (
           <div key={gi} className={gi ? "mt-5" : ""}>
@@ -350,12 +403,6 @@ function Sidebar({ collapsed }: { collapsed: boolean }) {
           </div>
         ))}
       </nav>
-      {!collapsed && (
-        <div className="border-t border-line px-4 py-3 text-2xs leading-4 text-fg-3">
-          <p className="font-medium text-fg-2">Capgemini · ARI Console</p>
-          <p>{me.agent.model_version} · Confidential</p>
-        </div>
-      )}
     </aside>
   );
 }
@@ -445,12 +492,6 @@ function Shell() {
               <Route path="*" element={<Navigate to={HOME[me.user.role]} replace />} />
             </Routes>
           </main>
-          <footer className="flex shrink-0 items-center justify-end gap-4 border-t border-line bg-surface px-6 py-1.5 text-2xs text-fg-3">
-            <span className="hidden items-center gap-3 md:flex">
-              <span>{me.agent.model_version}</span><span>·</span>
-              <span>{me.agent.shadow_mode ? "Shadow mode: no customer is contacted" : "Live mode"}</span>
-            </span>
-          </footer>
         </div>
       </div>
     </div>

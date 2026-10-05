@@ -1,4 +1,4 @@
-import { Bot, Copy, Eye, EyeOff, RefreshCw, Send } from "lucide-react";
+import { Copy, Eye, EyeOff, Plug, RefreshCw, Send } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -216,7 +216,7 @@ async with streamablehttp_client("${endpoint}",
 
   return (
     <div className="space-y-4">
-      <Card title={<span className="flex items-center gap-2"><Bot className="h-4 w-4 text-ai-500" />Agent access · MCP</span>}
+      <Card title={<span className="flex items-center gap-2"><Plug className="h-4 w-4 text-fg-3" />Agent access · MCP</span>}
         subtitle="How Nova's agent, or any MCP client, sends an account and gets the recovery strategy back - then reports the payment so ARI learns."
         actions={<Chip tone={live ? "good" : "neutral"}>{live ? `Active · last call ${ago(s.stats.last_call_at)}` : s.stats.last_call_at ? `Idle · last call ${ago(s.stats.last_call_at)}` : "Waiting for the first call"}</Chip>}>
         <div className="grid gap-5 lg:grid-cols-[1.25fr_1fr]">

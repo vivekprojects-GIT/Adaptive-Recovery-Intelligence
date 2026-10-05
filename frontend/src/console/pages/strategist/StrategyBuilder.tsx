@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { ArrowLeft, ArrowRight, BookOpen, Check, Copy, Search, Sparkles, Wand2, Wrench } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Check, Copy, FilePenLine, Search, Wrench } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
@@ -301,7 +301,7 @@ function Guided({ id }: { id?: string }) {
               <CheckCard key={t.code} checked={form.treatment_codes.includes(t.code)} onChange={() => toggle("treatment_codes", t.code)}
                 title={<span className="flex flex-wrap items-center gap-1.5">{t.name}<Chip tone="info">{t.channel}</Chip>
                   {t.human_review && <Chip tone="warn">human approval</Chip>}
-                  {t.historical_n === 0 && <Chip tone="ai">new</Chip>}
+                  {t.historical_n === 0 && <Chip tone="info">new</Chip>}
                   {t.status === "Retired" && <Chip tone="bad">retired: remove before submitting</Chip>}</span>}
                 sub={<>{t.offer} · Eligible when: {t.eligibility_rule} · {money(t.cost)} per contact · {t.historical_n
                   ? <>historical raw rate {pct(t.historical_rate, 0)} (includes self-cure)</>
@@ -397,7 +397,7 @@ function Guided({ id }: { id?: string }) {
 
       {/* assistant rail */}
       <div className="space-y-4">
-        <Card title={<span className="flex items-center gap-1.5"><Sparkles className="h-4 w-4 text-ai-500" />Live estimate</span>}>
+        <Card title="Live estimate">
           {est ? (
             <div className="space-y-2.5">
               <div className="flex items-baseline justify-between"><span className="text-xs text-fg-2">Matching segment</span><span className="num text-[15px] font-semibold">{num(est.matching)}</span></div>
@@ -411,15 +411,15 @@ function Guided({ id }: { id?: string }) {
             </div>
           ) : <p className="text-xs text-fg-3">Pick a cohort to see the audience.</p>}
         </Card>
-        <Card title={<span className="flex items-center gap-1.5"><Wand2 className="h-4 w-4 text-ai-500" />Recommendations</span>} subtitle="From live results in this cohort">
+        <Card title="Recommendations" subtitle="From live results in this cohort">
           {!meta && <p className="text-xs text-fg-3">Save the first step to get recommendations.</p>}
           <div className="space-y-2.5">
             {recs?.recommendations.map((r) => (
-              <div key={r.title} className="rounded-lg border border-ai-100 bg-ai-50/60 p-2.5">
-                <p className="text-xs font-semibold text-ai-600">{r.title}</p>
+              <div key={r.title} className="rounded-lg border border-line bg-surface-sunken/60 p-2.5">
+                <p className="text-xs font-semibold text-fg">{r.title}</p>
                 <p className="mt-1 text-2xs leading-4 text-fg-2">{r.body}</p>
                 {r.campaign_id && (
-                  <button className="mt-1.5 text-2xs font-semibold text-ai-600 hover:underline"
+                  <button className="mt-1.5 text-2xs font-semibold text-primary-500 hover:underline"
                     onClick={() => run("clone", () => api.post<Strategy>(`/strategies/${r.campaign_id}/clone`), (x) => `Cloned into ${x.campaign_id}.`)
                       .then((x) => x && navigate(`/builder/${x.campaign_id}`))}>Clone {r.campaign_id} →</button>
                 )}
@@ -457,13 +457,13 @@ function AIGenerate() {
   if (!presets) return <Spinner />;
   return (
     <div className="mx-auto grid max-w-5xl gap-4 lg:grid-cols-[1fr_1fr]">
-      <Card title={<span className="flex items-center gap-1.5"><Sparkles className="h-4 w-4 text-ai-500" />Describe your recovery campaign</span>}
+      <Card title="Describe the recovery campaign"
         subtitle="ARI drafts a complete strategy from your brief. Every setting is explained and you review it before it is submitted.">
         <p className="label mb-1.5">Quick presets</p>
         <div className="mb-3 flex flex-wrap gap-1.5">
           {presets.presets.map((p) => (
             <button key={p.label} onClick={() => { setBrief(p.brief); setRisk(p.risk); setGoal(p.goal); }}
-              className="rounded-full border border-line-strong px-3 py-1 text-xs text-fg-2 hover:border-ai-500 hover:bg-ai-50 hover:text-ai-600">{p.label}</button>
+              className="rounded-full border border-line-strong px-3 py-1 text-xs text-fg-2 hover:border-primary-500 hover:bg-primary-50 hover:text-primary-600">{p.label}</button>
           ))}
         </div>
         <textarea rows={6} value={brief} onChange={(e) => setBrief(e.target.value)}
@@ -474,9 +474,9 @@ function AIGenerate() {
           <Field label="Campaign goal"><Select value={goal} onChange={setGoal} options={presets.goals.map((g) => ({ value: g, label: g }))} /></Field>
         </div>
         <div className="mt-4">
-          <Button variant="ai" disabled={brief.trim().length < 10} loading={busy === "gen"} icon={<Sparkles className="h-4 w-4" />}
+          <Button variant="primary" disabled={brief.trim().length < 10} loading={busy === "gen"} icon={<FilePenLine className="h-4 w-4" />}
             onClick={() => run("gen", () => api.post<Strategy>("/strategies/ai-draft", { brief, risk, goal }), (r) => `Drafted ${r.campaign_id}.`).then((r) => r && setResult(r))}>
-            Generate strategy draft
+            Draft the strategy
           </Button>
         </div>
         <p className="mt-3 text-2xs leading-4 text-fg-3">
@@ -484,10 +484,10 @@ function AIGenerate() {
         </p>
       </Card>
 
-      <Card title="Draft" subtitle={result ? `${result.campaign_id} · ${result.status}` : "Generated strategies appear here"}>
+      <Card title="Draft" subtitle={result ? `${result.campaign_id} · ${result.status}` : "The drafted strategy appears here"}>
         {!result ? (
           <div className="flex h-64 flex-col items-center justify-center text-center text-xs text-fg-3">
-            <Wand2 className="mb-2 h-6 w-6 text-ai-500/60" />Choose a preset or write a brief, then generate.
+            <FilePenLine className="mb-2 h-6 w-6 text-fg-3/60" />Choose a preset or write a brief, then draft it.
           </div>
         ) : (
           <div className="space-y-3">
@@ -529,12 +529,11 @@ export default function StrategyBuilder() {
   return (
     <>
       <PageHeader title="Strategy Builder" subtitle={id ? `${id} · editing` : "Build, clone or draft a recovery strategy"} role={me?.user.role_label}
-        crumbs={[{ label: "Strategies", to: "/strategies" }, { label: "Builder" }]}
-        actions={<Chip tone="ai"><Sparkles className="h-3 w-3" />AI-assisted</Chip>} />
+        crumbs={[{ label: "Strategies", to: "/strategies" }, { label: "Builder" }]} />
       <div className="bg-surface px-6"><Tabs<Tab> active={tab} onChange={(t) => { setTab(t); if (t !== "guided" && id) navigate("/builder"); }} tabs={[
         { id: "library", label: "Strategy Library", icon: <BookOpen className="h-3.5 w-3.5" /> },
         { id: "guided", label: "Guided Build", icon: <Wrench className="h-3.5 w-3.5" /> },
-        { id: "ai", label: "AI Generate", icon: <Sparkles className="h-3.5 w-3.5" /> },
+        { id: "ai", label: "Draft from a brief", icon: <FilePenLine className="h-3.5 w-3.5" /> },
       ]} /></div>
       <Page>
         {tab === "library" && <Library />}

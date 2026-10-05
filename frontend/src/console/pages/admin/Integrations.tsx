@@ -33,7 +33,7 @@ export default function Integrations() {
       <PageHeader title="API & Integrations" subtitle="Agents that ask ARI for decisions, data flowing in from the bank, and the channels ARI decides for" role={me?.user.role_label} />
       <Page>
         {data.shadow_mode && (
-          <Banner tone="ai" title="Shadow mode is on">
+          <Banner tone="info" title="Shadow mode is on">
             Decisions, eligibility, compliance checks and audit are real. Channel gateways are simulated: no customer is contacted. Switch it off in Platform Config once the gateways are connected.
           </Banner>
         )}

@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import {
-  Ban, Bot, CheckCircle2, CircleDollarSign, Clock, Hand, Inbox, MousePointerClick, Pause, Phone, Send, SkipForward,
+  Ban, CheckCircle2, CircleDollarSign, Clock, Hand, Inbox, MousePointerClick, Pause, Phone, Send, SkipForward, Split,
 } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -25,10 +25,10 @@ interface Data {
 }
 
 const ICON: Record<string, typeof Send> = {
-  system: Inbox, decision: Bot, nudge: Send, engagement: MousePointerClick, payment: CircleDollarSign, bau: Phone,
+  system: Inbox, decision: Split, nudge: Send, engagement: MousePointerClick, payment: CircleDollarSign, bau: Phone,
 };
 const COLOR: Record<string, string> = {
-  system: "bg-surface-sunken text-fg-3", decision: "bg-ai-50 text-ai-600", nudge: "bg-primary-50 text-primary-600",
+  system: "bg-surface-sunken text-fg-3", decision: "bg-info-bg text-info", nudge: "bg-primary-50 text-primary-600",
   engagement: "bg-info-bg text-info", payment: "bg-good-bg text-good", bau: "bg-surface-sunken text-fg-3",
 };
 
@@ -126,8 +126,8 @@ export default function Journey() {
             </Card>
             <Card title="Next AI action">
               {data.next_action ? (
-                <div className="rounded-lg border border-ai-100 bg-ai-50/60 p-3">
-                  <p className="text-[13px] font-semibold text-ai-600">{data.next_action.action}</p>
+                <div className="rounded-lg border border-line bg-surface-sunken/60 p-3">
+                  <p className="text-[13px] font-semibold text-fg">{data.next_action.action}</p>
                   <p className="mt-1 text-xs leading-5 text-fg-2">{data.next_action.reason}</p>
                   <p className="mt-1.5 text-2xs text-fg-3">Scheduled {dateTime(data.next_action.when)}</p>
                 </div>

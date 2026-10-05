@@ -66,7 +66,7 @@ export default function NudgeDetail() {
           </div>
           <div className="space-y-4">
             <Card title="Why this channel">
-              <p className="rounded-lg border border-ai-100 bg-ai-50/60 p-3 text-xs leading-5 text-fg">{data.reasoning.summary}</p>
+              <p className="rounded-lg border border-line bg-surface-sunken/60 p-3 text-xs leading-5 text-fg">{data.reasoning.summary}</p>
               {data.reasoning.fit_reasons.length > 0 && (
                 <ul className="mt-3 space-y-1">{data.reasoning.fit_reasons.map((r) => <li key={r} className="flex gap-1.5 text-xs text-fg-2"><CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-good" />{r}</li>)}</ul>
               )}

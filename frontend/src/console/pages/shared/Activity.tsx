@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Bot, CircleDollarSign, Send } from "lucide-react";
+import { CircleDollarSign, Send, Split } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -16,8 +16,8 @@ export default function Activity() {
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (loading || !data) return <Spinner />;
   const items = data.items.filter((i) => kind === "all" || i.kind === kind);
-  const Icon = { decision: Bot, nudge: Send, payment: CircleDollarSign };
-  const tone = { decision: "bg-ai-50 text-ai-600", nudge: "bg-primary-50 text-primary-600", payment: "bg-good-bg text-good" };
+  const Icon = { decision: Split, nudge: Send, payment: CircleDollarSign };
+  const tone = { decision: "bg-info-bg text-info", nudge: "bg-primary-50 text-primary-600", payment: "bg-good-bg text-good" };
   const href = (i: Item) => i.kind === "nudge" ? `/nudges/${i.id}` : `/decisions/${i.id}`;
   return (
     <>
