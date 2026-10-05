@@ -4,13 +4,24 @@ import {
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { api, type Strategy, type WaveRun } from "../lib/api";
+import { api, type LearningState, type ResultsState, type Strategy, type WaveRun } from "../lib/api";
 import { num, pct, pp, SEGMENT_LABEL } from "../lib/format";
 import { useSession } from "../lib/session";
 import { Button, Chip, Field, Menu, Modal, inputCls, useAction, useToast, type MenuItem, type Tone } from "./ui";
 
 export const SEGMENT_TONE: Record<string, Tone> = {
   Persuadable: "primary", "Sure Thing": "good", "Lost Cause": "warn", "Sleeping Dog": "neutral",
+};
+
+/** Where Thompson sampling stands. Exploring is normal, not a fault. */
+export const LEARNING_TONE: Record<LearningState["state"], Tone> = {
+  Settled: "good", Leaning: "info", Exploring: "warn", "Not started": "neutral", "Single treatment": "neutral",
+  "No treatments": "neutral",
+};
+
+/** A strategy's result against its own control group. */
+export const RESULT_TONE: Record<ResultsState["state"], Tone> = {
+  Proven: "good", "Worse than control": "bad", "Not proven yet": "neutral", "No results": "neutral",
 };
 
 /** Intervention-fit group, labelled honestly. The four quadrant names describe

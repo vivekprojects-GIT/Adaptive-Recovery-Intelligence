@@ -150,6 +150,13 @@ with TestClient(app) as api:
     check(traj[-1]["posterior"]["S3"]["p_best"] > 0.85,
           f"S3 ends as the best arm with P(best) = {traj[-1]['posterior']['S3']['p_best']:.2f}")
 
+    print("\n2C. Strategy Analytics reports what the engine learned")
+    rows = {r["campaign_id"]: r for r in ok(api.get("/console/analytics/strategies", headers=MAYA), "analytics")["strategies"]}
+    for cid, code in ((a, "S7"), (b, "S3")):
+        ls = rows[cid]["learning_state"]
+        check(ls["state"] == "Settled" and ls["lead"]["code"] == code, f"{cid}: {ls['verdict']}")
+    check(all(r["results_state"]["state"] for r in rows.values()), "every running strategy has a result verdict")
+
     print("\n3. Editing a live strategy creates a new version")
     r = api.put(f"/console/strategies/{a}", headers=MAYA, json={**base, "name": "Edited in place", "treatment_codes": ["S1"]})
     check(r.status_code == 409, "a live strategy with history is not edited in place (409)")

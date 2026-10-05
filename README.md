@@ -29,8 +29,8 @@ All values live in `frontend/tailwind.config.js` and the `:root` block of `front
 
 | Workspace | Persona | Screens |
 |---|---|---|
-| Strategist | Maya Patel | My Dashboard, Strategy Builder (library · 6-step guided build · AI draft from a brief), My Strategies, Treatment Playbook, Customers, Live Campaigns, Review Queue, AI Activity, Journeys, Nudges, Decisions, Cohorts & Handoffs |
-| Strategy Leader | James Thornton | KPI Dashboard, Portfolio Health, Strategy Compare, Approvals, Compliance, AI Workbench, Treatment Playbook (read-only), Team Performance, Reports |
+| Strategist | Maya Patel | My Dashboard, Strategy Builder (library · 6-step guided build · AI draft from a brief), My Strategies, Strategy Analytics, Treatment Playbook, Customers, Live Campaigns, Review Queue, AI Activity, Journeys, Nudges, Decisions, Cohorts & Handoffs |
+| Strategy Leader | James Thornton | KPI Dashboard, Strategy Analytics, Portfolio Health, Strategy Compare, Approvals, Compliance, AI Workbench, Treatment Playbook (read-only), Team Performance, Reports |
 | Platform Admin | Priya Nair | Admin Dashboard, User Management, Roles & Permissions, Platform Config, Treatment Playbook, API & Integrations, Audit Log, System Health, Alert Rules |
 
 **What is real.** Every decision, nudge, engagement event, outcome, violation and audit entry is written by the engine to SQLite, and every screen reads from that log. Five weeks of history are produced on first start by running the real engine week by week. Permissions are enforced by the API on every request, not just hidden in the UI. System Health latency is measured from live requests.
@@ -58,6 +58,7 @@ All values live in `frontend/tailwind.config.js` and the `:root` block of `front
 - Each wave is decided with everything learned before it. A strategy's **Arms & learning** tab shows each treatment's belief and 95% band wave by wave, the share of customers each treatment received, and the probability that each is the best.
 - A treatment with a track record starts from it, weighted lightly. A new treatment with none starts from a flat prior, so it is explored on equal terms.
 - **Run 5** runs five waves in a row. When a strategy's audience is too small for a full wave, the next cohort handoff arrives automatically (Platform Config can switch this off; **Receive next handoff** does it by hand).
+- **Strategy Analytics** puts every strategy side by side: its result against its own control group, and where Thompson sampling stands in it (settled, leaning or exploring, and on which treatment). Each row opens to the per-treatment detail. When a favourite reaches few customers, the verdict says why: few are eligible for it, or customer fit sends people elsewhere.
 
 The earlier eight-page flow lives in `frontend/src/legacy/` (excluded from the build). Its substance is inside the console: cohort intake is on **Cohorts & Handoffs**, the treatment sheet is the **Treatment Playbook**, and the experiment flow is on each strategy's **Experiment** tab.
 

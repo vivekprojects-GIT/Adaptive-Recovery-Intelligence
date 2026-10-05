@@ -1,34 +1,18 @@
 import { ArrowRight, GitBranch, Info, Users } from "lucide-react";
 import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
-import type { DecisionRow, Learning, StrategyDetail as SD } from "../../lib/api";
+import type { DecisionRow, StrategyDetail as SD } from "../../lib/api";
 import { dateTime, money, num, pct, pp, SEGMENT_LABEL } from "../../lib/format";
 import { useApi, useSession } from "../../lib/session";
 import { AllocationChart, BarList, BeliefBars, BeliefTrajectory, RateVsControl, SERIES, UpliftRow } from "../../ui/charts";
-import { SegmentChip, StrategyActions, WaveButton } from "../../ui/domain";
+import { LEARNING_TONE, SegmentChip, StrategyActions, WaveButton } from "../../ui/domain";
 import {
   Banner, Button, Card, Chip, Empty, ErrorState, Kpi, KV, Page, PageHeader, Spinner, StatusChip, Table, Tabs, Td, Th, Tr,
 } from "../../ui/ui";
 
-/** Plain-language reading of the learning trajectory. */
-function learningSummary(l: Learning): { tone: "good" | "info"; text: string } | null {
-  const last = l.waves[l.waves.length - 1];
-  if (!last || last.wave === 0 || !l.arms.length) return null;
-  const ranked = l.arms.map((a) => ({ a, p: last.posterior[a.code]?.p_best ?? 0 })).sort((x, y) => y.p - x.p);
-  const recent = l.waves.filter((w) => w.wave > 0).slice(-3);
-  const treated = recent.reduce((n, w) => n + w.treated, 0);
-  const share = treated ? recent.reduce((n, w) => n + (w.counts[ranked[0].a.code] ?? 0), 0) / treated : 0;
-  const waves = l.waves.length - 1;
-  const after = `After ${waves} wave${waves === 1 ? "" : "s"}`;
-  if (ranked[0].p >= 0.8) {
-    return { tone: "good", text: `${after}, ${ranked[0].a.name} is the best treatment for this audience with ${pct(ranked[0].p, 0)} probability, and it received ${pct(share, 0)} of treated customers in the last ${recent.length} waves.` };
-  }
-  const second = ranked[1] ? ` ${ranked[1].a.name} is still in contention (${pct(ranked[1].p, 0)}),` : "";
-  return { tone: "info", text: `${after} there is no clear winner yet. ${ranked[0].a.name} leads with a ${pct(ranked[0].p, 0)} probability of being best.${second} so the engine keeps exploring.` };
-}
-
 type Tab = "overview" | "experiment" | "learning" | "decisions" | "config";
+const TABS: Tab[] = ["overview", "experiment", "learning", "decisions", "config"];
 
 function FlowStep({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
@@ -48,13 +32,14 @@ export default function StrategyDetail() {
   const navigate = useNavigate();
   const { data, error, loading, reload } = useApi<SD>(`/strategies/${id}`, [id]);
   const decisions = useApi<{ rows: DecisionRow[]; total: number }>(`/decisions?campaign=${id}&page_size=25`, [id]);
-  const [tab, setTab] = useState<Tab>("overview");
+  const [params] = useSearchParams();
+  const [tab, setTab] = useState<Tab>(() => (TABS.find((t) => t === params.get("tab")) ?? "overview"));
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (loading || !data) return <Spinner label={`Loading ${id}`} />;
   const s = data.stats;
   const p = data.population;
   const hasData = s.treated > 0 && s.control > 0;
-  const story = learningSummary(data.learning);
+  const ls = data.learning_state;
   const final = data.learning.waves[data.learning.waves.length - 1];
 
   return (
@@ -196,12 +181,15 @@ export default function StrategyDetail() {
 
         {tab === "learning" && (
           <>
-          {story ? <Banner tone={story.tone} title="What Thompson sampling has learned">{story.text}</Banner> : (
+          {ls.state === "Not started" ? (
             <Banner tone="neutral" title="Nothing learned yet">
               {data.status === "Live"
                 ? "Run a wave. Each one is decided with everything learned before it, and its outcomes update the beliefs below."
                 : "Learning starts when the strategy is live and its first wave runs."}
             </Banner>
+          ) : (
+            <Banner tone={LEARNING_TONE[ls.state] === "good" ? "good" : LEARNING_TONE[ls.state] === "warn" ? "warn" : "info"}
+              title={`Thompson sampling: ${ls.state.toLowerCase()}`}>{ls.verdict}</Banner>
           )}
           <div className="grid gap-4 xl:grid-cols-2">
             <Card title="Belief in each treatment, wave by wave" subtitle="Line: estimated payment rate. Band: 95% interval. Bands narrow as outcomes come in.">

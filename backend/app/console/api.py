@@ -260,6 +260,9 @@ def strategy_detail(cid: str, user: User = Depends(require("view_kpi_dashboard")
     out["waves"] = [
         {"wave": w, **analytics.stats_from_rows(db, [(d, o) for d, o in rows if d.wave == w])}
         for w in sorted({d.wave for d, _ in rows})]
+    out["learning_state"] = analytics.learning_state(c, out["learning"], out["population"],
+                                                     {b["code"]: b for b in out["beliefs"]})
+    out["results_state"] = analytics.results_state(out["stats"])
     # Version history: the versions this one replaced, and any later version.
     names = _user_names(db)
     chain = [db.get(Campaign, x) for x in engine.lineage(db, c)]
@@ -269,6 +272,34 @@ def strategy_detail(cid: str, user: User = Depends(require("view_kpi_dashboard")
                         "launched_at": v.launched_at, "current": v.campaign_id == cid}
                        for v in sorted([x for x in chain if x] + later, key=lambda v: v.version)]
     return out
+
+
+@router.get("/analytics/strategies")
+def strategy_analytics(include_archived: bool = False, user: User = Depends(require("view_kpi_dashboard")),
+                       db: Session = Depends(get_db)):
+    """Every running strategy side by side: its result against its own control
+    group, and where Thompson sampling stands in it."""
+    statuses = ["Live", "Paused"] + (["Archived"] if include_archived else [])
+    order = {"Live": 0, "Paused": 1, "Archived": 2}
+    rows = []
+    for c in sorted(db.query(Campaign).filter(Campaign.status.in_(statuses)),
+                    key=lambda c: (order[c.status], c.campaign_id)):
+        stats = analytics.campaign_stats(db, c)
+        learning = engine.learning(db, c)
+        row = _strategy_out(db, c, stats=False)
+        row.update(stats=stats, learning=learning,
+                   learning_state=analytics.learning_state(c, learning, engine.population_breakdown(db, c),
+                                                           engine.beliefs(db, c)),
+                   results_state=analytics.results_state(stats))
+        rows.append(row)
+    learning_states = Counter(r["learning_state"]["state"] for r in rows)
+    result_states = Counter(r["results_state"]["state"] for r in rows)
+    return {"strategies": rows, "summary": {
+        "strategies": len(rows), "live": sum(r["status"] == "Live" for r in rows),
+        "proven": result_states.get("Proven", 0), "worse": result_states.get("Worse than control", 0),
+        "settled": learning_states.get("Settled", 0),
+        "still_learning": learning_states.get("Leaning", 0) + learning_states.get("Exploring", 0),
+        "recovered": round(sum(r["stats"]["recovered"] for r in rows), 2)}}
 
 
 @router.post("/strategies")

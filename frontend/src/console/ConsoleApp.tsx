@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import {
-  Bell, BookOpen, ChevronDown, ChevronsLeft, ChevronsRight, CircleHelp, ClipboardCheck, FileText, FlaskConical,
+  Bell, BookOpen, ChartColumnBig, ChevronDown, ChevronsLeft, ChevronsRight, CircleHelp, ClipboardCheck, FileText, FlaskConical,
   Gauge, GitCompare, HeartPulse, Layers, LayoutDashboard, Library, Lightbulb, ListChecks, Lock, LogOut, MessageSquare,
   Plug, Route as RouteIcon, ScrollText, Search, Send, ShieldCheck, SlidersHorizontal, Sparkles, UserCog, Users,
   Wrench, type LucideIcon,
@@ -39,6 +39,7 @@ import Journey from "./pages/shared/Journey";
 import Journeys from "./pages/shared/Journeys";
 import NudgeDetail from "./pages/shared/NudgeDetail";
 import Nudges from "./pages/shared/Nudges";
+import StrategyAnalytics from "./pages/shared/StrategyAnalytics";
 import StrategyDetail from "./pages/shared/StrategyDetail";
 import TreatmentsPage from "./pages/shared/Treatments";
 import SignIn from "./pages/SignIn";
@@ -57,6 +58,7 @@ const NAV: Record<Role, { section?: string; items: NavItem[] }[]> = {
       { to: "/dashboard", label: "My Dashboard", icon: LayoutDashboard },
       { to: "/builder", label: "Strategy Builder", icon: Wrench, perm: "create_strategy" },
       { to: "/strategies", label: "My Strategies", icon: BookOpen },
+      { to: "/analytics", label: "Strategy Analytics", icon: ChartColumnBig },
       { to: "/treatments", label: "Treatment Playbook", icon: Library },
     ] },
     { section: "Campaign", items: [
@@ -75,6 +77,7 @@ const NAV: Record<Role, { section?: string; items: NavItem[] }[]> = {
   leader: [
     { items: [
       { to: "/kpis", label: "KPI Dashboard", icon: LayoutDashboard },
+      { to: "/analytics", label: "Strategy Analytics", icon: ChartColumnBig },
       { to: "/portfolio", label: "Portfolio Health", icon: HeartPulse },
       { to: "/compare", label: "Strategy Compare", icon: GitCompare, perm: "compare_strategies" },
     ] },
@@ -113,6 +116,7 @@ const NAV: Record<Role, { section?: string; items: NavItem[] }[]> = {
   viewer: [
     { items: [
       { to: "/kpis", label: "KPI Dashboard", icon: LayoutDashboard },
+      { to: "/analytics", label: "Strategy Analytics", icon: ChartColumnBig },
       { to: "/portfolio", label: "Portfolio Health", icon: HeartPulse },
     ] },
   ],
@@ -381,6 +385,7 @@ const ROUTES: { path: string; el: ReactNode; perm?: string }[] = [
   { path: "/builder/:id", el: <StrategyBuilder />, perm: "edit_strategy" },
   { path: "/strategies", el: <MyStrategies /> },
   { path: "/strategies/:id", el: <StrategyDetail />, perm: "view_kpi_dashboard" },
+  { path: "/analytics", el: <StrategyAnalytics />, perm: "view_kpi_dashboard" },
   { path: "/campaigns", el: <LiveCampaigns /> },
   { path: "/review", el: <ReviewQueue />, perm: "override_decisions" },
   { path: "/activity", el: <Activity_ />, perm: "view_ai_decisions" },
@@ -413,6 +418,11 @@ const ROUTES: { path: string; el: ReactNode; perm?: string }[] = [
 
 function Shell() {
   const { me, signedOut } = useSession();
+  const { pathname } = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
+  // The content pane is its own scroll area, so the router cannot reset it:
+  // without this, a new page opens wherever the last one was scrolled to.
+  useEffect(() => { mainRef.current?.scrollTo(0, 0); }, [pathname]);
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem("ari.console.nav") === "collapsed"; } catch { return false; }
   });
@@ -428,7 +438,7 @@ function Shell() {
       <div className="flex min-h-0 flex-1">
         <Sidebar collapsed={collapsed} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <main className="min-w-0 flex-1 overflow-y-auto">
+          <main ref={mainRef} className="min-w-0 flex-1 overflow-y-auto">
             <Routes>
               <Route path="/" element={<Navigate to={HOME[me.user.role]} replace />} />
               {ROUTES.map((r) => <Route key={r.path} path={r.path} element={<RequirePerm perm={r.perm}>{r.el}</RequirePerm>} />)}

@@ -380,3 +380,90 @@ def journey(db: Session, customer_id: int) -> dict:
                     "status": state["status"] if state else "Not in a strategy"},
         "next_action": nxt,
     }
+
+
+# ---------------------------------------------------------------------------
+# Strategy analytics: where each strategy stands, in plain words
+# ---------------------------------------------------------------------------
+RECENT_WAVES = 3
+
+
+def _share(x: float | None) -> str:
+    return f"{x * 100:.0f}%" if x is not None else "n/a"
+
+
+def results_state(s: dict) -> dict:
+    """A strategy's result against its own control group, as a verdict."""
+    up = s["uplift"]
+    if up is None:
+        return {"state": "No results", "verdict": "No outcomes against a control group yet."}
+    if s["significant"] and up > 0:
+        return {"state": "Proven",
+                "verdict": f"Beats its control group by {up * 100:+.1f} pp, and the 95% range is above zero."}
+    if s["significant"]:
+        return {"state": "Worse than control",
+                "verdict": f"Its customers pay {abs(up) * 100:.1f} pp less than its control group. Review it."}
+    tail = (f" At this size it can only reliably detect a difference of {s['mde'] * 100:.1f} pp or more."
+            if s["underpowered"] and s["mde"] else "")
+    return {"state": "Not proven yet",
+            "verdict": f"{up * 100:+.1f} pp against its control group so far, but the 95% range still includes "
+                       f"zero.{tail}"}
+
+
+def learning_state(camp: Campaign, learning: dict, population: dict, beliefs: dict) -> dict:
+    """Where Thompson sampling stands in one strategy, in plain words.
+
+    'Best' is the chance a treatment has the highest payment rate on the
+    customers it has been tried on. A treatment can be best and still reach
+    few customers - only some may be eligible for it, or customer fit can send
+    people elsewhere - and the verdict says which."""
+    arms, waves = learning["arms"], learning["waves"]
+    last = waves[-1]
+    in_segment = sum(population["segments"].get(g, 0) for g in jl(camp.include_segments))
+    recent = [w for w in waves if w["wave"] > 0][-RECENT_WAVES:]
+    treated = sum(w["treated"] for w in recent)
+    per_arm = []
+    for a in arms:
+        post = last["posterior"][a["code"]]
+        per_arm.append({
+            "code": a["code"], "name": a["name"], "prior": a["prior"], "mean": post["mean"], "low": post["low"],
+            "high": post["high"], "p_best": post["p_best"],
+            "learned": beliefs.get(a["code"], {}).get("learned", 0),
+            "recent_share": sum(w["counts"].get(a["code"], 0) for w in recent) / treated if treated else None,
+            "eligible_share": population["arm_eligibility"].get(a["code"], 0) / in_segment if in_segment else None,
+        })
+    learned = sum(x["learned"] for x in per_arm)
+    ranked = sorted(per_arm, key=lambda x: -x["p_best"])
+    lead = ranked[0] if ranked else None
+    runner = ranked[1] if len(ranked) > 1 else None
+    if lead is None:
+        state, verdict = "No treatments", "This strategy has no treatments to choose among."
+    elif learned == 0:
+        state, verdict = "Not started", "Nothing learned yet: no outcomes from treated customers."
+    elif runner is None:
+        state, verdict = "Single treatment", f"Only {lead['name']} is in this strategy, so there is nothing to choose between."
+    else:
+        p, share, elig = lead["p_best"], lead["recent_share"], lead["eligible_share"]
+        # A clear favourite that reaches few customers needs a reason, or the
+        # numbers look contradictory: few are eligible, or fit sends them elsewhere.
+        reach = ""
+        if p >= 0.6 and share is not None and share < 0.5:
+            reach = (f" Only {_share(elig)} of this audience is eligible for {lead['name']}, so most customers get "
+                     f"another treatment." if elig is not None and elig < 0.6 else
+                     f" Customer fit sends many customers to other treatments: {lead['name']} got {_share(share)} "
+                     f"of recent customers.")
+        if p >= 0.8:
+            state = "Settled"
+            verdict = (f"Settled on {lead['name']}: {_share(p)} sure it is best"
+                       + (f", and it got {_share(share)} of recent customers." if share is not None and not reach
+                          else ".") + reach)
+        elif p >= 0.6:
+            state = "Leaning"
+            verdict = (f"Leaning towards {lead['name']} ({_share(p)} sure it is best), and still testing "
+                       f"{runner['name']} ({_share(runner['p_best'])})." + reach)
+        else:
+            state = "Exploring"
+            verdict = (f"No clear winner yet: {lead['name']} {_share(p)}, {runner['name']} "
+                       f"{_share(runner['p_best'])}. The engine keeps testing both.")
+    return {"state": state, "verdict": verdict, "lead": lead, "runner": runner, "arms": per_arm,
+            "learned": learned, "waves": len(waves) - 1, "recent_waves": len(recent)}

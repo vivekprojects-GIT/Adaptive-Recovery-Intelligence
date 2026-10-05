@@ -188,9 +188,30 @@ export interface WeekPoint {
   cost_per_recovery: number | null; contacts: number;
 }
 
+/** Where Thompson sampling stands in one treatment of a strategy. */
+export interface ArmState {
+  code: string; name: string; prior: string; mean: number; low: number; high: number; p_best: number;
+  learned: number; recent_share: number | null; eligible_share: number | null;
+}
+
+/** Where Thompson sampling stands in one strategy, with a plain-words verdict. */
+export interface LearningState {
+  state: "Settled" | "Leaning" | "Exploring" | "Not started" | "Single treatment" | "No treatments";
+  verdict: string; lead: ArmState | null; runner: ArmState | null; arms: ArmState[];
+  learned: number; waves: number; recent_waves: number;
+}
+
+/** A strategy's result against its own control group, as a verdict. */
+export interface ResultsState { state: "Proven" | "Worse than control" | "Not proven yet" | "No results"; verdict: string }
+
+export interface AnalyticsRow extends Strategy {
+  stats: Stats; learning: Learning; learning_state: LearningState; results_state: ResultsState;
+}
+
 export interface StrategyDetail extends Strategy {
   stats: Stats; population: Population; beliefs: Belief[]; weekly: WeekPoint[];
   arms: ArmResult[]; waves: ({ wave: number } & Stats)[]; learning: Learning;
+  learning_state: LearningState; results_state: ResultsState;
   pool_remaining: number | null;
   versions: { campaign_id: string; version: number; status: string; owner: string; created_at: string;
     launched_at: string | null; current: boolean }[];
