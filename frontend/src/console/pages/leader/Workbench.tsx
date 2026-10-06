@@ -20,7 +20,11 @@ export default function Workbench() {
   const [text, setText] = useState("");
   const { run, busy } = useAction();
   const endRef = useRef<HTMLDivElement>(null);
-  useEffect(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), [msgs]);
+  // Block body on purpose: newer browsers return a Promise from scrollIntoView, and an
+  // effect that returns anything but a cleanup function crashes React.
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [msgs]);
 
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (loading || !data) return <Spinner />;
