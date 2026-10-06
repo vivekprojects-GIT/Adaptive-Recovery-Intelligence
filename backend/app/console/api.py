@@ -112,8 +112,8 @@ def platform_status(user: User = Depends(current_user), db: Session = Depends(ge
         {"name": "Decision service", "status": "Operational" if m["error_rate"] < 0.01 else "Degraded",
          "detail": "Last decision", "at": db.query(func.max(Decision.decided_at))
             .filter(Decision.decided_at <= now()).scalar()},
-        {"name": "Customer channels", "status": "Simulated" if shadow else "Operational",
-         "detail": "Messages are simulated" if shadow else "Messages go to customers", "at": None},
+        {"name": "Customer channels", "status": "Simulated",
+         "detail": "No channel gateway is connected: sends are simulated", "at": None},
         {"name": "Collections handoff", "status": "Operational", "detail": "Last handoff",
          "at": db.query(func.max(Handoff.at)).scalar()},
         {"name": "Compliance monitor", "status": "Operational", "detail": "Last scan",
@@ -1033,21 +1033,27 @@ def decision_audit(did: str, user: User = Depends(require("view_ai_decisions")),
                     f"Treatment group (control share {camp.control_pct:.0%}).")},
     ]
     if d.group == "Treatment":
-        top = ranking[0] if ranking else {}
-        trace.append({"step": "Treatment selection", "agent": "Contextual Thompson sampling", "ok": True,
-                      "detail": d.explanation})
+        blocked = jl(d.blocked_arms)
+        allowed = [x for x in eligible if x not in {b["code"] for b in blocked}]
+        trace.append({"step": "Contact rules", "agent": "Consent, opt-out and contact caps", "ok": bool(allowed),
+                      "detail": ("; ".join(f"{b['name']} blocked: {b['reason']}" for b in blocked)
+                                 + f". {len(allowed)} of {len(eligible)} eligible treatments allowed."
+                                 if blocked else f"All {len(eligible)} eligible treatments allowed.")})
+        trace.append({"step": "Treatment selection", "agent": "Thompson sampling with customer fit",
+                      "ok": bool(d.treatment_code) or d.overridden, "detail": d.explanation})
         trace.append({"step": "Review policy", "agent": "Governance",
-                      "ok": d.review_status != "rejected",
+                      "ok": d.review_status not in ("rejected", "cancelled"),
                       "detail": ("Communication treatment - executes automatically."
                                  if d.review_policy == "auto" else
                                  f"Forbearance treatment - human review: {d.review_status}"
                                  + (f" by {_user_names(db).get(d.reviewed_by, d.reviewed_by)}"
-                                    if d.reviewed_by else ""))})
+                                    if d.reviewed_by else "")
+                                 + (f". {d.exclusion_reason}" if d.review_status == "cancelled" else ""))})
         if guard:
             trace.append({"step": "Compliance guard", "agent": "Contact policy", "ok": guard["ok"],
                           "detail": guard["detail"]})
         if first:
-            trace.append({"step": "Execution", "agent": "Channel gateway",
+            trace.append({"step": "Execution", "agent": "Channel (simulated - no gateway connected)",
                           "ok": first.status not in ("Failed", "Held"),
                           "detail": f"{first.nudge_id} via {first.channel}: {first.status}"
                                     + (f" ({first.failure_reason})" if first.failure_reason else "")})
@@ -1064,6 +1070,7 @@ def decision_audit(did: str, user: User = Depends(require("view_ai_decisions")),
         "decision": _decision_row(d, o, _user_names(db), {camp.campaign_id: camp.name}, t,
                                   {c.customer_id: c.name}),
         "explanation": d.explanation, "exclusion_reason": d.exclusion_reason,
+        "blocked_arms": jl(d.blocked_arms),
         "override_reason": d.override_reason, "original_treatment": d.original_treatment,
         "snapshot": snap, "ranking": ranking, "trace": trace,
         "factors": expl["contributions"], "self_cure": expl["self_cure_score"],
@@ -1093,9 +1100,15 @@ def review_decision(did: str, body: ReviewDecisionIn, user: User = Depends(requi
         raise HTTPException(400, "Give a reason for rejecting the offer.")
     with engine.ENGINE_LOCK:
         out = engine.approve_and_execute(db, d, user.user_id, body.approve)
+    if out.get("cancelled"):
+        summary = f"Cancelled {did} ({d.treatment_code}) at approval: {out['cancelled']}"
+    elif body.approve:
+        summary = f"Approved {did} ({d.treatment_code})" + (
+            f" - held at send time: {out['note']}" if out.get("status") == "Held" else "")
+    else:
+        summary = f"Rejected {did} ({d.treatment_code})"
     audit(db, user.user_id, "APPROVE" if body.approve else "UPDATE", "decision", did,
-          f"{'Approved' if body.approve else 'Rejected'} {did} ({d.treatment_code})"
-          + (f": {body.note}" if body.note else ""))
+          summary + (f": {body.note}" if body.note else ""))
     db.commit()
     return out
 
@@ -1199,8 +1212,9 @@ def activity(limit: int = 60, user: User = Depends(require("view_ai_decisions"))
     items = []
     for d in db.query(Decision).filter(Decision.decided_at <= now()).order_by(Decision.decided_at.desc()).limit(limit):
         items.append({"at": d.decided_at, "kind": "decision", "id": d.decision_id, "campaign_id": d.campaign_id,
-                      "title": (f"{t[d.treatment_code].name} chosen for {cust.get(d.customer_id)}"
-                                if d.group == "Treatment" else f"{cust.get(d.customer_id)} held out as control")
+                      "title": (f"{cust.get(d.customer_id)} held out as control" if d.group == "Control" else
+                                f"{t[d.treatment_code].name} chosen for {cust.get(d.customer_id)}"
+                                if d.treatment_code in t else f"No treatment allowed for {cust.get(d.customer_id)}")
                                + (" · asked by Nova" if d.origin == "mcp" else ""),
                       "detail": d.explanation[:140], "status": d.review_status if d.review_policy != "auto" else d.group})
     for n in db.query(Nudge).filter(Nudge.sent_at.isnot(None), Nudge.sent_at <= now()).order_by(Nudge.sent_at.desc()).limit(limit):
@@ -1728,6 +1742,9 @@ def put_config(body: ConfigIn, user: User = Depends(require("configure_platform"
                 raise ValueError
         except ValueError:
             raise HTTPException(400, f"Invalid value for {k}: {v}")
+        if k == "shadow_mode" and v != "true":
+            raise HTTPException(409, "Shadow mode stays on: no channel gateway is connected, so ARI can only "
+                                     "simulate sends. It can be turned off once a real gateway is integrated.")
         row = db.get(PlatformConfig, k)
         if row and row.value != v:
             changed.append(f"{k}: {row.value} -> {v}")
@@ -1773,8 +1790,8 @@ def integrations(user: User = Depends(require("manage_integrations")), db: Sessi
             continue  # no treatment in the playbook uses this channel
         total = sent.get(ch, 0) + failed.get(ch, 0)
         channels.append({"id": ch, "name": name, "kind": "Outbound channel",
-                         "status": "Simulated" if shadow else "Connected",
-                         "mode": "Shadow mode - not contacting customers" if shadow else "Live",
+                         "status": "Simulated",
+                         "mode": "No gateway connected - sends are simulated",
                          "detail": f"{sent.get(ch, 0)} sent · {failed.get(ch, 0)} failed"
                                    + (f" ({failed.get(ch, 0) / total:.1%})" if total else ""),
                          "last_sync": last_nudge})

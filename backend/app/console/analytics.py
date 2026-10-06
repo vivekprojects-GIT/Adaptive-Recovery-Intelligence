@@ -271,6 +271,10 @@ def customer_state(db: Session, customer_ids: list[int] | None = None) -> dict[i
             status, progress = ("Resolved", 100) if o and o.paid else ("Holdout", 0)
         elif d.overridden and not d.treatment_code:
             status, progress = "Held by override", 0
+        elif not d.treatment_code:
+            status, progress = "Suppressed", 0  # every eligible treatment blocked by the contact rules
+        elif d.review_status == "cancelled":
+            status, progress = "Cancelled", 0
         elif d.review_status == "pending":
             status, progress = "Pending review", 5
         elif o is None:

@@ -29,9 +29,9 @@ from sqlalchemy.orm import Session
 from .. import models
 from ..scoring import SEGMENT_ACTION, nudge_score, self_cure_score, segment_for
 from . import analytics, engine
-from .engine import UNNAMED, arrears, iso, jl
+from .engine import UNNAMED, iso, jl
 from .models import Campaign, Decision, ExternalCustomer, Nudge, Outcome, TreatmentMeta
-from .platform import cfg, now
+from .platform import audit, cfg, now
 from .playbook import human_review_codes
 
 UTC = timezone.utc
@@ -101,7 +101,7 @@ class PaymentReport(BaseModel):
     decision_id: str | None = Field(None, description="The decision_id ARI returned. Preferred.")
     account_id: str | None = Field(None, description="Or the account: its latest decision is used.")
     paid: bool = Field(description="Did the customer pay?")
-    amount: float | None = Field(None, ge=0, description="Amount paid. Defaults to the arrears ARI computed.")
+    amount: float | None = Field(None, ge=0, description="Amount paid. Defaults to the amount_past_due Nova sent with the account.")
     payment_date: date | None = Field(None, description="When it was paid. Decides whether it fell in the window.")
     payment_status: Literal["Posted", "Reversed"] = Field(
         "Posted", description="A reversed payment counts as not paid - a reversal we never hear about would "
@@ -266,14 +266,20 @@ def describe(db: Session, dec: Decision, c, camp: Campaign, account_id: str, *, 
     nudge = None if preview else (db.query(Nudge).filter(Nudge.decision_id == dec.decision_id)
                                   .order_by(Nudge.scheduled_at).first())
     outcome = None if preview else db.query(Outcome).filter(Outcome.decision_id == dec.decision_id).first()
-    shadow = cfg(db, "shadow_mode") == "true"
     window = camp.evaluation_days
     p = dec.selection_probability or 0.0
+    blocked = jl(dec.blocked_arms)
+    # Treated, but every eligible treatment was blocked by the contact rules
+    # before sampling (an override to "no treatment" is a different thing).
+    none_allowed = dec.group == "Treatment" and not dec.treatment_code and not dec.overridden
 
     if preview and dec.group == "Control":
         action = "control_bau"
         summary = ("Preview: this account would be held out as control and stay on business as usual. "
                    "Nothing was recorded.")
+    elif preview and none_allowed:
+        action = "would_be_blocked"
+        summary = f"Preview: {dec.explanation} Nothing was recorded."
     elif preview:
         needs_person = dec.review_policy == "human_review"
         action = "would_need_approval" if needs_person else "would_contact"
@@ -284,38 +290,49 @@ def describe(db: Session, dec: Decision, c, camp: Campaign, account_id: str, *, 
         action = "control_bau"
         summary = ("Randomised control: keep this account on the bank's business-as-usual process. Its outcome "
                    "is the comparison every treated result is measured against, so please still report it.")
+    elif none_allowed:
+        action = "contact_blocked"
+        summary = dec.explanation
+    elif dec.review_status == "cancelled":
+        action = "cancelled"
+        summary = f"{t['name']} was proposed, then withdrawn before anything was sent. {dec.exclusion_reason}"
     elif dec.review_status == "pending":
         action = "awaiting_approval"
         summary = (f"{t['name']} via {t['channel']}, chosen by Thompson sampling ({p:.0%} of the time for "
                    f"accounts like this). It changes what the customer owes, so a person approves it in the "
-                   f"ARI Review Queue before anything is sent.")
+                   f"ARI Review Queue before anything is sent. Consent and contact limits are checked again "
+                   f"against Nova's newest data when it is approved.")
     elif dec.review_status == "rejected":
         action = "rejected"
         summary = f"{t['name']} was proposed, and a reviewer declined it. Nothing was sent."
     elif nudge is not None and nudge.status == "Held":
         action = "contact_blocked"
-        summary = f"{t['name']} was chosen, but the contact guard held it: {nudge.failure_reason}."
+        summary = f"{t['name']} was chosen, but the send-time contact check held it: {nudge.failure_reason}."
+    elif nudge is not None and nudge.status == "Failed":
+        action = "contact_failed"
+        summary = (f"{t['name']} via {t['channel']} was chosen, but the simulated send failed "
+                   f"({nudge.failure_reason}). No channel gateway is connected; nobody was contacted.")
     else:
         action = "contact"
         summary = (f"{t['name']} via {t['channel']}, chosen by Thompson sampling ({p:.0%} of the time for "
-                   f"accounts like this)."
-                   + (" Shadow mode: the send is simulated and nobody is contacted." if shadow else ""))
+                   f"accounts like this). Simulated send: no channel gateway is connected, so nobody is contacted.")
 
     message = None
     if t:
         message = nudge.content if nudge else engine.render(dec.treatment_code, camp.tone, c,
-                                                            db.get(models.Strategy, dec.treatment_code))
+                                                            db.get(models.Strategy, dec.treatment_code),
+                                                            due=engine.message_amount(dec, c))
     contact = None
     if nudge is not None:
         stages = jl(nudge.pipeline)
         guard_stage = next((s for s in stages if s["stage"] == "Compliance check"), None)
         contact = {"nudge_id": nudge.nudge_id, "channel": nudge.channel, "send_at": nudge.scheduled_at,
                    "status": nudge.status, "guard": guard_stage["detail"] if guard_stage else None,
-                   "simulated": shadow}
+                   "simulated": True}
 
     if preview:
         next_step = "Call get_recovery_strategy with the same account to record the decision and act on it."
-    elif action in ("contact", "contact_blocked", "control_bau", "awaiting_approval"):
+    elif action in ("contact", "contact_blocked", "contact_failed", "control_bau", "awaiting_approval"):
         next_step = (("Check get_decision for the approval, then report " if action == "awaiting_approval"
                       else "Report ")
                      + f"the payment outcome after the {window}-day window: "
@@ -337,6 +354,9 @@ def describe(db: Session, dec: Decision, c, camp: Campaign, account_id: str, *, 
         "alternatives": [{"code": r["code"], "name": r["name"], "selection_probability": r.get("selection_probability"),
                           "belief": r["belief"], "customer_fit": r["fit"], "fit_reasons": r.get("fit_reasons", [])}
                          for r in jl(dec.ranking)],
+        # Eligible, but blocked by the contact rules before Thompson sampling: never sampled.
+        "blocked_treatments": [{"code": b["code"], "name": b["name"], "reason_code": b["reason_code"],
+                                "reason": b["reason"]} for b in blocked],
         "explanation": dec.explanation,
         "message": message,
         "contact": contact,
@@ -383,11 +403,26 @@ def recovery_strategy(db: Session, rec: NovaAccount, *, record: bool = True) -> 
         c, assumed = _transient(db, rec)
 
     if rec.vulnerability_flag:
+        cancelled = []
         if record:
+            # An offer still waiting for review must not go out to a customer
+            # who is now flagged as vulnerable.
+            reason = (f"Nova reported a vulnerability flag on {now()[:10]}, after this offer was proposed. No "
+                      f"automated treatment: refer the customer to a trained specialist.")
+            for dec in db.query(Decision).filter(Decision.customer_id == c.customer_id,
+                                                 Decision.review_status == "pending"):
+                engine.cancel_pending(dec, reason, ACTOR)
+                audit(db, ACTOR, "UPDATE", "decision", dec.decision_id,
+                      f"Cancelled {dec.decision_id} ({dec.treatment_code}) before review: vulnerability flag")
+                cancelled.append(dec.decision_id)
             db.commit()
-        return _no_action(rec.account_id, c, "Vulnerability flag on file: no automated treatment. Refer the "
-                                             "customer to a trained specialist.", assumed=assumed,
-                          action="refer_to_specialist")
+        out = _no_action(rec.account_id, c, "Vulnerability flag on file: no automated treatment. Refer the "
+                                            "customer to a trained specialist."
+                         + (f" Cancelled the offer still waiting for review ({', '.join(cancelled)})."
+                            if cancelled else ""), assumed=assumed, action="refer_to_specialist")
+        if cancelled:
+            out["cancelled_decisions"] = cancelled
+        return out
 
     if record:
         ongoing = _in_journey(db, c.customer_id)
@@ -409,7 +444,10 @@ def recovery_strategy(db: Session, rec: NovaAccount, *, record: bool = True) -> 
                                              f"{handling[0].lower() + handling[1:] if handling else 'business as usual'}.",
                           checked=checked, assumed=assumed)
 
+    # Frozen with the decision. "arrears" is Nova's amount_past_due, never an
+    # estimate: a message quotes it, or names no figure when Nova sent none.
     extra = {"source": "Nova (MCP)", "account_id": rec.account_id,
+             "amount_past_due": rec.amount_past_due, "arrears": rec.amount_past_due,
              "reported_contacts_7d": rec.contacts_last_7d or 0,
              "no_consent": [k for k, v in (rec.consent.model_dump() if rec.consent else {}).items() if v is False]}
     if not record:
@@ -452,6 +490,15 @@ def get_decision(db: Session, decision_id: str | None = None, account_id: str | 
     return describe(db, dec, c, db.get(Campaign, dec.campaign_id), _account_of(db, dec), existing=True)
 
 
+def _not_sent(dec: Decision, first) -> str:
+    if not dec.treatment_code:
+        return "every eligible treatment was blocked by the contact rules"
+    if dec.review_status in ("pending", "cancelled", "rejected"):
+        return {"pending": "still awaiting approval", "cancelled": "the offer was cancelled before review",
+                "rejected": "a reviewer declined the offer"}[dec.review_status]
+    return first.status.lower() if first else "not sent"
+
+
 def report_outcome(db: Session, rep: PaymentReport) -> dict:
     """Record a payment outcome and learn from it where the rules allow."""
     dec = _decision_for(db, rep.decision_id, rep.account_id)
@@ -459,7 +506,6 @@ def report_outcome(db: Session, rep: PaymentReport) -> dict:
         raise NovaError(f"{dec.decision_id} was decided in a console wave; its outcome comes from the simulator, "
                         f"not from a report.")
     camp = db.get(Campaign, dec.campaign_id)
-    c = db.get(models.Customer, dec.customer_id)
     decided = datetime.fromisoformat(dec.decided_at)
     paid = rep.paid and rep.payment_status == "Posted"
     days = None
@@ -484,7 +530,10 @@ def report_outcome(db: Session, rep: PaymentReport) -> dict:
         o = Outcome(decision_id=dec.decision_id, campaign_id=dec.campaign_id, customer_id=dec.customer_id)
         db.add(o)
     o.paid = paid
-    o.amount = round(rep.amount if rep.amount is not None else (arrears(c) if paid else 0.0), 2) if paid else 0.0
+    # No amount reported: fall back to the amount past due Nova sent with the
+    # account - never to an estimate. 0 when Nova sent neither.
+    sent_due = jl(dec.snapshot, {}).get("amount_past_due")
+    o.amount = round(rep.amount if rep.amount is not None else (sent_due or 0.0), 2) if paid else 0.0
     o.days_to_pay = days if paid else None
     o.escalated = False
     o.window_days = camp.evaluation_days
@@ -502,7 +551,7 @@ def report_outcome(db: Session, rep: PaymentReport) -> dict:
         note = "Recorded, not learned from: a person overrode this decision."
     elif not delivered:
         note = ("Recorded, not learned from: the treatment never reached the customer "
-                f"({'awaiting approval' if dec.review_status == 'pending' else (first.status.lower() if first else 'not sent')}).")
+                f"({_not_sent(dec, first)}).")
     elif not learnable:
         note = "Recorded, not learned from: the offer was not approved."
     else:

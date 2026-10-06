@@ -122,7 +122,7 @@ async def main(port: int) -> None:
                   f"30 DPD, can be helped -> the most specific strategy, {priya['strategy']['strategy_id']} "
                   f"{priya['strategy']['name']}")
             check(priya["customer"]["intervention_fit"] == "Likely responsive", "fit group: Likely responsive")
-            check(priya["action"] in ("awaiting_approval", "contact", "contact_blocked", "control_bau"),
+            check(priya["action"] in ("awaiting_approval", "contact", "contact_failed", "contact_blocked", "control_bau"),
                   f"action {priya['action']}: {priya['summary'][:90]}")
             again = result(await s.call_tool("get_recovery_strategy", {"account": PRIYA}))
             check(again["existing"] and again["decision_id"] == priya["decision_id"],
@@ -149,7 +149,27 @@ async def main(port: int) -> None:
             check(len(minimal.get("assumed", [])) >= 5,
                   f"only the 3 required fields: decided, with {len(minimal.get('assumed', []))} stated assumptions")
 
-            print("\n3. Contact rules travel with the decision")
+            print("\n3. Contact rules decide what may be chosen, before Thompson sampling")
+            # C1 app users who withdrew SMS consent: the SMS reminder and the app push are both
+            # eligible. The SMS arm must never be sampled; every treated account gets the push.
+            sms_drawn, treated, sample = 0, 0, None
+            for i in range(20):
+                acc = {"account_id": f"NOVA-APP-{i}", "days_past_due": 12, "current_balance": 1200,
+                       "credit_limit": 2000, "opened_date": "2015-01-01", "prior_delinquencies_12m": 0,
+                       "on_time_payment_ratio": 0.95, "app_user": True, "sms_responsive": True,
+                       "hardship_flag": True, "consent": {"sms": False}}
+                r = result(await s.call_tool("get_recovery_strategy", {"account": acc}))
+                if r["group"] != "Treatment":
+                    continue
+                treated += 1
+                sample = sample or r
+                considered = {x["code"] for x in r["alternatives"]}
+                if "S1" in considered or r["action"] == "contact_blocked":
+                    sms_drawn += 1
+            check(treated > 0 and sms_drawn == 0 and sample["treatment"]["code"] == "S2"
+                  and sample["blocked_treatments"][0]["reason_code"] == "NO_SMS_CONSENT",
+                  f"no SMS consent, app user: {treated} treated, SMS never sampled, all got "
+                  f"{sample and sample['treatment']['name']} ({sample and sample['blocked_treatments'][0]['reason']})")
             blocked = None
             for i in range(12):  # C1, no app: only the SMS reminder is eligible; skip control draws
                 acc = {"account_id": f"NOVA-SMS-{i}", "days_past_due": 12, "current_balance": 1200,
@@ -160,25 +180,47 @@ async def main(port: int) -> None:
                 if r["group"] == "Treatment":
                     blocked = r
                     break
-            check(blocked is not None and blocked["action"] == "contact_blocked"
-                  and "consent" in (blocked["contact"] or {}).get("guard", ""),
-                  f"no SMS consent -> {blocked and blocked['action']}: {blocked and (blocked['contact'] or {}).get('guard')}")
+            check(blocked is not None and blocked["action"] == "contact_blocked" and blocked["treatment"] is None
+                  and blocked["selection_probability"] is None and blocked["contact"] is None,
+                  f"no allowed treatment -> {blocked and blocked['action']}, no draw, nothing sent: "
+                  f"{blocked and blocked['summary'][:80]}")
             capped = None
             for i in range(12):
                 acc = {**PRIYA, "account_id": f"NOVA-CAP-{i}", "contacts_last_7d": 7, "consent": None}
                 r = result(await s.call_tool("get_recovery_strategy", {"account": acc}))
-                if r["group"] == "Treatment" and r["action"] != "awaiting_approval":
+                if r["group"] == "Treatment":
                     capped = r
                     break
             check(capped is not None and capped["action"] == "contact_blocked"
-                  and "cap" in (capped["contact"] or {}).get("guard", "").lower(),
-                  f"7 contacts already made elsewhere -> {capped and (capped['contact'] or {}).get('guard')}")
+                  and {b["reason_code"] for b in capped["blocked_treatments"]} == {"CONTACT_CAP"},
+                  f"7 contacts already made elsewhere -> {capped and capped['blocked_treatments'][0]['reason']}")
+
+            print("\n3b. Messages quote only what Nova sent")
+            quoted = unquoted = None
+            for i in range(30):
+                base = {**PRIYA, "consent": None, "contacts_last_7d": 0, "hardship_flag": False}
+                if quoted is None:
+                    r = result(await s.call_tool("get_recovery_strategy", {"account": {
+                        **base, "account_id": f"NOVA-AMT-{i}", "amount_past_due": 620}}))
+                    quoted = r if r.get("message") else None
+                if unquoted is None:
+                    r = result(await s.call_tool("get_recovery_strategy", {"account": {
+                        **base, "account_id": f"NOVA-NOAMT-{i}"}}))
+                    unquoted = r if r.get("message") else None
+                if quoted and unquoted:
+                    break
+            check(quoted is not None and "$620" in quoted["message"] and "card ending" not in quoted["message"],
+                  f"amount_past_due 620 is quoted, no card number: {quoted and quoted['message'][:90]}")
+            check(unquoted is not None and "$" not in unquoted["message"],
+                  f"no amount sent -> the message names no figure: {unquoted and unquoted['message'][:90]}")
 
             print("\n4. Outcomes teach the model")
             contacted = None
             for i in range(30):
-                acc = {**PRIYA, "account_id": f"NOVA-LEARN-{i}", "consent": None, "contacts_last_7d": 0,
-                       "hardship_flag": False}
+                # C1, low balance: a strategy whose treatments (SMS reminder, app push) send without review.
+                acc = {"account_id": f"NOVA-LEARN-{i}", "days_past_due": 12, "current_balance": 1200,
+                       "credit_limit": 2000, "opened_date": "2015-01-01", "prior_delinquencies_12m": 0,
+                       "on_time_payment_ratio": 0.95, "app_user": True, "sms_responsive": True, "hardship_flag": True}
                 r = result(await s.call_tool("get_recovery_strategy", {"account": acc}))
                 if r["action"] == "contact":
                     contacted = r
@@ -235,6 +277,40 @@ async def main(port: int) -> None:
                                                {"decision_id": pending["decision_id"], "paid": True}))
                 check(rep["learned"], f"approved and delivered -> learned ({rep['note'][:70]}...)")
 
+            print("\n5b. Approval re-checks Nova's newest data")
+            pend = []
+            for i in range(40):
+                r = result(await s.call_tool("get_recovery_strategy", {"account": {
+                    **PRIYA, "account_id": f"NOVA-RECHECK-{i}", "contacts_last_7d": 0,
+                    "consent": {"sms": True, "email": True, "call": True}}}))
+                if r["action"] == "awaiting_approval":
+                    pend.append(r)
+                    if len(pend) == 2:
+                        break
+            check(len(pend) == 2, f"two offers waiting for review: {', '.join(p['decision_id'] for p in pend)}")
+            if len(pend) == 2:
+                a, b = pend
+                again = result(await s.call_tool("get_recovery_strategy", {"account": {
+                    **PRIYA, "account_id": a["customer"]["account_id"],
+                    "consent": {"sms": False, "email": False, "call": False}}}))
+                check(again["existing"] and again["action"] == "awaiting_approval",
+                      "consent withdrawn while waiting: the offer is still awaiting approval")
+                async with httpx.AsyncClient() as h:
+                    rv = (await h.post(f"http://127.0.0.1:{port}/console/decisions/{a['decision_id']}/review",
+                                       json={"approve": True, "note": ""}, headers={"X-User-Id": "u-maya"})).json()
+                check(rv["status"] == "Held" and "consent" in (rv.get("note") or "").lower(),
+                      f"approved afterwards -> held by the send-time check: {rv.get('note')}")
+                v = result(await s.call_tool("get_recovery_strategy", {"account": {
+                    **PRIYA, "account_id": b["customer"]["account_id"], "vulnerability_flag": True}}))
+                check(v["action"] == "refer_to_specialist" and v.get("cancelled_decisions") == [b["decision_id"]],
+                      f"vulnerability flag arrives -> referred, and {b['decision_id']} is cancelled")
+                async with httpx.AsyncClient() as h:
+                    rv = await h.post(f"http://127.0.0.1:{port}/console/decisions/{b['decision_id']}/review",
+                                      json={"approve": True, "note": ""}, headers={"X-User-Id": "u-maya"})
+                check(rv.status_code == 409, "the cancelled offer can no longer be approved (409)")
+                got = result(await s.call_tool("get_decision", {"decision_id": b["decision_id"]}))
+                check(got["action"] == "cancelled", f"get_decision reports it: {got['action']}")
+
             print("\n6. Batch and reference data")
             batch = result(await s.call_tool("get_recovery_strategies", {"accounts": [
                 {"account_id": f"NOVA-BATCH-{i}", "days_past_due": d, "current_balance": b}
@@ -263,6 +339,13 @@ async def main(port: int) -> None:
         new = await h.post(f"http://127.0.0.1:{port}/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
                            headers={"Accept": "application/json, text/event-stream", "Authorization": f"Bearer {rot}"})
         check(old.status_code == 401 and new.status_code == 200, "rotating the token cuts the old one off at once")
+        r = await h.put(f"http://127.0.0.1:{port}/console/admin/config", json={"values": {"shadow_mode": "false"}},
+                        headers={"X-User-Id": "u-priya"})
+        check(r.status_code == 409, "shadow mode cannot be switched off: no channel gateway is connected (409)")
+        r = await h.post(f"http://127.0.0.1:{port}/admin/reseed")
+        check(r.status_code == 401, "wiping the data without a signed-in user is refused (401)")
+        r = await h.post(f"http://127.0.0.1:{port}/admin/reseed", headers={"X-User-Id": "u-maya"})
+        check(r.status_code == 403, "a strategist cannot wipe the data (403)")
 
 
 if __name__ == "__main__":

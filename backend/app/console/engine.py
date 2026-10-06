@@ -1,5 +1,7 @@
-"""Campaign engine: target population -> control split -> Thompson sampling ->
-compliance guard -> execution -> engagement -> outcome -> learning.
+"""Campaign engine: target population -> eligibility -> control split ->
+contact rules -> Thompson sampling among the treatments still allowed ->
+execution (simulated, with the contact rules checked again at send time) ->
+engagement -> outcome -> learning.
 
 Everything is written to the decision log, so the journey, nudge, decision
 audit and every dashboard read the same records. Nothing on screen is
@@ -25,7 +27,7 @@ from .. import models
 from ..experiments import snapshot, true_pay_probability
 from ..scoring import eligibility, fit_multiplier, fit_reasons, thompson_rank
 from .models import (
-    Campaign, ContactRecord, Decision, EngagementEvent, Nudge, Outcome,
+    Campaign, ContactRecord, Decision, EngagementEvent, ExternalCustomer, Nudge, Outcome,
 )
 from .platform import cfg
 from .playbook import human_review_codes
@@ -272,15 +274,17 @@ def selection_probabilities(arms: list[dict], customer, rng: np.random.Generator
 # ---------------------------------------------------------------------------
 # Content
 # ---------------------------------------------------------------------------
+# Messages quote only figures the bank supplied. No card number is ever
+# written: ARI is not given one, and it must not make one up.
 TEMPLATES = {
-    ("S1", "Supportive"): "Hi {first}, a quick reminder that ${due} is due on your card ending {last4}. "
+    ("S1", "Supportive"): "Hi {first}, a quick reminder that ${due} is past due on your account. "
                           "You can pay in seconds here: {link}. Reply STOP to opt out.",
-    ("S1", "Neutral"): "{first}, your card ending {last4} has ${due} past due. Pay now: {link}. "
+    ("S1", "Neutral"): "{first}, your account has ${due} past due. Pay now: {link}. "
                        "Reply STOP to opt out.",
-    ("S1", "Direct"): "{first}, ${due} on your card ending {last4} is now {dpd} days overdue. "
+    ("S1", "Direct"): "{first}, ${due} on your account is now {dpd} days overdue. "
                       "Please pay today: {link}. Reply STOP to opt out.",
     ("S2", None): "Your ${due} payment is ready - tap to settle it in one step.",
-    ("S3", None): "Hi {first}, we can split the ${due} on your card ending {last4} into 3 payments of "
+    ("S3", None): "Hi {first}, we can split the ${due} past due on your account into 3 payments of "
                   "${inst}, with no fee. Review the plan: {link}. Reply STOP to opt out.",
     ("S4", None): "Hi {first}, we can move your payment date by 30 days at no cost. "
                   "See the details: {link}. Reply STOP to opt out.",
@@ -289,51 +293,82 @@ TEMPLATES = {
     ("S6", None): "Referral to the specialist team for an affordability review.",
 }
 
+# The same messages when the past-due amount is not known.
+TEMPLATES_NO_AMOUNT = {
+    ("S1", "Supportive"): "Hi {first}, a quick reminder that a payment on your account is past due. "
+                          "You can pay in seconds here: {link}. Reply STOP to opt out.",
+    ("S1", "Neutral"): "{first}, your account has a past-due payment. Pay now: {link}. Reply STOP to opt out.",
+    ("S1", "Direct"): "{first}, your account is now {dpd} days overdue. Please pay today: {link}. "
+                      "Reply STOP to opt out.",
+    ("S2", None): "Your past-due payment is ready - tap to settle it in one step.",
+    ("S3", None): "Hi {first}, we can split your past-due amount into 3 payments, with no fee. "
+                  "Review the plan: {link}. Reply STOP to opt out.",
+    ("S5", None): "Call script: confirm identity, explain the past-due amount, agree an affordable "
+                  "date, record the promise to pay. No pressure language.",
+}
 
-def _offer_template(st) -> str:
+
+def _offer_template(st, with_amount: bool) -> str:
     """Message for a treatment added in the console: its own offer text, in its
     channel's format. Pre-approved wording around it; braces escaped so offer
     text cannot inject template fields."""
     offer = (st.offer if st else "Please review your account.").strip().rstrip(".") + "."
     offer = offer.replace("{", "{{").replace("}", "}}")
     channel = st.channel if st else "SMS"
+    past_due = "the ${due} past due" if with_amount else "the past-due amount"
     if channel == "Outbound call":
-        return ("Call script: confirm identity, explain the ${due} past due, then offer: " + offer
+        return ("Call script: confirm identity, explain " + past_due + ", then offer: " + offer
                 + " Record the outcome. No pressure language.")
     if channel == "Specialist team":
         return "Referral to the specialist team. Offer: " + offer
     if channel == "Letter":
-        return ("Dear {first}, your card ending {last4} has ${due} past due. " + offer
-                + " Call us or visit {link} to respond.")
+        return ("Dear {first}, your account has " + ("${due} past due. " if with_amount else "a past-due payment. ")
+                + offer + " Call us or visit {link} to respond.")
     if channel == "Email":
-        return ("Hi {first}, about the ${due} past due on your card ending {last4}: " + offer
-                + " Details: {link}. Unsubscribe at any time.")
+        return "Hi {first}, about " + past_due + " on your account: " + offer + " Details: {link}. Unsubscribe at any time."
     if channel == "App push":
         return offer + " Tap to review."
-    return ("Hi {first}, about the ${due} past due on your card ending {last4}: " + offer
-            + " Details: {link}. Reply STOP to opt out.")
+    return "Hi {first}, about " + past_due + " on your account: " + offer + " Details: {link}. Reply STOP to opt out."
 
 
-def render(code: str, tone: str, c, st=None) -> str:
-    tpl = TEMPLATES.get((code, tone)) or TEMPLATES.get((code, None)) or _offer_template(st)
-    due = arrears(c)
+def message_amount(dec: Decision | None, c) -> float | None:
+    """The past-due amount a message may quote. For an account Nova sent,
+    only Nova's own amount_past_due - None when it did not send one, and the
+    message then names no figure. Console customers are synthetic, and quote
+    their generated arrears."""
+    snap = jl(dec.snapshot, {}) if dec is not None else {}
+    if (dec is not None and dec.origin == "mcp") or "amount_past_due" in snap:
+        v = snap.get("amount_past_due")
+        return float(v) if v is not None else None
+    return arrears(c)
+
+
+def render(code: str, tone: str, c, st=None, *, due: float | None) -> str:
+    table = TEMPLATES if due is not None else {**TEMPLATES, **TEMPLATES_NO_AMOUNT}
+    tpl = table.get((code, tone)) or table.get((code, None)) or _offer_template(st, due is not None)
     cid = c.customer_id or 0  # a previewed account has no ARI id yet
-    return tpl.format(first=first_name(c), due=f"{due:,.0f}", last4=f"{4000 + cid % 6000:04d}",
+    return tpl.format(first=first_name(c), due=f"{due:,.0f}" if due is not None else "",
                       link="ari.bank/p/" + hashlib.md5(str(cid).encode()).hexdigest()[:6],
-                      dpd=c.days_past_due, inst=f"{due / 3:,.0f}")
+                      dpd=c.days_past_due, inst=f"{due / 3:,.0f}" if due is not None else "")
 
 
 # ---------------------------------------------------------------------------
-# Compliance guard (prevention). Detection of what slipped through lives in
+# Contact rules (prevention). They run twice: before Thompson sampling, to
+# decide which treatments may be chosen at all, and again at send time,
+# because contacts can change between the decision and the send (an offer
+# approved a day later, say). Detection of what slipped through lives in
 # compliance.py and runs over the full contact history, ARI and BAU together.
 # ---------------------------------------------------------------------------
-def guard(db: Session, customer_id: int, channel: str, at: datetime,
-          reported_7d: int = 0, no_consent: tuple | list = ()) -> tuple[bool, str]:
-    """reported_7d: contacts in the last 7 days that ARI did not make but the
+def contact_rules(db: Session, customer_id: int | None, channel: str, at: datetime,
+                  reported_7d: int = 0, no_consent: tuple | list = ()) -> tuple[str | None, str]:
+    """(reason code, or None if the contact is allowed; note).
+
+    reported_7d: contacts in the last 7 days that ARI did not make but the
     caller (Nova) counted - BAU dialler, letters, other systems.
     no_consent: channels the customer has not consented to, as Nova reported."""
-    if CONSENT_FOR.get(channel) in no_consent:
-        return False, f"No {CONSENT_FOR[channel]} consent on file"
+    need = CONSENT_FOR.get(channel)
+    if need and need in no_consent:
+        return f"NO_{need.upper()}_CONSENT", f"No {need} consent on file"
     # The session runs with autoflush off. Without this, contacts and opt-outs
     # written earlier in the same wave are invisible here - the guard would
     # approve a message to someone who opted out an hour ago.
@@ -343,7 +378,7 @@ def guard(db: Session, customer_id: int, channel: str, at: datetime,
                                .filter(ContactRecord.customer_id == customer_id,
                                        ContactRecord.opted_out.is_(True),
                                        ContactRecord.at <= iso(at)).first()):
-        return False, "Customer opted out of digital contact"
+        return "OPTED_OUT", "Customer opted out of digital contact"
     week_ago = iso(at - timedelta(days=7))
     recent = (db.query(ContactRecord)
               .filter(ContactRecord.customer_id == customer_id, ContactRecord.at >= week_ago,
@@ -353,11 +388,45 @@ def guard(db: Session, customer_id: int, channel: str, at: datetime,
     seen = len(recent) + reported_7d
     extra = f", {reported_7d} of them reported by the caller" if reported_7d else ""
     if seen >= cap:
-        return False, f"Contact cap reached ({seen} of {cap} in 7 days{extra})"
+        return "CONTACT_CAP", f"Contact cap reached ({seen} of {cap} in 7 days{extra})"
     calls = sum(1 for r in recent if r.channel == "Outbound call")
     if channel == "Outbound call" and calls >= int(cfg(db, "call_cap_7d")):
-        return False, f"Call cap reached ({calls} calls in 7 days)"
-    return True, f"{seen} contacts in last 7 days{extra} (cap {cap}); consent and opt-out checked"
+        return "CALL_CAP", f"Call cap reached ({calls} calls in 7 days)"
+    return None, f"{seen} contacts in last 7 days{extra} (cap {cap}); consent and opt-out checked"
+
+
+def guard(db: Session, customer_id: int, channel: str, at: datetime,
+          reported_7d: int = 0, no_consent: tuple | list = ()) -> tuple[bool, str]:
+    """The send-time check: (allowed, note)."""
+    code, note = contact_rules(db, customer_id, channel, at, reported_7d, no_consent)
+    return code is None, note
+
+
+def latest_context(db: Session, dec: Decision) -> tuple[dict, str | None]:
+    """The contact context to apply when a decision is executed after a wait
+    (a person approving an offer): what Nova told ARI most recently about the
+    account, over what it said at decision time. ARI cannot ask Nova for fresh
+    data, so the newest request is the best it has. Returns (context, when
+    that request arrived)."""
+    ctx = jl(dec.snapshot, {})
+    if dec.origin != "mcp":
+        return ctx, None
+    link = (db.query(ExternalCustomer)
+            .filter(ExternalCustomer.source == "nova", ExternalCustomer.customer_id == dec.customer_id).first())
+    if link is None:
+        return ctx, None
+    p = jl(link.payload, {})
+    consent = p.get("consent") or {}
+    return {**ctx, "reported_contacts_7d": int(p.get("contacts_last_7d") or 0),
+            "no_consent": [k for k, v in consent.items() if v is False],
+            "vulnerability_flag": bool(p.get("vulnerability_flag"))}, link.last_seen
+
+
+def cancel_pending(dec: Decision, reason: str, actor: str) -> None:
+    """Withdraw an offer that is still waiting for review. Nothing was sent."""
+    dec.review_status = "cancelled"
+    dec.exclusion_reason = reason
+    dec.reviewed_by = actor
 
 
 # ---------------------------------------------------------------------------
@@ -440,10 +509,11 @@ def undecided_pool(db: Session, camp: Campaign) -> list[models.Customer]:
 def decide_one(db: Session, camp: Campaign, c, *, decision_id: str, wave: int, decided_at: datetime,
                rng: np.random.Generator, arms_state: dict, human_review: set[str], auto_approve: bool,
                origin: str = "wave", extra_snapshot: dict | None = None) -> Decision:
-    """One customer, one strategy: the randomised control split, then contextual
-    Thompson sampling among the treatments this customer is eligible for.
-    Returns the Decision without adding it to the session. Waves and agent
-    requests both decide through here, so they can never diverge."""
+    """One customer, one strategy: the randomised control split, then the
+    contact rules, then Thompson sampling (with a customer-fit adjustment)
+    among the eligible treatments the rules still allow. Returns the Decision
+    without adding it to the session. Waves and agent requests both decide
+    through here, so they can never diverge."""
     t0 = time.perf_counter()
     s = snapshot(c)
     snap = {**vars(s), "client_risk_band": c.client_risk_band, "client_risk_score": c.client_risk_score,
@@ -460,8 +530,28 @@ def decide_one(db: Session, camp: Campaign, c, *, decision_id: str, wave: int, d
                            "so every treated result has a fair comparison.")
     else:
         dec.group = "Treatment"
+        # Contact rules first: the bandit only ever chooses among treatments
+        # the customer may actually receive. A treatment blocked here is not
+        # sampled, so the selection probabilities are over allowed arms only.
+        reported, no_consent = int(snap.get("reported_contacts_7d") or 0), snap.get("no_consent") or ()
+        allowed, blocked = [], []
+        for k in eligible:
+            if k not in arms_state:
+                continue
+            reason_code, note = contact_rules(db, c.customer_id, channel_of(db, k), decided_at, reported, no_consent)
+            if reason_code:
+                blocked.append({"code": k, "name": arms_state[k]["name"], "reason_code": reason_code, "reason": note})
+            else:
+                allowed.append(k)
+        dec.blocked_arms = json.dumps(blocked)
+        not_considered = "; ".join(f"{b['name']} ({b['reason'][0].lower() + b['reason'][1:]})" for b in blocked)
+        if not allowed:
+            dec.explanation = (f"No treatment chosen: every eligible treatment is blocked by the contact rules - "
+                               f"{not_considered}. Nothing is sent.")
+            dec.latency_ms = round((time.perf_counter() - t0) * 1000, 1)
+            return dec
         arms = [{"code": k, "name": arms_state[k]["name"], "a": arms_state[k]["a"],
-                 "b": arms_state[k]["b"]} for k in eligible if k in arms_state]
+                 "b": arms_state[k]["b"]} for k in allowed]
         ranking = thompson_rank(arms, c, rng)
         probs = selection_probabilities(arms, c, rng)
         chosen = ranking[0]["code"]
@@ -474,16 +564,17 @@ def decide_one(db: Session, camp: Campaign, c, *, decision_id: str, wave: int, d
         runner = ranking[1] if len(ranking) > 1 else None
         dec.explanation = (
             f"{ranking[0]['name']} drew the highest score ({ranking[0]['score']:.2f}) of "
-            f"{len(ranking)} eligible treatments: belief {ranking[0]['belief']:.0%}, customer fit "
+            f"{len(ranking)} allowed treatments: belief {ranking[0]['belief']:.0%}, customer fit "
             f"x{ranking[0]['fit']:.2f}."
             + (f" Runner-up {runner['name']} at {runner['score']:.2f}." if runner else "")
-            + f" Chosen {probs.get(chosen, 0):.0%} of the time in this context.")
+            + f" Chosen {probs.get(chosen, 0):.0%} of the time in this context."
+            + (f" Not considered: {not_considered}." if blocked else ""))
         if chosen in human_review:
             dec.review_policy = "human_review"
             dec.review_status = "approved" if auto_approve else "pending"
             if auto_approve:
                 dec.reviewed_by = camp.owner_id
-    dec.latency_ms = round((time.perf_counter() - t0) * 1000 + 40 + float(rng.integers(0, 60)), 1)
+    dec.latency_ms = round((time.perf_counter() - t0) * 1000, 1)
     return dec
 
 
@@ -513,7 +604,7 @@ def decide_now(db: Session, camp: Campaign, c, *, origin: str, extra_snapshot: d
                      origin=origin, extra_snapshot=extra_snapshot)
     db.add(dec)
     nudge = None
-    if dec.group == "Treatment" and dec.review_status != "pending":
+    if dec.group == "Treatment" and dec.treatment_code and dec.review_status != "pending":
         nudge = execute(db, camp, dec, c, at, rng, seq)
     if _treated_in_wave(db, camp, wave) >= camp.wave_size:
         camp.waves_run = wave
@@ -553,11 +644,14 @@ def run_wave(db: Session, camp: Campaign, at: datetime | None = None, actor: str
             summary["control"] += 1
         else:
             summary["treatment"] += 1
-            summary["by_treatment"][dec.treatment_code] = summary["by_treatment"].get(dec.treatment_code, 0) + 1
+            if dec.treatment_code:
+                summary["by_treatment"][dec.treatment_code] = summary["by_treatment"].get(dec.treatment_code, 0) + 1
         db.add(dec)
         summary["decided"] += 1
 
-        if dec.group == "Control":
+        if dec.group == "Control" or not dec.treatment_code:
+            if not dec.treatment_code and dec.group == "Treatment":
+                summary["blocked_by_guard"] += 1  # every allowed treatment was blocked: nothing to send
             if realise:
                 _observe(db, camp, dec, c, None, decided_at, rng, pending_learning, first=None)
             continue
@@ -589,9 +683,14 @@ def run_wave(db: Session, camp: Campaign, at: datetime | None = None, actor: str
 
 def execute(db: Session, camp: Campaign, dec, c, at: datetime,
             rng: np.random.Generator, seq: Seq, touch: int = 1, escalation: bool = False,
-            manual_text: str | None = None, code: str | None = None) -> Nudge:
-    """Compliance guard, content, delivery. Returns the nudge; its status is
-    Delivered, Failed, or Held (stopped by the guard before sending)."""
+            manual_text: str | None = None, code: str | None = None,
+            ctx: dict | None = None, ctx_source: str = "") -> Nudge:
+    """Send-time contact check, content, delivery. Returns the nudge; its
+    status is Delivered, Failed, or Held (stopped by the check before sending).
+
+    Delivery is SIMULATED: no channel gateway is connected, so a send is a
+    random draw against each channel's typical failure rate and nobody is
+    contacted."""
     code = code or dec.treatment_code
     st = db.get(models.Strategy, code)
     channel = st.channel if st else CHANNEL_OF.get(code, "SMS")
@@ -599,13 +698,13 @@ def execute(db: Session, camp: Campaign, dec, c, at: datetime,
     send_at = at.replace(hour=hour, minute=int(rng.integers(0, 59)), second=0)
     if send_at < at:
         send_at += timedelta(days=1)
-    # What the caller told us at decision time (Nova: consent, contacts made
-    # elsewhere) travels with the decision, so it still applies if the contact
-    # goes out later - after a human approves it, say.
-    ctx = jl(dec.snapshot, {})
+    # What the caller told us (Nova: consent, contacts made elsewhere). By
+    # default the decision-time context; an approval passes the newest.
+    ctx = ctx if ctx is not None else jl(dec.snapshot, {})
     ok, guard_note = guard(db, c.customer_id, channel, send_at, int(ctx.get("reported_contacts_7d") or 0),
                            ctx.get("no_consent") or ())
-    content = manual_text or render(code, camp.tone, c, st)
+    guard_note += ctx_source
+    content = manual_text or render(code, camp.tone, c, st, due=message_amount(dec, c))
     n = Nudge(nudge_id=seq.nudge(), decision_id=dec.decision_id, campaign_id=camp.campaign_id,
               customer_id=c.customer_id, treatment_code=code, channel=channel, touch_number=touch,
               content=content, scheduled_at=iso(send_at), is_escalation=escalation,
@@ -632,13 +731,14 @@ def execute(db: Session, camp: Campaign, dec, c, at: datetime,
         return n
     failed = rng.random() < DELIVERY_FAILURE.get(channel, 0.03)
     stages.append({"stage": "Delivery", "at": iso(send_at), "ok": not failed,
-                   "detail": ("Gateway rejected: number unreachable" if failed
-                              else f"Sent via {'Twilio SMS gateway' if 'SMS' in channel else channel} "
-                                   f"- message id MSG-{n.nudge_id[2:]}")})
+                   "detail": ("Simulated failure: number unreachable. No channel gateway is connected."
+                              if failed else
+                              f"Simulated {channel} send - no channel gateway is connected, nobody was contacted "
+                              f"(ref SIM-{n.nudge_id[2:]})")})
     n.status = "Failed" if failed else "Delivered"
     n.sent_at = iso(send_at)
     if failed:
-        n.failure_reason = "Number unreachable"
+        n.failure_reason = "Number unreachable (simulated)"
     n.pipeline = json.dumps(stages)
     db.add(n)
     if not failed:
@@ -731,7 +831,10 @@ def _observe(db: Session, camp: Campaign, dec: Decision, c, code: str | None, at
 
 
 def approve_and_execute(db: Session, dec: Decision, reviewer: str, approve: bool) -> dict:
-    """Human review of a forbearance-type decision. Approval executes it."""
+    """Human review of a forbearance-type decision. Approval executes it -
+    after the hard stops and contact rules are checked again against the
+    newest context, because the customer's situation can change while the
+    offer waits."""
     camp = db.get(Campaign, dec.campaign_id)
     c = db.get(models.Customer, dec.customer_id)
     dec.reviewed_by = reviewer
@@ -739,14 +842,23 @@ def approve_and_execute(db: Session, dec: Decision, reviewer: str, approve: bool
         dec.review_status = "rejected"
         db.commit()
         return {"executed": False}
+    ctx, seen = latest_context(db, dec)
+    if ctx.get("vulnerability_flag"):
+        reason = (f"Nova reported a vulnerability flag on {seen[:10]}, after this offer was proposed. No automated "
+                  f"treatment: refer the customer to a trained specialist.")
+        cancel_pending(dec, reason, reviewer)
+        db.commit()
+        return {"executed": False, "cancelled": reason}
     dec.review_status = "approved"
     now = datetime.now(UTC)
     rng = np.random.default_rng(int(hashlib.md5(dec.decision_id.encode()).hexdigest()[:8], 16))
     seq = Seq(db)
-    nudge = execute(db, camp, dec, c, now, rng, seq)
+    nudge = execute(db, camp, dec, c, now, rng, seq, ctx=ctx,
+                    ctx_source=f" (re-checked at approval against Nova's data of {seen[:16].replace('T', ' ')})"
+                    if seen else "")
     if dec.origin != "mcp":
         # Console decisions are simulated end to end. An agent's decision waits
         # for the agent to report the real payment outcome.
         _observe(db, camp, dec, c, dec.treatment_code, now, rng, [], first=nudge, seq=seq)
     db.commit()
-    return {"executed": True, "status": nudge.status}
+    return {"executed": nudge.status != "Held", "status": nudge.status, "note": nudge.failure_reason}

@@ -48,10 +48,10 @@ function messagePreview(channel: string, offer: string): string {
   const o = `${offer.trim().replace(/\.$/, "") || "Your offer text"}.`;
   if (channel === "Outbound call") return `Call script: confirm identity, explain the $146 past due, then offer: ${o} Record the outcome. No pressure language.`;
   if (channel === "Specialist team") return `Referral to the specialist team. Offer: ${o}`;
-  if (channel === "Letter") return `Dear Priya, your card ending 4021 has $146 past due. ${o} Call us or visit ari.bank/p/3fa1c2 to respond.`;
-  if (channel === "Email") return `Hi Priya, about the $146 past due on your card ending 4021: ${o} Details: ari.bank/p/3fa1c2. Unsubscribe at any time.`;
+  if (channel === "Letter") return `Dear Priya, your account has $146 past due. ${o} Call us or visit ari.bank/p/3fa1c2 to respond.`;
+  if (channel === "Email") return `Hi Priya, about the $146 past due on your account: ${o} Details: ari.bank/p/3fa1c2. Unsubscribe at any time.`;
   if (channel === "App push") return `${o} Tap to review.`;
-  return `Hi Priya, about the $146 past due on your card ending 4021: ${o} Details: ari.bank/p/3fa1c2. Reply STOP to opt out.`;
+  return `Hi Priya, about the $146 past due on your account: ${o} Details: ari.bank/p/3fa1c2. Reply STOP to opt out.`;
 }
 
 function Editor({ target, schema, onClose, onSaved }: {

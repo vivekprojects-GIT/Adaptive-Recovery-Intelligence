@@ -1,5 +1,9 @@
 """Intervention-side models: nudge propensity, self-cure, segmentation, strategy
-eligibility and fit, and contextual Thompson sampling.
+eligibility and fit, and Thompson sampling with a customer-fit adjustment.
+
+The fit adjustment is a fixed, hand-written table (fit_multiplier), not something
+the learner estimates: the posterior learns how well each treatment works in a
+strategy, and the table tilts each draw toward the customer's profile.
 
 Delinquency risk is NOT modelled here. It comes from the client's existing risk
 model and arrives with the cohort handoff (client_risk_band / client_risk_score).
@@ -276,7 +280,7 @@ def fit_reasons(code: str, c) -> list[str]:
 
 
 # ----------------------------------------------------------------------------
-# Contextual Thompson sampling.
+# Thompson sampling with a customer-fit adjustment.
 # ----------------------------------------------------------------------------
 def thompson_rank(arms: list[dict], customer, rng: np.random.Generator) -> list[dict]:
     """arms: [{code, name, a, b}]. One Beta draw per arm, tilted by customer fit."""

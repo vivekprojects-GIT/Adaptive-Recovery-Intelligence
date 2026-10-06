@@ -45,11 +45,12 @@ MAX_BATCH = 100
 
 INSTRUCTIONS = """ARI (Adaptive Recovery Intelligence) decides the recovery action for delinquent accounts.
 
-Send an account's context with get_recovery_strategy. ARI finds the live strategy that owns the account,
-holds a random share out as a control group, and for the rest chooses among the business-approved
-treatments the customer is eligible for, using contextual Thompson sampling. Consent, opt-outs and contact
-caps are applied before any contact; payment plans, deferrals and hardship offers wait for a person to
-approve them. The answer says what to do, why, and what happens next.
+Send an account's context with get_recovery_strategy. ARI finds the live strategy that owns the account
+and holds a random share out as a control group. For the rest, consent, opt-outs and contact caps first
+decide which of the business-approved treatments the customer may receive; Thompson sampling, with a
+customer-fit adjustment, then chooses among those. Payment plans, deferrals and hardship offers wait for a
+person to approve them, and the contact rules are checked again when they do. Sends are simulated: no
+channel gateway is connected. The answer says what to do, why, and what happens next.
 
 Report every payment outcome with report_payment_outcome. Treated outcomes teach the model; control
 outcomes measure how much the strategy actually adds. Use preview_recovery_strategy to ask without
@@ -99,7 +100,8 @@ def _decided(r: dict) -> str:
     if not r.get("strategy"):
         return f"{who}: {r['action'].replace('_', ' ')}"
     t = r.get("treatment") or {}
-    return (f"{who}: {r['strategy']['strategy_id']} {t.get('code') or 'control'} "
+    arm = t.get("code") or ("control" if r.get("group") == "Control" else "no treatment")
+    return (f"{who}: {r['strategy']['strategy_id']} {arm} "
             f"- {r['action'].replace('_', ' ')}" + (" (existing)" if r.get("existing") else ""))
 
 
@@ -111,15 +113,18 @@ async def get_recovery_strategy(account: nova.NovaAccount) -> dict[str, Any]:
     """Decide what to do about one delinquent account, record the decision and act on it.
 
     ARI routes the account to the live strategy whose audience includes it and splits a random control
-    share off. For treated accounts it chooses among the treatments the customer is eligible for with
-    contextual Thompson sampling, checks consent, opt-outs and the 7-in-7 contact cap, and schedules the
-    contact (simulated while ARI runs in shadow mode). Payment plans, deferrals and hardship offers wait
-    for a person to approve them first. Calling again for the same account_id returns the existing
-    decision rather than contacting the customer twice.
+    share off. For treated accounts, consent, opt-outs and the 7-in-7 contact cap first remove the
+    treatments the customer may not receive; Thompson sampling (with a customer-fit adjustment) then
+    chooses among the rest, and the contact is scheduled. Sends are simulated: no channel gateway is
+    connected. Payment plans, deferrals and hardship offers wait for a person to approve them first.
+    Calling again for the same account_id returns the existing decision rather than contacting the
+    customer twice; sending vulnerability_flag=true cancels an offer still waiting for review.
 
-    The answer's action is one of: contact, awaiting_approval, contact_blocked, control_bau (keep on
-    business as usual), no_action, refer_to_specialist. It also carries the strategy, treatment, message,
-    reasons, the alternatives with their selection probabilities, any assumed data, and the next step.
+    The answer's action is one of: contact, contact_failed, awaiting_approval, contact_blocked (no
+    allowed treatment, or held at send time), control_bau (keep on business as usual), rejected,
+    cancelled, no_action, refer_to_specialist. It also carries the strategy, treatment, message, reasons,
+    the alternatives with their selection probabilities, the treatments the contact rules blocked, any
+    assumed data, and the next step.
     """
     return await _call("get_recovery_strategy", lambda db: nova.recovery_strategy(db, account), _decided, "CREATE")
 
@@ -129,8 +134,8 @@ async def preview_recovery_strategy(account: nova.NovaAccount) -> dict[str, Any]
     """What ARI would do for this account, without recording, contacting or reserving anything.
 
     Same routing, eligibility and Thompson sampling as get_recovery_strategy, so it is the right call for
-    "what if" questions. The action is would_contact, would_need_approval, control_bau, no_action or
-    refer_to_specialist. The account stays free for a real request afterwards.
+    "what if" questions. The action is would_contact, would_need_approval, would_be_blocked, control_bau,
+    no_action or refer_to_specialist. The account stays free for a real request afterwards.
     """
     return await _call("preview_recovery_strategy", lambda db: nova.recovery_strategy(db, account, record=False),
                        lambda r: f"Preview {_decided(r)}")
@@ -169,7 +174,8 @@ async def report_payment_outcome(
         paid: Annotated[bool, Field(description="Did the customer pay within the strategy's evaluation window?")],
         decision_id: Annotated[str | None, Field(description="The decision_id ARI returned. Preferred.")] = None,
         account_id: Annotated[str | None, Field(description="Or the Nova account: its latest decision is used.")] = None,
-        amount: Annotated[float | None, Field(ge=0, description="Amount paid. Defaults to the arrears.")] = None,
+        amount: Annotated[float | None, Field(ge=0, description="Amount paid. Defaults to the amount_past_due "
+                                                               "sent with the account.")] = None,
         payment_date: Annotated[date | None, Field(description="Date paid, YYYY-MM-DD. Decides whether it fell "
                                                               "inside the evaluation window.")] = None,
         payment_status: Annotated[Literal["Posted", "Reversed"], Field(

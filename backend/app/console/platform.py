@@ -36,12 +36,13 @@ CONFIG_DEFAULTS: list[tuple[str, str, str, str, str, str]] = [
     ("cost_per_recovery_target", "8.00", "Cost-per-recovery target ($)", "Targets", "number", ""),
     ("escalation_rate_target", "0.08", "Escalation-rate ceiling", "Targets", "percent", ""),
     ("shadow_mode", "true", "Shadow mode", "Operations", "bool",
-     "Decisions are made and logged; channel gateways are simulated. Nothing contacts a real customer."),
+     "Locked on. Decisions are made and logged, but no channel gateway is connected: every send is "
+     "simulated and nothing reaches a customer."),
     ("auto_handoff", "true", "Receive next handoff automatically", "Operations", "bool",
      "When a strategy's audience is too small for a full wave, pull the next cohort handoff from the "
      "collections system before the wave runs."),
     ("model_version", "ARI-v4.2.1", "Decision model version", "Operations", "text",
-     "Stamped on every decision for audit and replay."),
+     "Shown with each decision. Not yet stored per decision; that comes with policy versioning."),
 ]
 
 

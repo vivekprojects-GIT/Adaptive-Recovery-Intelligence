@@ -40,7 +40,7 @@ export default function SignIn() {
             {[
               [BarChart3, "Every result reported as uplift over its own control group"],
               [ShieldCheck, "Maker-checker approval, contact guard and compliance monitoring built in"],
-              [Scale, "Contextual Thompson sampling over business-approved treatments"],
+              [Scale, "Thompson sampling over business-approved treatments, inside the contact rules"],
             ].map(([Icon, t], i) => {
               const I = Icon as typeof BarChart3;
               return (

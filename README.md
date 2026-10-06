@@ -35,7 +35,9 @@ All values live in `frontend/tailwind.config.js` and the `:root` block of `front
 
 **What is real.** Every decision, nudge, engagement event, outcome, violation and audit entry is written by the engine to SQLite, and every screen reads from that log. Five weeks of history are produced on first start by running the real engine week by week. Permissions are enforced by the API on every request, not just hidden in the UI. System Health latency is measured from live requests.
 
-**What is simulated.** Customer behaviour (`experiments.true_pay_probability`) and channel delivery. The console runs in shadow mode: decisions are made and logged, no customer is contacted.
+**What is simulated.** Customer behaviour (`experiments.true_pay_probability`) and channel delivery. No channel gateway is connected, so shadow mode is locked on: decisions are made and logged, every send is simulated, and no customer is contacted. Messages quote only amounts the bank supplied and never a card number.
+
+**Thompson sampling, precisely.** One Beta posterior per treatment per strategy, learned from outcomes. A fixed, hand-written customer-fit table tilts each draw toward the customer's profile; the learner does not estimate those effects itself. A learned contextual model is a later phase.
 
 **Governance built in.**
 - A strategy runs only after someone other than its author approves it (maker-checker).
@@ -44,7 +46,8 @@ All values live in `frontend/tailwind.config.js` and the `:root` block of `front
 - Delete is only for strategies and treatments that have never decided a customer. Anything with history is archived (strategies) or retired (treatments), so every past result keeps its evidence.
 - The treatment playbook is data, not code: each treatment has a kind (which decides how customer fit is judged), eligibility rules, a channel, a cost and an approval policy. Strategists add, edit, retire and delete treatments on **Treatment Playbook**, with a live preview of who a rule set reaches.
 - Forbearance offers (split plan, deferral, hardship review) wait in a review queue for a person before anything is sent.
-- A contact guard enforces opt-outs (permanently), the 7-in-7 cap and contact hours before each message.
+- Contact rules run before Thompson sampling: consent, opt-outs (permanent) and the 7-in-7 cap remove the treatments a customer may not receive, so the bandit only ever chooses among allowed ones. Each blocked treatment is recorded on the decision with a reason code. The same rules run again at send time.
+- Contact hours are enforced when a strategy is built: its send window must sit inside the permitted hours (UTC; customer time zones are not yet supplied).
 - The compliance monitor scans ARI messages and the bank's BAU contacts together.
 - Overrides require a reason and stop the model learning from that customer.
 
@@ -208,8 +211,9 @@ strategy back, with no console in between. Nova owns the data; ARI owns the deci
 - The account goes to the live strategy written most specifically for it.
 - A random share is held out as control, and Nova should keep those accounts on business as usual.
 - Payment plans, deferrals and hardship offers wait in the Review Queue for a person to approve.
-- Nova's consent flags and its count of recent contacts are enforced by the contact guard.
-- A vulnerability flag means no automated treatment: the customer is referred to a specialist.
+- Nova's consent flags and its count of recent contacts are applied before Thompson sampling, so a treatment the customer may not receive is never chosen.
+- A vulnerability flag means no automated treatment: the customer is referred to a specialist, and any offer still waiting for review is cancelled.
+- Approving a waiting offer re-checks consent, contact limits and vulnerability against the newest data Nova sent for the account.
 - Asking twice about the same account returns the same decision; the customer is not contacted twice.
 - Outcomes for agent decisions are never simulated; ARI waits for Nova to report them.
 

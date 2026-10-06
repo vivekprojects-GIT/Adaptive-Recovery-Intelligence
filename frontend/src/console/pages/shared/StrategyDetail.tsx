@@ -162,7 +162,7 @@ export default function StrategyDetail() {
               <FlowStep n={3} title="Assignment">
                 <BarList rows={data.arms.map((a, i) => ({ label: a.name, value: a.n, color: SERIES[i % 5],
                   sub: `${num(p.arm_eligibility[a.code] ?? 0)} eligible` }))} format={(v) => num(v ?? 0)} />
-                <p className="mt-3 text-2xs leading-4 text-fg-3">Contextual Thompson sampling, in waves of {data.wave_size}. Beliefs update between waves, not within one.</p>
+                <p className="mt-3 text-2xs leading-4 text-fg-3">Thompson sampling with a customer-fit adjustment, among the treatments the contact rules allow, in waves of {data.wave_size}. Beliefs update between waves, not within one.</p>
               </FlowStep>
               <FlowStep n={4} title="Outcome tracking">
                 <div className="space-y-2.5">

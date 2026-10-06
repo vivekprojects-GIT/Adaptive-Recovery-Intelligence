@@ -12,7 +12,8 @@ import {
 } from "../../ui/ui";
 
 interface Data {
-  decision: DecisionRow; explanation: string; override_reason: string | null; original_treatment: string | null;
+  decision: DecisionRow; explanation: string; exclusion_reason: string | null; override_reason: string | null;
+  original_treatment: string | null;
   snapshot: Record<string, number | string | boolean>;
   ranking: { code: string; name: string; belief: number; base_sample: number; fit: number; score: number; selection_probability?: number; fit_reasons?: string[] }[];
   trace: { step: string; agent: string; ok: boolean; detail: string }[];
@@ -34,6 +35,8 @@ export default function DecisionAudit() {
   const d = data.decision;
   const m = data.metadata;
   const headline = d.group === "Control" ? { tone: "neutral" as const, title: "Control holdout", body: "This customer is in the randomised comparison group and received business-as-usual treatment only." }
+    : d.review_status === "cancelled" ? { tone: "neutral" as const, title: `Cancelled before review: ${d.treatment}`, body: data.exclusion_reason ?? "Withdrawn before anything was sent." }
+    : !d.treatment && !d.overridden ? { tone: "warn" as const, title: "No treatment allowed", body: data.explanation }
     : d.review_status === "pending" ? { tone: "warn" as const, title: `Held for human review: ${d.treatment}`, body: "A forbearance offer. Nothing is sent until a strategist approves it." }
     : d.overridden ? { tone: "warn" as const, title: `Overridden by a person: ${data.original_treatment} → ${d.treatment ?? "no treatment"}`, body: data.override_reason ?? "" }
     : d.review_policy === "human_review" ? { tone: "good" as const, title: `Approved by a person: ${d.treatment}`, body: `Selected by the model, approved before sending.` }

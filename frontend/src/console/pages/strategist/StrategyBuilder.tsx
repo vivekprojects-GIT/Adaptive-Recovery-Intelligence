@@ -103,9 +103,9 @@ const BLANK: Form = {
 };
 
 const TONE_PREVIEW: Record<string, string> = {
-  Supportive: "Hi Priya, a quick reminder that $146 is due on your card ending 4021. You can pay in seconds here: ari.bank/p/3fa1c2. Reply STOP to opt out.",
-  Neutral: "Priya, your card ending 4021 has $146 past due. Pay now: ari.bank/p/3fa1c2. Reply STOP to opt out.",
-  Direct: "Priya, $146 on your card ending 4021 is now 30 days overdue. Please pay today: ari.bank/p/3fa1c2. Reply STOP to opt out.",
+  Supportive: "Hi Priya, a quick reminder that $146 is past due on your account. You can pay in seconds here: ari.bank/p/3fa1c2. Reply STOP to opt out.",
+  Neutral: "Priya, your account has $146 past due. Pay now: ari.bank/p/3fa1c2. Reply STOP to opt out.",
+  Direct: "Priya, $146 on your account is now 30 days overdue. Please pay today: ari.bank/p/3fa1c2. Reply STOP to opt out.",
 };
 
 function numOrNull(v: string) { return v === "" ? null : Number(v); }
@@ -291,7 +291,7 @@ function Guided({ id }: { id?: string }) {
               <Field label="Minimum days past due"><input type="number" className={inputCls} value={form.min_dpd ?? ""} onChange={(e) => set("min_dpd", numOrNull(e.target.value))} placeholder="Any" /></Field>
               <Field label="Maximum days past due"><input type="number" className={inputCls} value={form.max_dpd ?? ""} onChange={(e) => set("max_dpd", numOrNull(e.target.value))} placeholder="Any" /></Field>
             </div>
-            <Banner tone="neutral">Consent, opt-outs, vulnerability and contact caps are enforced by the platform on every message. They are not strategy settings and cannot be switched off here.</Banner>
+            <Banner tone="neutral">Consent, opt-outs and contact caps are checked before a treatment is chosen and again before every send, and a vulnerability flag from Nova stops automated treatment. They are platform rules, not strategy settings, and cannot be switched off here.</Banner>
           </div>
         )}
 

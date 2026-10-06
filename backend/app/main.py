@@ -25,6 +25,7 @@ from .console import models as _console_models  # noqa: F401  (registers console
 from .console.api import router as console_router
 from .console.mcp_server import ENDPOINT_PATH as MCP_PATH, gateway as mcp_gateway, server as mcp_server
 from .console.platform import metrics_middleware
+from .console.rbac import require
 from .console.seed import seed_console
 
 
@@ -396,7 +397,9 @@ def assignment_preview(customer_id: int, strategies: str = "", db: Session = Dep
 
 
 @app.post("/admin/reseed")
-def reseed():
+def reseed(_admin=Depends(require("configure_platform"))):
+    """Wipe and regenerate all data. Platform admins only: anyone else could
+    erase a shared demo mid-meeting."""
     out = seed(reset=True)
     db = SessionLocal()
     try:

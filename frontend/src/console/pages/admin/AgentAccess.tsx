@@ -12,7 +12,10 @@ import {
 const ACTION: Record<string, { label: string; tone: Tone }> = {
   contact: { label: "Contact", tone: "good" },
   awaiting_approval: { label: "Awaiting approval", tone: "warn" },
-  contact_blocked: { label: "Held by the contact guard", tone: "serious" },
+  contact_blocked: { label: "Blocked by the contact rules", tone: "serious" },
+  contact_failed: { label: "Simulated send failed", tone: "bad" },
+  cancelled: { label: "Cancelled before review", tone: "neutral" },
+  would_be_blocked: { label: "Would be blocked", tone: "serious" },
   control_bau: { label: "Control: business as usual", tone: "neutral" },
   no_action: { label: "No action", tone: "neutral" },
   refer_to_specialist: { label: "Refer to a specialist", tone: "info" },
@@ -72,7 +75,7 @@ function ResultView({ r, report, busy, onReport }: {
   r: AgentDecision; report: OutcomeReport | null; busy: string | null; onReport: (paid: boolean) => void;
 }) {
   const a = ACTION[r.action] ?? { label: r.action.replace(/_/g, " "), tone: "neutral" as Tone };
-  const canReport = !!r.decision_id && ["contact", "contact_blocked", "control_bau"].includes(r.action) && !r.outcome;
+  const canReport = !!r.decision_id && ["contact", "contact_blocked", "contact_failed", "control_bau"].includes(r.action) && !r.outcome;
   return (
     <div className="mt-4 space-y-3 rounded-lg border border-line p-3.5">
       <div className="flex flex-wrap items-center gap-2">
@@ -98,7 +101,7 @@ function ResultView({ r, report, busy, onReport }: {
       )}
       {!!r.alternatives?.length && (
         <Table>
-          <thead><tr><Th>Treatment considered</Th><Th align="right">Chosen</Th><Th align="right">Belief</Th><Th align="right">Fit</Th></tr></thead>
+          <thead><tr><Th>Treatment allowed</Th><Th align="right">Chosen</Th><Th align="right">Belief</Th><Th align="right">Fit</Th></tr></thead>
           <tbody>
             {r.alternatives.map((x) => (
               <Tr key={x.code}><Td className={x.code === r.treatment?.code ? "font-medium" : "text-fg-2"}>{x.name}</Td>
@@ -107,9 +110,17 @@ function ResultView({ r, report, busy, onReport }: {
           </tbody>
         </Table>
       )}
+      {!!r.blocked_treatments?.length && (
+        <div className="text-xs">
+          <p className="label mb-1">Not considered: blocked by the contact rules before Thompson sampling</p>
+          <ul className="space-y-0.5 text-fg-2">{r.blocked_treatments.map((b) => (
+            <li key={b.code}>{b.name}: {b.reason} <span className="font-mono text-2xs text-fg-3">{b.reason_code}</span></li>
+          ))}</ul>
+        </div>
+      )}
       {r.contact && (
         <p className="text-2xs leading-4 text-fg-3">
-          {r.contact.channel}: {r.contact.status.toLowerCase()} for {dateTime(r.contact.send_at)}{r.contact.simulated ? " (simulated - shadow mode)" : ""}. Guard: {r.contact.guard}
+          {r.contact.channel}: {r.contact.status.toLowerCase()} for {dateTime(r.contact.send_at)}{r.contact.simulated ? " (simulated - no channel gateway connected)" : ""}. Send-time check: {r.contact.guard}
         </p>
       )}
       {r.note && <p className="text-2xs leading-4 text-fg-3">{r.note}</p>}

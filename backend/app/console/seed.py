@@ -106,7 +106,8 @@ def ensure_console(db: Session) -> None:
     and load the treatment playbook into the scoring cache. Safe on every start;
     without it, treatments added in the console would be unknown after a restart."""
     added_columns = [("campaigns", "parent_id", "VARCHAR(12)"),
-                     ("decisions", "origin", "VARCHAR(12) DEFAULT 'wave'")]
+                     ("decisions", "origin", "VARCHAR(12) DEFAULT 'wave'"),
+                     ("decisions", "blocked_arms", "TEXT DEFAULT '[]'")]
     try:
         for table, column, ddl in added_columns:
             cols = {r[1] for r in db.execute(text(f"PRAGMA table_info({table})"))}
@@ -120,10 +121,15 @@ def ensure_console(db: Session) -> None:
         for p in PERMISSION_KEYS:
             if (role, p) not in have:
                 db.add(RolePermission(role=role, permission=p, granted=p in grants))
-    keys = {r.key for r in db.query(PlatformConfig)}
+    rows = {r.key: r for r in db.query(PlatformConfig)}
     for key, default, label, group, kind, help_ in CONFIG_DEFAULTS:
-        if key not in keys:
+        if key not in rows:
             db.add(PlatformConfig(key=key, value=default, label=label, group=group, kind=kind, help=help_))
+        elif rows[key].help != help_:
+            rows[key].help = help_  # help text follows the code; values stay as configured
+    # No channel gateway is connected, so shadow mode cannot be off.
+    if "shadow_mode" in rows and rows["shadow_mode"].value != "true":
+        rows["shadow_mode"].value = "true"
     db.commit()
     playbook.seed_meta(db)
 

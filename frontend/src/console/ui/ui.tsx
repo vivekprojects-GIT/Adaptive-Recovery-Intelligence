@@ -112,7 +112,7 @@ const STATUS_TONE: Record<string, Tone> = {
   Delivered: "good", Opened: "info", Clicked: "primary", Failed: "bad", Held: "warn", Scheduled: "neutral",
   Open: "bad", Investigating: "warn", Critical: "bad", High: "serious", Medium: "warn", Low: "neutral",
   New: "primary", Applied: "good", Declined: "neutral", Treatment: "primary", Control: "neutral",
-  Paid: "good", "Not paid": "neutral", pending: "warn", approved: "good", rejected: "bad",
+  Paid: "good", "Not paid": "neutral", pending: "warn", approved: "good", rejected: "bad", cancelled: "neutral", Cancelled: "neutral",
   Connected: "good", Simulated: "info", Operational: "good", Degraded: "warn",
 };
 

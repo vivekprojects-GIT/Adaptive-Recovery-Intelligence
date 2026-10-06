@@ -21,8 +21,11 @@ export default function ReviewQueue() {
   if (loading && !data) return <Spinner />;
 
   const decide = (d: DecisionRow, approve: boolean, n = "") =>
-    run(d.decision_id, () => api.post<{ status?: string }>(`/decisions/${d.decision_id}/review`, { approve, note: n }),
-      (r) => approve ? `${d.decision_id} approved and sent (${r.status ?? "executed"}).` : `${d.decision_id} rejected. Nothing was sent.`)
+    run(d.decision_id, () => api.post<{ status?: string; note?: string | null; cancelled?: string }>(`/decisions/${d.decision_id}/review`, { approve, note: n }),
+      (r) => !approve ? `${d.decision_id} rejected. Nothing was sent.`
+        : r.cancelled ? `${d.decision_id} was not sent: ${r.cancelled}`
+        : r.status === "Held" ? `${d.decision_id} approved, but the send-time check held it: ${r.note}.`
+        : `${d.decision_id} approved; simulated send ${(r.status ?? "executed").toLowerCase()}.`)
       .then((r) => { if (r) { reload(); refresh(); } });
 
   const toggle = async (id: string) => {
@@ -38,7 +41,7 @@ export default function ReviewQueue() {
       <PageHeader title="Review Queue" subtitle="Forbearance offers chosen by the engine, waiting for a person" role={me?.user.role_label} />
       <Page>
         <Banner tone="info" title="Why these wait">
-          Payment plans, deferrals and hardship referrals change what a customer owes or when. They are chosen by the model like any treatment, but nothing is sent until you approve it. Approving sends it; rejecting records why and sends nothing.
+          Payment plans, deferrals and hardship referrals change what a customer owes or when. They are chosen by the model like any treatment, but nothing is sent until you approve it. Approving re-checks consent, contact limits and any vulnerability flag against the newest data from Nova, then sends it (simulated: no channel gateway is connected). Rejecting records why and sends nothing.
         </Banner>
         <Card flush title={`${data?.total ?? 0} decisions waiting`}>
           <Table>
@@ -64,7 +67,7 @@ export default function ReviewQueue() {
                     <tr><td colSpan={7} className="border-b border-line bg-surface-sunken px-4 py-3 text-xs leading-5 text-fg-2">
                       <p>{detail[d.decision_id].explanation}</p>
                       <p className="mt-1 text-fg-3">
-                        Balance {money(Number(detail[d.decision_id].snapshot.balance))} · arrears {money(Number(detail[d.decision_id].snapshot.arrears))} ·
+                        Balance {money(Number(detail[d.decision_id].snapshot.balance))} · {detail[d.decision_id].snapshot.arrears == null ? "arrears not reported" : `arrears ${money(Number(detail[d.decision_id].snapshot.arrears))}`} ·
                         {" "}{detail[d.decision_id].snapshot.days_past_due} DPD · missed {detail[d.decision_id].snapshot.missed_payments} in 12 months ·
                         {" "}hardship flag {detail[d.decision_id].snapshot.hardship_flag ? "yes" : "no"} · <Link to={`/decisions/${d.decision_id}`} className="text-primary-500 hover:underline">full audit</Link>
                       </p>

@@ -155,14 +155,18 @@ class Decision(Base):
     origin: Mapped[str] = mapped_column(String(12), default="wave")
     group: Mapped[str] = mapped_column(String(12))          # Treatment | Control | Excluded
     treatment_code: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    eligible_arms: Mapped[str] = mapped_column(Text, default="[]")
-    ranking: Mapped[str] = mapped_column(Text, default="[]")   # per-arm belief / sample / fit / score
+    eligible_arms: Mapped[str] = mapped_column(Text, default="[]")   # passed the business rules
+    # Eligible but blocked by the contact rules before sampling:
+    # [{code, name, reason_code, reason}]. Never sampled.
+    blocked_arms: Mapped[str] = mapped_column(Text, default="[]")
+    ranking: Mapped[str] = mapped_column(Text, default="[]")   # allowed arms: belief / sample / fit / score
     selection_probability: Mapped[float | None] = mapped_column(Float, nullable=True)
     explanation: Mapped[str] = mapped_column(Text, default="")
     exclusion_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Forbearance-type treatments wait for a human; communications execute.
     review_policy: Mapped[str] = mapped_column(String(16), default="auto")     # auto | human_review
-    review_status: Mapped[str] = mapped_column(String(12), default="n/a")      # n/a | pending | approved | rejected
+    # n/a | pending | approved | rejected | cancelled (withdrawn before review: e.g. a vulnerability flag arrived)
+    review_status: Mapped[str] = mapped_column(String(12), default="n/a")
     reviewed_by: Mapped[str | None] = mapped_column(String(20), nullable=True)
     overridden: Mapped[bool] = mapped_column(Boolean, default=False)
     override_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
