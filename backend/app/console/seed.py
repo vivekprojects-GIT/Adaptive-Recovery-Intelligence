@@ -23,8 +23,8 @@ from .. import models
 from ..seed import COHORTS
 from . import compliance, engine, insights, playbook
 from .models import (
-    AlertRule, Campaign, ContactRecord, Decision, EngagementEvent, Handoff, Insight, Nudge, PlatformConfig,
-    RolePermission, User,
+    AlertRule, Campaign, ContactRecord, Decision, EngagementEvent, FeatureSnapshot, Handoff, Insight, Nudge, Outcome,
+    PlatformConfig, RolePermission, User,
 )
 from .platform import CONFIG_DEFAULTS, audit
 from .rbac import DEFAULT_GRANTS, PERMISSION_KEYS
@@ -105,9 +105,16 @@ def ensure_console(db: Session) -> None:
     """Bring an existing database up to the current schema and reference data,
     and load the treatment playbook into the scoring cache. Safe on every start;
     without it, treatments added in the console would be unknown after a restart."""
+    # Additive only: new nullable columns. New tables (feature_snapshots,
+    # eligibility_evals) are created by create_all at startup.
     added_columns = [("campaigns", "parent_id", "VARCHAR(12)"),
                      ("decisions", "origin", "VARCHAR(12) DEFAULT 'wave'"),
-                     ("decisions", "blocked_arms", "TEXT DEFAULT '[]'")]
+                     ("decisions", "blocked_arms", "TEXT DEFAULT '[]'"),
+                     ("decisions", "contract_version", "VARCHAR(10)"),
+                     ("decisions", "request_id", "VARCHAR(64)"),
+                     ("decisions", "context_as_of", "VARCHAR(32)"),
+                     ("decisions", "feature_snapshot_id", "INTEGER"),
+                     ("outcomes", "reward_policy", "VARCHAR(40)")]
     try:
         for table, column, ddl in added_columns:
             cols = {r[1] for r in db.execute(text(f"PRAGMA table_info({table})"))}
@@ -116,6 +123,7 @@ def ensure_console(db: Session) -> None:
         db.commit()
     except Exception:  # not SQLite: migrations are handled by the deployment
         db.rollback()
+    _backfill_snapshots(db)
     have = {(r.role, r.permission) for r in db.query(RolePermission)}
     for role, grants in DEFAULT_GRANTS.items():
         for p in PERMISSION_KEYS:
@@ -125,13 +133,44 @@ def ensure_console(db: Session) -> None:
     for key, default, label, group, kind, help_ in CONFIG_DEFAULTS:
         if key not in rows:
             db.add(PlatformConfig(key=key, value=default, label=label, group=group, kind=kind, help=help_))
-        elif rows[key].help != help_:
-            rows[key].help = help_  # help text follows the code; values stay as configured
+        elif rows[key].help != help_ or rows[key].label != label:
+            # Labels and help text follow the code; values stay as configured.
+            rows[key].help, rows[key].label = help_, label
+    # The arrangement rule must stay off until the business confirms it. A
+    # database that picked up the earlier default (on) and was never changed
+    # by a person is set back to off.
+    r = rows.get("arrangement_blocks_new_offers")
+    if r is not None and r.value == "true" and r.updated_by is None:
+        r.value = "false"
     # No channel gateway is connected, so shadow mode cannot be off.
     if "shadow_mode" in rows and rows["shadow_mode"].value != "true":
         rows["shadow_mode"].value = "true"
     db.commit()
     playbook.seed_meta(db)
+
+
+def _backfill_snapshots(db: Session) -> None:
+    """Decisions made before FeatureSnapshot existed get one, marked legacy:
+    their frozen JSON is all there is - the raw request, as-of time and
+    per-rule results were not kept then, and are not invented now. Outcomes
+    from before reward_policy existed were all scored by the binary policy."""
+    missing = db.query(Decision).filter(Decision.feature_snapshot_id.is_(None)).all()
+    for d in missing:
+        snap = json.loads(d.snapshot or "{}")
+        fs = FeatureSnapshot(
+            decision_id=d.decision_id, account_ref=snap.get("account_id"), party_ref=None, contract_version="legacy",
+            request_id=None, as_of_ts=None, received_at=d.decided_at, feature_set_version="legacy-backfill",
+            raw_payload="{}", features=d.snapshot or "{}", guard_context="{}", assumed="[]", ignored_fields="[]",
+            aliases_used="[]", lineage_only="[]", staleness="{}",
+            source_lineage=json.dumps({"source": snap.get("source", "Console wave"),
+                                       "note": "Backfilled from decisions.snapshot. The raw request, as-of time and "
+                                               "per-rule results were not recorded before RecoveryContext v1."}))
+        db.add(fs)
+        db.flush()
+        d.feature_snapshot_id = fs.snapshot_id
+    db.query(Outcome).filter(Outcome.reward_policy.is_(None), Outcome.reward.isnot(None)).update(
+        {Outcome.reward_policy: "binary-paid-in-window/1"}, synchronize_session=False)
+    db.commit()
 
 
 def seed_console(db: Session, force: bool = False) -> dict:

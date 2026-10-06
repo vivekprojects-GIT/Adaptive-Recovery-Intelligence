@@ -171,24 +171,26 @@ async def main(port: int) -> None:
                   f"no SMS consent, app user: {treated} treated, SMS never sampled, all got "
                   f"{sample and sample['treatment']['name']} ({sample and sample['blocked_treatments'][0]['reason']})")
             blocked = None
-            for i in range(12):  # C1, no app: only the SMS reminder is eligible; skip control draws
+            for i in range(12):  # C1, no app: only the SMS reminder is eligible
                 acc = {"account_id": f"NOVA-SMS-{i}", "days_past_due": 12, "current_balance": 1200,
                        "credit_limit": 2000, "opened_date": "2016-05-01", "prior_delinquencies_12m": 0,
                        "on_time_payment_ratio": 0.95, "app_user": False, "sms_responsive": True,
                        "hardship_flag": True, "consent": {"sms": False}}
                 r = result(await s.call_tool("get_recovery_strategy", {"account": acc}))
-                if r["group"] == "Treatment":
+                if r["group"] != "Control":
                     blocked = r
                     break
             check(blocked is not None and blocked["action"] == "contact_blocked" and blocked["treatment"] is None
-                  and blocked["selection_probability"] is None and blocked["contact"] is None,
-                  f"no allowed treatment -> {blocked and blocked['action']}, no draw, nothing sent: "
+                  and blocked["group"] == "Excluded" and blocked["selection_probability"] is None
+                  and blocked["contact"] is None,
+                  f"no allowed treatment -> {blocked and blocked['action']}, excluded before the control split, "
+                  f"no draw, nothing sent: "
                   f"{blocked and blocked['summary'][:80]}")
             capped = None
             for i in range(12):
                 acc = {**PRIYA, "account_id": f"NOVA-CAP-{i}", "contacts_last_7d": 7, "consent": None}
                 r = result(await s.call_tool("get_recovery_strategy", {"account": acc}))
-                if r["group"] == "Treatment":
+                if r["group"] != "Control":
                     capped = r
                     break
             check(capped is not None and capped["action"] == "contact_blocked"

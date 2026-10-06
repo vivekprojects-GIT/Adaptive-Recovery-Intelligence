@@ -296,7 +296,8 @@ export interface AgentDecision {
   selection_probability?: number | null;
   alternatives?: { code: string; name: string; selection_probability: number | null; belief: number;
     customer_fit: number; fit_reasons: string[] }[];
-  blocked_treatments?: { code: string; name: string; reason_code: string; reason: string }[];
+  blocked_treatments?: { code: string; name: string; reason_code: string; reason: string;
+    reasons?: { rule_id: string; reason_code: string; reason: string }[] }[];
   cancelled_decisions?: string[];
   explanation?: string; message?: string | null;
   contact?: { nudge_id: string; channel: string; send_at: string; status: string; guard: string | null;

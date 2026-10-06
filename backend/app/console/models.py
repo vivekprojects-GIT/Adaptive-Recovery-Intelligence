@@ -17,7 +17,7 @@ Vocabulary, kept deliberately distinct:
 """
 from __future__ import annotations
 
-from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text, UniqueConstraint, event
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..db import Base
@@ -174,6 +174,67 @@ class Decision(Base):
     snapshot: Mapped[str] = mapped_column(Text, default="{}")   # customer context at decision time
     decided_at: Mapped[str] = mapped_column(String(32), index=True)
     latency_ms: Mapped[float] = mapped_column(Float, default=0.0)
+    # RecoveryContext lineage (P1). Null on decisions made before it existed.
+    contract_version: Mapped[str | None] = mapped_column(String(10), nullable=True)   # v0 | v1 | console
+    request_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    context_as_of: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    feature_snapshot_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+class FeatureSnapshot(Base):
+    """The exact context a decision was made on, frozen at decision time and
+    never updated: what was received, how it was read, what was assumed, and
+    how fresh it was. Historical screens read this, never today's customer
+    record. ARI keeps the context of each request, not a copy of Nova's data."""
+    __tablename__ = "feature_snapshots"
+
+    snapshot_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    decision_id: Mapped[str] = mapped_column(ForeignKey("decisions.decision_id"), unique=True, index=True)
+    account_ref: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)   # Nova account_id
+    party_ref: Mapped[str | None] = mapped_column(String(64), nullable=True)                 # Nova party id
+    contract_version: Mapped[str] = mapped_column(String(10))       # v0 | v1 | console | legacy
+    request_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    as_of_ts: Mapped[str | None] = mapped_column(String(32), nullable=True)   # when the data was true in Nova
+    received_at: Mapped[str] = mapped_column(String(32))
+    feature_set_version: Mapped[str] = mapped_column(String(30))
+    raw_payload: Mapped[str] = mapped_column(Text, default="{}")    # as received, verbatim
+    features: Mapped[str] = mapped_column(Text, default="{}")       # the normalised values the rules and model used
+    guard_context: Mapped[str] = mapped_column(Text, default="{}")  # consent, contacts, restrictions, as-of times
+    assumed: Mapped[str] = mapped_column(Text, default="[]")        # values ARI had to default
+    ignored_fields: Mapped[str] = mapped_column(Text, default="[]")  # sent, but not part of the contract
+    aliases_used: Mapped[str] = mapped_column(Text, default="[]")
+    lineage_only: Mapped[str] = mapped_column(Text, default="[]")   # accepted and stored, not used to decide
+    source_lineage: Mapped[str] = mapped_column(Text, default="{}")
+    staleness: Mapped[str] = mapped_column(Text, default="{}")      # per guardrail input: fresh | stale | missing
+
+
+class EligibilityEval(Base):
+    """One rule, evaluated for one candidate treatment, for one decision. Every
+    rule is evaluated - none stops at the first failure - so a blocked
+    treatment shows every reason it was blocked. Written once, never updated."""
+    __tablename__ = "eligibility_evals"
+
+    eval_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    decision_id: Mapped[str] = mapped_column(ForeignKey("decisions.decision_id"), index=True)
+    arm_id: Mapped[str] = mapped_column(String(10))              # treatment code
+    arm_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    stage: Mapped[str] = mapped_column(String(20))               # playbook | business | hard_stop | contact | context
+    rule_id: Mapped[str] = mapped_column(String(40))
+    rule_version: Mapped[str] = mapped_column(String(30))
+    result: Mapped[str] = mapped_column(String(5))               # PASS | BLOCK
+    reason_code: Mapped[str] = mapped_column(String(40))
+    reason: Mapped[str] = mapped_column(Text, default="")
+    input_refs: Mapped[str] = mapped_column(Text, default="{}")  # the inputs the rule read, with their values
+    evaluated_at: Mapped[str] = mapped_column(String(32))
+
+
+def _immutable(mapper, connection, target):
+    raise ValueError(f"{type(target).__name__} rows are immutable: a decision's context and rule results are "
+                     f"never rewritten.")
+
+
+event.listen(FeatureSnapshot, "before_update", _immutable)
+event.listen(EligibilityEval, "before_update", _immutable)
 
 
 class Nudge(Base):
@@ -219,6 +280,10 @@ class Outcome(Base):
     escalated: Mapped[bool] = mapped_column(Boolean, default=False)
     window_days: Mapped[int] = mapped_column(Integer, default=7)
     reward: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Which reward policy turned the reported facts into `reward`. Only one
+    # exists so far (binary: paid inside the window). Recorded so a future
+    # policy - a reward ladder - can be told apart from today's.
+    reward_policy: Mapped[str | None] = mapped_column(String(40), nullable=True)
     learned: Mapped[bool] = mapped_column(Boolean, default=False)
     observed_at: Mapped[str] = mapped_column(String(32))
 

@@ -32,6 +32,35 @@ CONFIG_DEFAULTS: list[tuple[str, str, str, str, str, str]] = [
     ("contact_hour_end", "21", "Latest contact (local hour)", "Contact policy", "hour", ""),
     ("optout_sla_hours", "24", "Opt-out suppression SLA (hours)", "Contact policy", "number",
      "Maximum lag between an opt-out and suppression across every system."),
+    # COMPLIANCE PLACEHOLDERS. 24 hours is a stand-in so the mechanism can be
+    # demonstrated - not an approved or recommended threshold. Compliance sets
+    # the real values before any production use. They fail closed for
+    # contract v1 requests only; for v0 staleness is logged, never enforced.
+    ("freshness_sla_consent_hours", "24", "Consent freshness limit (hours) - COMPLIANCE PLACEHOLDER, not approved",
+     "Data freshness", "number",
+     "COMPLIANCE PLACEHOLDER - not an approved requirement. Compliance must set this value. Consent older than "
+     "this blocks the channels that need it, for contract v1 requests only."),
+    ("freshness_sla_contact_history_hours", "24",
+     "Contact history freshness limit (hours) - COMPLIANCE PLACEHOLDER, not approved", "Data freshness", "number",
+     "COMPLIANCE PLACEHOLDER - not an approved requirement. Compliance must set this value. Contact counts older "
+     "than this block every contact, for contract v1 requests only."),
+    ("freshness_sla_restrictions_hours", "24",
+     "Restrictions freshness limit (hours) - COMPLIANCE PLACEHOLDER, not approved", "Data freshness", "number",
+     "COMPLIANCE PLACEHOLDER - not an approved requirement. Compliance must set this value. Restrictions and "
+     "vulnerability older than this stop all automated treatment, for contract v1 requests only."),
+    ("freshness_sla_arrangement_hours", "24",
+     "Arrangement freshness limit (hours) - PLACEHOLDER, not approved", "Data freshness", "number",
+     "PLACEHOLDER - not an approved requirement. Measured and logged only; never blocks."),
+    # PENDING_BUSINESS_CONFIRMATION: implemented, but off until Vishal / the
+    # business confirm that an active arrangement or promise to pay must block
+    # a new plan or deferral offer. While off, the rule is still evaluated and
+    # recorded - it passes, with what it would have done.
+    ("arrangement_blocks_new_offers", "false",
+     "Block new plan / deferral offers over an active arrangement or PTP - PENDING_BUSINESS_CONFIRMATION",
+     "Data freshness", "bool",
+     "PENDING_BUSINESS_CONFIRMATION - off by default. Do not switch on until the business confirms the rule. "
+     "When on, plan and deferral offers are not made while an arrangement is active or a promise to pay is "
+     "pending. When off, each decision still records what the rule would have done."),
     ("recovery_rate_target", "0.40", "Portfolio recovery-rate target", "Targets", "percent", ""),
     ("cost_per_recovery_target", "8.00", "Cost-per-recovery target ($)", "Targets", "number", ""),
     ("escalation_rate_target", "0.08", "Escalation-rate ceiling", "Targets", "percent", ""),

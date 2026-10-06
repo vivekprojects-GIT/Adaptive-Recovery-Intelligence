@@ -9,11 +9,11 @@ ARI, the recovery agent, owns the decision. Between them:
   3. Nova reports the payment outcome; ARI learns from it.
   4. Either side reads a decision back by id or by account.
 
-Field names follow the Nova data contract (RecoveryStrategy_Nova_Contract,
-05-nova-api-contract.md), and only fields a decision needs are asked for: no
-address or contact details. This module knows nothing about transport -
-mcp_server.py exposes it over MCP, and a REST facade would call the same
-functions.
+What Nova may send - RecoveryContext v0 and v1 - is defined in contract.py;
+the guardrail and eligibility rules are in rules.py. Only fields a decision
+needs are asked for: no address or contact details. This module knows nothing
+about transport - mcp_server.py exposes it over MCP, and a REST facade would
+call the same functions.
 """
 from __future__ import annotations
 
@@ -23,14 +23,17 @@ from datetime import date, datetime, timezone
 from typing import Literal
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from .. import models
 from ..scoring import SEGMENT_ACTION, nudge_score, self_cure_score, segment_for
-from . import analytics, engine
+from . import analytics, engine, rules
+from .contract import (  # noqa: F401  (Consent and NovaAccount are re-exported for callers of this module)
+    FEATURE_SET_VERSION, Consent, NovaAccount, Received, RecoveryContextV1, guard_context, lineage_only, receive,
+)
 from .engine import UNNAMED, iso, jl
-from .models import Campaign, Decision, ExternalCustomer, Nudge, Outcome, TreatmentMeta
+from .models import Campaign, Decision, ExternalCustomer, FeatureSnapshot, Nudge, Outcome, TreatmentMeta
 from .platform import audit, cfg, now
 from .playbook import human_review_codes
 
@@ -53,49 +56,6 @@ class NovaError(ValueError):
 # ---------------------------------------------------------------------------
 # What Nova sends
 # ---------------------------------------------------------------------------
-class Consent(BaseModel):
-    sms: bool | None = Field(None, description="May ARI send SMS? false blocks SMS and SMS + App treatments.")
-    email: bool | None = Field(None, description="May ARI send email?")
-    call: bool | None = Field(None, description="May ARI call? false blocks agent-call treatments.")
-
-
-class NovaAccount(BaseModel):
-    """One delinquent account as Nova describes it (data contract C1-C6).
-    Only account_id, days_past_due and current_balance are required; anything
-    missing is filled with a stated, conservative default and listed back."""
-    model_config = ConfigDict(extra="ignore")
-
-    account_id: str = Field(min_length=1, max_length=64,
-                            description="Nova account id. The key for every later call: outcome reports and look-ups.")
-    customer_id: str | None = Field(None, max_length=64, description="Nova customer id, if it differs from the account.")
-    customer_name: str | None = Field(None, max_length=60,
-                                      description="Optional. Only used to greet the customer; never needed to decide.")
-    days_past_due: int = Field(ge=0, le=720, description="Days past due on the as-of date (C3).")
-    current_balance: float = Field(ge=0, description="Outstanding balance (C2).")
-    credit_limit: float | None = Field(None, gt=0, description="Credit limit (C2), for utilisation.")
-    amount_past_due: float | None = Field(None, ge=0, description="Arrears amount (C3). Kept for lineage.")
-    opened_date: date | None = Field(None, description="Account opened date (C2). Gives tenure.")
-    prior_delinquencies_12m: int | None = Field(None, ge=0, le=12,
-                                                description="Missed payments in the last 12 months (C3).")
-    on_time_payment_ratio: float | None = Field(None, ge=0, le=1,
-                                                description="Share of the last 12 months' payments made on time (C4).")
-    risk_segment: Literal["Low", "Medium", "High", "Very high"] | None = Field(
-        None, description="The bank's own risk band (C1). ARI does not recompute it.")
-    risk_score: float | None = Field(None, ge=0, le=100,
-                                     description="The bank's risk score on a 0-100 scale, higher is riskier.")
-    preferred_channel: str | None = Field(None, description="C1 preferred channel, e.g. App, SMS, Email, Phone.")
-    app_user: bool | None = Field(None, description="Active mobile-app user (C6 AppLogin signals).")
-    sms_responsive: bool | None = Field(None, description="Has responded to SMS before (C5 outcomes).")
-    hardship_flag: bool | None = Field(None, description="A hardship indicator is on file.")
-    vulnerability_flag: bool = Field(False, description="C1. A vulnerable customer is never contacted by an "
-                                                        "automated treatment; ARI refers them to a person.")
-    consent: Consent | None = Field(None, description="C1 consent by channel.")
-    contacts_last_7d: int | None = Field(None, ge=0, description="Contacts in the last 7 days made by systems other "
-                                                                 "than ARI (C5 counts). Counted against the contact cap.")
-    as_of_timestamp: datetime | None = Field(None, description="When the data was true in Nova (lineage).")
-    source_system: str | None = Field(None, max_length=40, description="Nova's source system (lineage).")
-
-
 class PaymentReport(BaseModel):
     """A payment outcome for a decision ARI returned (data contract C10)."""
     decision_id: str | None = Field(None, description="The decision_id ARI returned. Preferred.")
@@ -213,7 +173,8 @@ def _in_journey(db: Session, customer_id: int) -> Decision | None:
     owners = {cid for camp in running for cid in engine.lineage(db, camp)}
     if not owners:
         return None
-    return (db.query(Decision).filter(Decision.customer_id == customer_id, Decision.campaign_id.in_(owners))
+    return (db.query(Decision).filter(Decision.customer_id == customer_id, Decision.campaign_id.in_(owners),
+                                      Decision.group != "Excluded")
             .order_by(Decision.decided_at.desc()).first())
 
 
@@ -269,17 +230,18 @@ def describe(db: Session, dec: Decision, c, camp: Campaign, account_id: str, *, 
     window = camp.evaluation_days
     p = dec.selection_probability or 0.0
     blocked = jl(dec.blocked_arms)
-    # Treated, but every eligible treatment was blocked by the contact rules
-    # before sampling (an override to "no treatment" is a different thing).
-    none_allowed = dec.group == "Treatment" and not dec.treatment_code and not dec.overridden
+    excluded = dec.group == "Excluded"
 
-    if preview and dec.group == "Control":
+    if excluded:
+        action = dec.exclusion_reason or "contact_blocked"
+        summary = _exclusion_summary(action, blocked, dec.explanation)
+        if preview:
+            action = "would_be_blocked" if action == "contact_blocked" else action
+            summary = "Preview: " + summary + " Nothing was recorded."
+    elif preview and dec.group == "Control":
         action = "control_bau"
         summary = ("Preview: this account would be held out as control and stay on business as usual. "
                    "Nothing was recorded.")
-    elif preview and none_allowed:
-        action = "would_be_blocked"
-        summary = f"Preview: {dec.explanation} Nothing was recorded."
     elif preview:
         needs_person = dec.review_policy == "human_review"
         action = "would_need_approval" if needs_person else "would_contact"
@@ -290,9 +252,6 @@ def describe(db: Session, dec: Decision, c, camp: Campaign, account_id: str, *, 
         action = "control_bau"
         summary = ("Randomised control: keep this account on the bank's business-as-usual process. Its outcome "
                    "is the comparison every treated result is measured against, so please still report it.")
-    elif none_allowed:
-        action = "contact_blocked"
-        summary = dec.explanation
     elif dec.review_status == "cancelled":
         action = "cancelled"
         summary = f"{t['name']} was proposed, then withdrawn before anything was sent. {dec.exclusion_reason}"
@@ -332,7 +291,8 @@ def describe(db: Session, dec: Decision, c, camp: Campaign, account_id: str, *, 
 
     if preview:
         next_step = "Call get_recovery_strategy with the same account to record the decision and act on it."
-    elif action in ("contact", "contact_blocked", "contact_failed", "control_bau", "awaiting_approval"):
+    elif not excluded and action in ("contact", "contact_blocked", "contact_failed", "control_bau",
+                                     "awaiting_approval"):
         next_step = (("Check get_decision for the approval, then report " if action == "awaiting_approval"
                       else "Report ")
                      + f"the payment outcome after the {window}-day window: "
@@ -354,9 +314,9 @@ def describe(db: Session, dec: Decision, c, camp: Campaign, account_id: str, *, 
         "alternatives": [{"code": r["code"], "name": r["name"], "selection_probability": r.get("selection_probability"),
                           "belief": r["belief"], "customer_fit": r["fit"], "fit_reasons": r.get("fit_reasons", [])}
                          for r in jl(dec.ranking)],
-        # Eligible, but blocked by the contact rules before Thompson sampling: never sampled.
-        "blocked_treatments": [{"code": b["code"], "name": b["name"], "reason_code": b["reason_code"],
-                                "reason": b["reason"]} for b in blocked],
+        # Not allowed by the rules, so never sampled - with every reason (rules.py).
+        "blocked_treatments": [{"code": b["code"], "name": b.get("name", b["code"]), "reason_code": b["reason_code"],
+                                "reason": b["reason"], "reasons": b.get("reasons", [])} for b in blocked],
         "explanation": dec.explanation,
         "message": message,
         "contact": contact,
@@ -366,6 +326,7 @@ def describe(db: Session, dec: Decision, c, camp: Campaign, account_id: str, *, 
         "decided_at": None if preview else dec.decided_at,
         "next_step": next_step,
         "model_version": cfg(db, "model_version"),
+        "context": _context_out(db, dec, preview),
     }
     if preview and c.customer_id is None:
         out["note"] = (f"New account: in a real request {camp.control_pct:.0%} of accounts are held out at random "
@@ -375,6 +336,38 @@ def describe(db: Session, dec: Decision, c, camp: Campaign, account_id: str, *, 
     if checked:
         out["strategies_checked"] = checked
     return out
+
+
+def _exclusion_summary(action: str, blocked: list[dict], explanation: str) -> str:
+    reasons = []
+    for b in blocked:
+        for r in b.get("reasons", [b]):
+            if r["reason"] not in reasons:
+                reasons.append(r["reason"])
+    text = "; ".join(reasons)
+    if action == "refer_to_specialist":
+        return ("Vulnerability flag on file: no automated treatment. Refer the customer to a trained specialist."
+                + (f" Also: {text}." if len(reasons) > 1 else ""))
+    if action == "restricted":
+        return f"A restriction on file stops automated treatment: {text}. Keep the account with the bank's own process."
+    if action == "blocked_stale_data":
+        return (f"Guardrail data is missing or out of date, so ARI does not decide (fails closed): {text}. "
+                f"Send current data from Nova to get a decision.")
+    return explanation
+
+
+def _context_out(db: Session, dec: Decision, preview: bool) -> dict | None:
+    """How the request was read, from the decision's frozen snapshot."""
+    fs = getattr(dec, "_feature_snapshot", None) if preview else (
+        db.query(FeatureSnapshot).filter(FeatureSnapshot.decision_id == dec.decision_id).first())
+    if fs is None:
+        return None
+    return {"contract_version": fs.contract_version, "request_id": fs.request_id, "as_of": fs.as_of_ts,
+            "feature_set_version": fs.feature_set_version, "feature_snapshot_id": fs.snapshot_id,
+            "ignored_fields": jl(fs.ignored_fields), "aliases_used": jl(fs.aliases_used),
+            "assumed": jl(fs.assumed), "lineage_only": jl(fs.lineage_only),
+            "freshness": {k: v["status"] + ("" if v["enforced"] or v["status"] == "fresh" else " (not enforced)")
+                          for k, v in jl(fs.staleness, {}).items()}}
 
 
 def _no_action(account_id: str, c, reason: str, *, checked: list[dict] | None = None,
@@ -392,75 +385,127 @@ def _no_action(account_id: str, c, reason: str, *, checked: list[dict] | None = 
 # ---------------------------------------------------------------------------
 # The calls
 # ---------------------------------------------------------------------------
-def recovery_strategy(db: Session, rec: NovaAccount, *, record: bool = True) -> dict:
+def _received_out(out: dict, got: Received) -> dict:
+    """Every answer says how the request was read."""
+    out.setdefault("contract_version", got.account.contract_version)
+    out.setdefault("request_id", got.account.request_id)
+    out.setdefault("ignored_fields", got.ignored_fields)
+    out.setdefault("aliases_used", got.aliases_used)
+    return out
+
+
+def recovery_strategy(db: Session, request: NovaAccount | RecoveryContextV1 | Received, *,
+                      record: bool = True) -> dict:
     """The recovery action for one account. record=False is a dry run: nothing
-    is stored, sent or learned, and the account stays free for a real request."""
+    is stored, sent or learned, and the account stays free for a real request.
+
+    Order: request id (a repeat returns the decision already made) -> not in
+    arrears -> account-level hard stops -> journey already under way ->
+    routing -> every rule for every candidate treatment -> control split ->
+    Thompson sampling among the allowed treatments."""
+    got = request if isinstance(request, Received) else receive(request)
+    rec = got.account
+    if record and rec.request_id:
+        prior = (db.query(Decision).filter(Decision.origin == "mcp", Decision.request_id == rec.request_id)
+                 .order_by(Decision.decided_at).first())
+        if prior is not None:
+            out = describe(db, prior, db.get(models.Customer, prior.customer_id), db.get(Campaign, prior.campaign_id),
+                           _account_of(db, prior), existing=True)
+            out["summary"] = f"Request {rec.request_id} was already decided. " + out["summary"]
+            return _received_out(out, got)
     if rec.days_past_due == 0:
-        return _no_action(rec.account_id, None, "Not in arrears (0 days past due): no recovery action.")
+        return _received_out(_no_action(rec.account_id, None, "Not in arrears (0 days past due): no recovery action."),
+                             got)
     if record:
         c, assumed = upsert(db, rec)
     else:
         c, assumed = _transient(db, rec)
 
-    if rec.vulnerability_flag:
-        cancelled = []
-        if record:
-            # An offer still waiting for review must not go out to a customer
-            # who is now flagged as vulnerable.
-            reason = (f"Nova reported a vulnerability flag on {now()[:10]}, after this offer was proposed. No "
-                      f"automated treatment: refer the customer to a trained specialist.")
-            for dec in db.query(Decision).filter(Decision.customer_id == c.customer_id,
-                                                 Decision.review_status == "pending"):
-                engine.cancel_pending(dec, reason, ACTOR)
-                audit(db, ACTOR, "UPDATE", "decision", dec.decision_id,
-                      f"Cancelled {dec.decision_id} ({dec.treatment_code}) before review: vulnerability flag")
-                cancelled.append(dec.decision_id)
-            db.commit()
-        out = _no_action(rec.account_id, c, "Vulnerability flag on file: no automated treatment. Refer the "
-                                            "customer to a trained specialist."
-                         + (f" Cancelled the offer still waiting for review ({', '.join(cancelled)})."
-                            if cancelled else ""), assumed=assumed, action="refer_to_specialist")
-        if cancelled:
-            out["cancelled_decisions"] = cancelled
-        return out
+    g = guard_context(rec)
+    at = datetime.now(UTC)
+    stops = [x for x in rules.account_rules(g, rules.freshness(db, g, at)) if x["result"] == "BLOCK"]
+    cancelled: list[str] = []
+    if stops and record:
+        # An offer still waiting for review must not go out once Nova reports a
+        # hard stop for the account.
+        reason = (f"Nova's data of {now()[:10]} stops automated treatment, after this offer was proposed: "
+                  + "; ".join(x["reason"] for x in stops) + ".")
+        for dec in db.query(Decision).filter(Decision.customer_id == c.customer_id,
+                                             Decision.review_status == "pending"):
+            engine.cancel_pending(dec, reason, ACTOR)
+            audit(db, ACTOR, "UPDATE", "decision", dec.decision_id,
+                  f"Cancelled {dec.decision_id} ({dec.treatment_code}) before review: "
+                  + ", ".join(x["reason_code"] for x in stops))
+            cancelled.append(dec.decision_id)
+    if stops:
+        audit(db, ACTOR, "READ", "guardrail", rec.account_id,
+              f"Hard stop for {rec.account_id} ({rec.contract_version}): " + ", ".join(x["reason_code"] for x in stops),
+              {"rules": [{k: x[k] for k in ("rule_id", "reason_code", "reason")} for x in stops]})
 
-    if record:
+    if record and not stops:
         ongoing = _in_journey(db, c.customer_id)
         if ongoing is not None:
             camp = db.get(Campaign, ongoing.campaign_id)
             db.commit()
             out = describe(db, ongoing, c, camp, rec.account_id, existing=True, assumed=assumed)
             out["summary"] = f"Already in {camp.campaign_id} since {ongoing.decided_at[:10]}. " + out["summary"]
-            return out
+            return _received_out(out, got)
 
     camp, checked = route(db, c)
     if camp is None:
         if record:
             db.commit()
-        handling = SEGMENT_ACTION.get(c.segment, "")
-        why = ("no live strategy targets this account" if not checked else
-               "no live strategy's audience includes this account")
-        return _no_action(rec.account_id, c, f"{FIT_LABEL.get(c.segment, c.segment)}: {why}. Default handling: "
-                                             f"{handling[0].lower() + handling[1:] if handling else 'business as usual'}.",
-                          checked=checked, assumed=assumed)
+        if stops:
+            # No strategy owns the account, so there is no decision to record;
+            # the hard stop is in the audit log.
+            action = rules.exclusion_action(stops)
+            out = _no_action(rec.account_id, c, _exclusion_summary(action, [{"reasons": stops}], ""),
+                             checked=checked, assumed=assumed, action=action)
+        else:
+            handling = SEGMENT_ACTION.get(c.segment, "")
+            why = ("no live strategy targets this account" if not checked else
+                   "no live strategy's audience includes this account")
+            out = _no_action(rec.account_id, c, f"{FIT_LABEL.get(c.segment, c.segment)}: {why}. Default handling: "
+                                                f"{handling[0].lower() + handling[1:] if handling else 'business as usual'}.",
+                             checked=checked, assumed=assumed)
+        if cancelled:
+            out["cancelled_decisions"] = cancelled
+            out["summary"] += f" Cancelled the offer still waiting for review ({', '.join(cancelled)})."
+        return _received_out(out, got)
 
-    # Frozen with the decision. "arrears" is Nova's amount_past_due, never an
-    # estimate: a message quotes it, or names no figure when Nova sent none.
-    extra = {"source": "Nova (MCP)", "account_id": rec.account_id,
-             "amount_past_due": rec.amount_past_due, "arrears": rec.amount_past_due,
-             "reported_contacts_7d": rec.contacts_last_7d or 0,
-             "no_consent": [k for k, v in (rec.consent.model_dump() if rec.consent else {}).items() if v is False]}
+    # Frozen with the decision (FeatureSnapshot). "arrears" is Nova's
+    # amount_past_due, never an estimate: a message quotes it, or names no
+    # figure when Nova sent none. The legacy keys stay for older readers.
+    context = {
+        "contract_version": rec.contract_version, "request_id": rec.request_id, "account_ref": rec.account_id,
+        "party_ref": rec.customer_id, "as_of": rec.as_of_timestamp.isoformat() if rec.as_of_timestamp else None,
+        "raw": got.raw, "guard": g, "assumed": assumed, "ignored": got.ignored_fields, "aliases": got.aliases_used,
+        "lineage_only": lineage_only(rec), "received_at": iso(at),
+        "source_lineage": {"source": "Nova (MCP)", "source_system": rec.source_system, "request_id": rec.request_id,
+                           "as_of_timestamp": rec.as_of_timestamp.isoformat() if rec.as_of_timestamp else None,
+                           "contract_version": rec.contract_version, "feature_set_version": FEATURE_SET_VERSION},
+        "snapshot_extra": {"source": "Nova (MCP)", "account_id": rec.account_id,
+                           "amount_past_due": rec.amount_past_due, "arrears": rec.amount_past_due,
+                           "reported_contacts_7d": rec.contacts_last_7d or 0,
+                           "no_consent": [k for k, v in g["consent"].items() if v is False],
+                           "timezone": rec.timezone, "cycles_delinquent": rec.cycles_delinquent},
+    }
     if not record:
         wave = camp.waves_run + 1
         seed = hashlib.sha256(f"{camp.campaign_id}:{c.customer_id}:{wave}".encode()).hexdigest()[:8]
-        dec = engine.decide_one(db, camp, c, decision_id="PREVIEW", wave=wave, decided_at=datetime.now(UTC),
+        dec = engine.decide_one(db, camp, c, decision_id="PREVIEW", wave=wave, decided_at=at,
                                 rng=np.random.default_rng(int(seed, 16)), arms_state=engine.beliefs(db, camp),
                                 human_review=human_review_codes(db), auto_approve=False, origin="mcp",
-                                extra_snapshot=extra)
-        return describe(db, dec, c, camp, rec.account_id, preview=True, assumed=assumed, checked=checked)
+                                context=context)
+        return _received_out(describe(db, dec, c, camp, rec.account_id, preview=True, assumed=assumed,
+                                      checked=checked), got)
 
-    dec, _ = engine.decide_now(db, camp, c, origin="mcp", extra_snapshot=extra)
-    return describe(db, dec, c, camp, rec.account_id, assumed=assumed, checked=checked)
+    dec, _ = engine.decide_now(db, camp, c, origin="mcp", context=context, at=at)
+    out = describe(db, dec, c, camp, rec.account_id, assumed=assumed, checked=checked)
+    if cancelled:
+        out["cancelled_decisions"] = cancelled
+        out["summary"] += f" Cancelled the offer still waiting for review ({', '.join(cancelled)})."
+    return _received_out(out, got)
 
 
 def _decision_for(db: Session, decision_id: str | None, account_id: str | None) -> Decision:
@@ -471,8 +516,9 @@ def _decision_for(db: Session, decision_id: str | None, account_id: str | None) 
         return dec
     if account_id:
         link = _link(db, account_id)
-        dec = None if link is None else (db.query(Decision).filter(Decision.customer_id == link.customer_id)
-                                         .order_by(Decision.decided_at.desc()).first())
+        q = None if link is None else db.query(Decision).filter(Decision.customer_id == link.customer_id)
+        dec = None if q is None else (q.filter(Decision.group != "Excluded").order_by(Decision.decided_at.desc()).first()
+                                      or q.order_by(Decision.decided_at.desc()).first())
         if dec is None:
             raise NovaError(f"No decision for account {account_id}.")
         return dec
@@ -499,13 +545,15 @@ def _not_sent(dec: Decision, first) -> str:
     return first.status.lower() if first else "not sent"
 
 
-def report_outcome(db: Session, rep: PaymentReport) -> dict:
-    """Record a payment outcome and learn from it where the rules allow."""
-    dec = _decision_for(db, rep.decision_id, rep.account_id)
-    if dec.origin != "mcp":
-        raise NovaError(f"{dec.decision_id} was decided in a console wave; its outcome comes from the simulator, "
-                        f"not from a report.")
-    camp = db.get(Campaign, dec.campaign_id)
+# The only reward policy so far. A future report_outcome_event would accept
+# more kinds of fact (promise to pay, cure, roll, complaint ...) and turn them
+# into rewards under a versioned policy; that needs approved reward values, so
+# it is not built. The seam is here: facts first, then the policy.
+REWARD_POLICY = "binary-paid-in-window/1"
+
+
+def payment_facts(rep: PaymentReport, dec: Decision, camp: Campaign) -> dict:
+    """What happened, as reported - before any reward is assigned."""
     decided = datetime.fromisoformat(dec.decided_at)
     paid = rep.paid and rep.payment_status == "Posted"
     days = None
@@ -513,8 +561,29 @@ def report_outcome(db: Session, rep: PaymentReport) -> dict:
         days = (rep.payment_date - decided.date()).days
         if days < 0:
             raise NovaError(f"payment_date {rep.payment_date} is before the decision ({decided.date()}).")
-    in_window = days is None or days <= camp.evaluation_days
-    success = paid and in_window
+    return {"event": "PAYMENT_POSTED" if paid else ("PAYMENT_REVERSED" if rep.paid else "NO_PAYMENT"),
+            "paid": paid, "days": days, "in_window": days is None or days <= camp.evaluation_days,
+            "amount": rep.amount}
+
+
+def binary_reward(facts: dict) -> float:
+    """REWARD_POLICY: 1 for a posted payment inside the evaluation window, else 0."""
+    return 1.0 if facts["paid"] and facts["in_window"] else 0.0
+
+
+def report_outcome(db: Session, rep: PaymentReport) -> dict:
+    """Record a payment outcome and learn from it where the rules allow."""
+    dec = _decision_for(db, rep.decision_id, rep.account_id)
+    if dec.origin != "mcp":
+        raise NovaError(f"{dec.decision_id} was decided in a console wave; its outcome comes from the simulator, "
+                        f"not from a report.")
+    if dec.group == "Excluded":
+        raise NovaError(f"{dec.decision_id} was excluded before any treatment: nothing was sent, so there is no "
+                        f"outcome to record or learn from.")
+    camp = db.get(Campaign, dec.campaign_id)
+    facts = payment_facts(rep, dec, camp)
+    paid, days, in_window = facts["paid"], facts["days"], facts["in_window"]
+    success = binary_reward(facts) == 1.0
 
     first = (db.query(Nudge).filter(Nudge.decision_id == dec.decision_id).order_by(Nudge.scheduled_at).first())
     delivered = first is not None and first.status not in ("Failed", "Held")
@@ -539,7 +608,8 @@ def report_outcome(db: Session, rep: PaymentReport) -> dict:
     o.window_days = camp.evaluation_days
     # Control outcomes always count - they are the comparison. A treatment that
     # never reached the customer says nothing about the treatment.
-    o.reward = (1.0 if success else 0.0) if (not treated or delivered) else None
+    o.reward = binary_reward(facts) if (not treated or delivered) else None
+    o.reward_policy = REWARD_POLICY
     o.learned = learnable
     o.observed_at = iso(datetime.now(UTC))
     db.flush()

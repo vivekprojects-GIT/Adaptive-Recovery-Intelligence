@@ -34,6 +34,7 @@ from starlette.responses import JSONResponse
 
 from ..db import SessionLocal
 from . import nova
+from .contract import NovaAccount, RecoveryContextV1
 from .engine import ENGINE_LOCK
 from .models import AuditEvent, Decision, ExternalCustomer, Outcome, PlatformConfig
 from .platform import audit, now
@@ -51,6 +52,12 @@ decide which of the business-approved treatments the customer may receive; Thomp
 customer-fit adjustment, then chooses among those. Payment plans, deferrals and hardship offers wait for a
 person to approve them, and the contact rules are checked again when they do. Sends are simulated: no
 channel gateway is connected. The answer says what to do, why, and what happens next.
+
+Two request shapes are accepted. `account` is the original flat payload (contract v0), unchanged.
+`context` is RecoveryContext v1: request_id, as_of_timestamp, party, account, delinquency, arrangement,
+per-channel contact context, restrictions and freshness timestamps; under v1, missing or stale consent,
+contact history or restrictions block the affected treatments (fail closed). Every answer lists any fields
+ARI ignored and any values it had to assume.
 
 Report every payment outcome with report_payment_outcome. Treated outcomes teach the model; control
 outcomes measure how much the strategy actually adds. Use preview_recovery_strategy to ask without
@@ -108,8 +115,21 @@ def _decided(r: dict) -> str:
 # ---------------------------------------------------------------------------
 # Tools
 # ---------------------------------------------------------------------------
+ACCOUNT_HELP = "Contract v0: the flat account payload. Send this or `context`, not both."
+CONTEXT_HELP = ("RecoveryContext v1 (contract_version 'v1'). Send this or `account`, not both. Missing or stale "
+                "guardrail data fails closed.")
+
+
+def _one(account, context):
+    if (account is None) == (context is None):
+        raise ValueError("Send exactly one of `account` (contract v0) or `context` (RecoveryContext v1).")
+    return account if account is not None else context
+
 @_tool("get_recovery_strategy", "Get the recovery action for an account", idempotent=True)
-async def get_recovery_strategy(account: nova.NovaAccount) -> dict[str, Any]:
+async def get_recovery_strategy(
+        account: Annotated[NovaAccount | None, Field(description=ACCOUNT_HELP)] = None,
+        context: Annotated[RecoveryContextV1 | None, Field(description=CONTEXT_HELP)] = None,
+) -> dict[str, Any]:
     """Decide what to do about one delinquent account, record the decision and act on it.
 
     ARI routes the account to the live strategy whose audience includes it and splits a random control
@@ -118,49 +138,64 @@ async def get_recovery_strategy(account: nova.NovaAccount) -> dict[str, Any]:
     chooses among the rest, and the contact is scheduled. Sends are simulated: no channel gateway is
     connected. Payment plans, deferrals and hardship offers wait for a person to approve them first.
     Calling again for the same account_id returns the existing decision rather than contacting the
-    customer twice; sending vulnerability_flag=true cancels an offer still waiting for review.
+    customer twice, and so does repeating a request_id. A hard stop (vulnerability, a restriction) cancels
+    an offer still waiting for review. Every rule is evaluated for every candidate treatment and kept.
 
     The answer's action is one of: contact, contact_failed, awaiting_approval, contact_blocked (no
     allowed treatment, or held at send time), control_bau (keep on business as usual), rejected,
-    cancelled, no_action, refer_to_specialist. It also carries the strategy, treatment, message, reasons,
+    cancelled, no_action, refer_to_specialist, restricted (a restriction on file), blocked_stale_data
+    (v1: guardrail data missing or out of date). It also carries the strategy, treatment, message, reasons,
     the alternatives with their selection probabilities, the treatments the contact rules blocked, any
     assumed data, and the next step.
     """
-    return await _call("get_recovery_strategy", lambda db: nova.recovery_strategy(db, account), _decided, "CREATE")
+    req = _one(account, context)
+    return await _call("get_recovery_strategy", lambda db: nova.recovery_strategy(db, req), _decided, "CREATE")
 
 
 @_tool("preview_recovery_strategy", "Preview the recovery action (records nothing)", read_only=True)
-async def preview_recovery_strategy(account: nova.NovaAccount) -> dict[str, Any]:
+async def preview_recovery_strategy(
+        account: Annotated[NovaAccount | None, Field(description=ACCOUNT_HELP)] = None,
+        context: Annotated[RecoveryContextV1 | None, Field(description=CONTEXT_HELP)] = None,
+) -> dict[str, Any]:
     """What ARI would do for this account, without recording, contacting or reserving anything.
 
     Same routing, eligibility and Thompson sampling as get_recovery_strategy, so it is the right call for
     "what if" questions. The action is would_contact, would_need_approval, would_be_blocked, control_bau,
     no_action or refer_to_specialist. The account stays free for a real request afterwards.
     """
-    return await _call("preview_recovery_strategy", lambda db: nova.recovery_strategy(db, account, record=False),
+    req = _one(account, context)
+    return await _call("preview_recovery_strategy", lambda db: nova.recovery_strategy(db, req, record=False),
                        lambda r: f"Preview {_decided(r)}")
 
 
 @_tool("get_recovery_strategies", "Get recovery actions for a batch of accounts", idempotent=True)
-async def get_recovery_strategies(accounts: Annotated[list[nova.NovaAccount], Field(
-        description=f"Up to {MAX_BATCH} accounts, e.g. one page of the daily delinquent population (C9).")]
-                                  ) -> dict[str, Any]:
+async def get_recovery_strategies(
+        accounts: Annotated[list[NovaAccount] | None, Field(
+            description=f"Contract v0 accounts. Up to {MAX_BATCH} items in all, e.g. one page of the daily "
+                        f"delinquent population (C9).")] = None,
+        contexts: Annotated[list[RecoveryContextV1] | None, Field(
+            description="RecoveryContext v1 items. May be sent alongside `accounts`.")] = None,
+) -> dict[str, Any]:
     """Decide and record the recovery action for each account in a batch - a cohort handoff.
 
     Each account is handled exactly as get_recovery_strategy would handle it. An account that cannot be
     decided gets an error entry; the rest of the batch still goes through.
     """
-    if len(accounts) > MAX_BATCH:
-        raise ValueError(f"Send at most {MAX_BATCH} accounts per call ({len(accounts)} sent).")
+    items = list(accounts or []) + list(contexts or [])
+    if not items:
+        raise ValueError("Send `accounts` (contract v0) and/or `contexts` (RecoveryContext v1).")
+    if len(items) > MAX_BATCH:
+        raise ValueError(f"Send at most {MAX_BATCH} accounts per call ({len(items)} sent).")
 
     def work(db: Session) -> dict:
         results = []
-        for a in accounts:
+        for a in items:
             try:
                 results.append(nova.recovery_strategy(db, a))
             except nova.NovaError as e:
                 db.rollback()
-                results.append({"account_id": a.account_id, "action": "error", "error": str(e)})
+                ref = a.account_id if isinstance(a, NovaAccount) else a.account.account_id
+                results.append({"account_id": ref, "action": "error", "error": str(e)})
         counts = Counter(r["action"] for r in results)
         return {"accounts": len(results), "by_action": dict(counts), "results": results}
 

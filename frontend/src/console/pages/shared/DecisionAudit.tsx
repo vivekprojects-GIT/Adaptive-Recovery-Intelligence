@@ -20,6 +20,43 @@ interface Data {
   factors: { factor: string; points: number; max_points: number }[]; self_cure: number;
   nudges: { nudge_id: string; channel: string; status: string; scheduled_at: string; touch: number; escalation: boolean }[];
   metadata: Record<string, string | number | null>;
+  evaluations: { arm_id: string; arm: string; arm_version: number | null; stage: string; rule_id: string; rule_version: string;
+    result: "PASS" | "BLOCK"; reason_code: string; reason: string; evaluated_at: string }[];
+  context: null | { feature_snapshot_id: number; contract_version: string; request_id: string | null; as_of: string | null;
+    received_at: string; feature_set_version: string; assumed: string[]; ignored_fields: string[]; aliases_used: string[];
+    lineage_only: string[]; source_lineage: Record<string, string | null>;
+    staleness: Record<string, { status: string; age_hours: number | null; sla_hours: number; enforced: boolean }> };
+}
+
+/** Every rule evaluated for every candidate treatment, grouped by treatment. Blocked rows first within each. */
+function RuleResults({ rows }: { rows: Data["evaluations"] }) {
+  const [all, setAll] = useState(false);
+  const arms = [...new Set(rows.map((r) => r.arm_id))];
+  return (
+    <Card flush title="Rules evaluated" subtitle={`${rows.length} results over ${arms.length} treatments. Every rule is checked for every treatment; none stops at the first failure.`}
+      actions={<Button size="sm" variant="ghost" onClick={() => setAll(!all)}>{all ? "Show blocks only" : "Show passes too"}</Button>}>
+      <Table>
+        <thead><tr><Th>Treatment</Th><Th>Stage</Th><Th>Rule</Th><Th>Result</Th><Th>Reason</Th></tr></thead>
+        <tbody>
+          {arms.map((a) => {
+            const mine = rows.filter((r) => r.arm_id === a);
+            const blocked = mine.filter((r) => r.result === "BLOCK");
+            const shown = all ? [...blocked, ...mine.filter((r) => r.result === "PASS")] : blocked;
+            return [
+              <Tr key={a}><Td className="font-semibold">{mine[0].arm}</Td><Td /><Td />
+                <Td>{blocked.length ? <Chip tone="bad">blocked · {blocked.length}</Chip> : <Chip tone="good">allowed</Chip>}</Td>
+                <Td className="text-xs text-fg-3">{mine.length} rules · {mine[0].rule_version}</Td></Tr>,
+              ...shown.map((r, i) => (
+                <Tr key={`${a}-${i}`}><Td /><Td className="text-xs text-fg-3">{r.stage}</Td><Td className="font-mono text-2xs">{r.rule_id}</Td>
+                  <Td><Chip tone={r.result === "PASS" ? "neutral" : "bad"}>{r.result}</Chip></Td>
+                  <Td className="text-xs"><span className="font-mono text-2xs text-fg-3">{r.reason_code}</span> {r.reason}</Td></Tr>
+              )),
+            ];
+          })}
+        </tbody>
+      </Table>
+    </Card>
+  );
 }
 
 export default function DecisionAudit() {
@@ -84,6 +121,7 @@ export default function DecisionAudit() {
                 ))}
               </ol>
             </Card>
+            {data.evaluations.length > 0 && <RuleResults rows={data.evaluations} />}
             {data.ranking.length > 0 && (
               <Card title="What Thompson sampling drew" subtitle="One draw per eligible treatment from its belief, tilted by customer fit. Highest score wins." flush>
                 <Table>
@@ -122,6 +160,35 @@ export default function DecisionAudit() {
                 { label: "Amount", value: d.amount ? money(d.amount) : "—" },
               ]} />
             </Card>
+            {data.context && (
+              <Card title="Context received" subtitle="Frozen with the decision; never updated">
+                <KV items={[
+                  { label: "Contract", value: data.context.contract_version },
+                  { label: "Request ID", value: <span className="font-mono">{data.context.request_id ?? "—"}</span> },
+                  { label: "Data as of", value: data.context.as_of ? dateTime(data.context.as_of) : "Not supplied" },
+                  { label: "Feature set", value: data.context.feature_set_version },
+                  { label: "Source", value: [data.context.source_lineage.source, data.context.source_lineage.source_system].filter(Boolean).join(" · ") },
+                ]} />
+                {Object.keys(data.context.staleness).length > 0 && (
+                  <ul className="mt-3 space-y-0.5 border-t border-line pt-2 text-xs">
+                    <li className="text-2xs text-fg-3">Freshness limits are compliance placeholders, not approved requirements.</li>
+                    {Object.entries(data.context.staleness).map(([k, v]) => (
+                      <li key={k} className="flex justify-between gap-2"><span className="text-fg-2">{k.replace("_", " ")}</span>
+                        <span className={clsx(v.status !== "fresh" && v.enforced && "font-medium text-bad")}>
+                          {v.status}{v.age_hours !== null ? ` · ${v.age_hours}h (placeholder limit ${v.sla_hours}h)` : ""}{v.status !== "fresh" && !v.enforced ? " · not enforced" : ""}</span></li>
+                    ))}
+                  </ul>
+                )}
+                {[["Assumed by ARI", data.context.assumed], ["Ignored (not in the contract)", data.context.ignored_fields],
+                  ["Aliases used", data.context.aliases_used], ["Stored, not used to decide", data.context.lineage_only]]
+                  .filter(([, v]) => (v as string[]).length > 0).map(([label, v]) => (
+                    <div key={label as string} className="mt-3 border-t border-line pt-2 text-xs">
+                      <p className="label mb-1">{label as string}</p>
+                      <p className="leading-5 text-fg-2">{(v as string[]).join(" · ")}</p>
+                    </div>
+                  ))}
+              </Card>
+            )}
             {data.nudges.length > 0 && (
               <Card title="Messages from this decision">
                 <ul className="space-y-1.5">

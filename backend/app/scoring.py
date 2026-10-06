@@ -210,6 +210,64 @@ def check_rules(r: dict, c) -> tuple[bool, str]:
     return True, describe_rules(r)
 
 
+def treatment_active(code: str) -> bool | None:
+    """True / False from the playbook cache; None for an unknown code."""
+    t = _TREATMENTS.get(code)
+    return None if not t else t.get("active") is not False
+
+
+def rule_results(r: dict, c) -> list[tuple[str, bool, str, str, dict]]:
+    """Every rule in a rule set, each evaluated on its own - unlike check_rules,
+    nothing stops at the first failure, so an audit shows every reason.
+    Returns (rule, passed, reason_code, reason, inputs read)."""
+    out = []
+    if r.get("requires_app_user"):
+        out.append(("requires_app_user", bool(c.app_user), "NOT_APP_USER",
+                    "Active mobile-app user" if c.app_user else "Not an app user", {"app_user": c.app_user}))
+    if r.get("requires_sms_responsive"):
+        out.append(("requires_sms_responsive", bool(c.sms_responsive), "NOT_SMS_RESPONSIVE",
+                    "Responds to SMS" if c.sms_responsive else "Does not respond to SMS",
+                    {"sms_responsive": c.sms_responsive}))
+    if r.get("requires_hardship_flag"):
+        out.append(("requires_hardship_flag", bool(c.hardship_flag), "NO_HARDSHIP_FLAG",
+                    "Hardship flag on file" if c.hardship_flag else "No hardship flag",
+                    {"hardship_flag": c.hardship_flag}))
+    if r.get("min_balance") is not None:
+        v = float(r["min_balance"])
+        out.append(("min_balance", c.balance >= v, "BELOW_MIN_BALANCE",
+                    f"Balance ${c.balance:,.0f} {'≥' if c.balance >= v else '<'} ${v:,.0f}",
+                    {"balance": c.balance, "min_balance": v}))
+    if r.get("max_missed_payments") is not None:
+        v = int(r["max_missed_payments"])
+        out.append(("max_missed_payments", c.missed_payments <= v, "TOO_MANY_MISSED_PAYMENTS",
+                    f"{c.missed_payments} missed payments in 12 months (limit {v})",
+                    {"missed_payments": c.missed_payments, "max_missed_payments": v}))
+    if r.get("min_tenure_years") is not None:
+        v = float(r["min_tenure_years"])
+        out.append(("min_tenure_years", c.tenure_years >= v, "BELOW_MIN_TENURE",
+                    f"Tenure {c.tenure_years:g} years (minimum {v:g})",
+                    {"tenure_years": c.tenure_years, "min_tenure_years": v}))
+    if r.get("min_payment_history") is not None:
+        v = float(r["min_payment_history"])
+        out.append(("min_payment_history", c.payment_history >= v, "BELOW_MIN_PAYMENT_HISTORY",
+                    f"On-time history {c.payment_history:.0%} (minimum {v:.0%})",
+                    {"payment_history": c.payment_history, "min_payment_history": v}))
+    if r.get("min_dpd") is not None:
+        v = int(r["min_dpd"])
+        out.append(("min_dpd", c.days_past_due >= v, "BELOW_MIN_DPD", f"{c.days_past_due} DPD (minimum {v})",
+                    {"days_past_due": c.days_past_due, "min_dpd": v}))
+    if r.get("max_dpd") is not None:
+        v = int(r["max_dpd"])
+        out.append(("max_dpd", c.days_past_due <= v, "ABOVE_MAX_DPD", f"{c.days_past_due} DPD (maximum {v})",
+                    {"days_past_due": c.days_past_due, "max_dpd": v}))
+    return out
+
+
+def treatment_rules(code: str) -> dict:
+    t = _TREATMENTS.get(code)
+    return (t.get("rules") or {}) if t else {}
+
+
 def fit_multiplier(code: str, c) -> float:
     """How strongly this customer's profile favours a treatment (1.0 = neutral).
     Judged by the treatment's kind, so a new SMS reminder is read like the old one."""

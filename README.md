@@ -217,6 +217,31 @@ strategy back, with no console in between. Nova owns the data; ARI owns the deci
 - Asking twice about the same account returns the same decision; the customer is not contacted twice.
 - Outcomes for agent decisions are never simulated; ARI waits for Nova to report them.
 
+**The contract: RecoveryContext v0 and v1** (`backend/app/console/contract.py`). The tools take either
+`account` (v0, the original flat payload, unchanged) or `context` (v1: `request_id`, `as_of_timestamp`,
+party, account, delinquency, arrangement / promise to pay, per-channel contact context with time zone,
+restrictions and freshness timestamps). Both are read into one account; aliases are accepted
+(`balance`, `dpd`, `product_type`, `sms` ...) and every answer lists the fields ARI ignored and the
+values it assumed. A repeated `request_id` returns the decision already made.
+
+- **Every rule, for every treatment** (`rules.py`): playbook status, business rules, hard stops
+  (vulnerability, restrictions), contact rules (consent, opt-out, caps) and arrangement context are all
+  evaluated - none stops at the first failure - and stored in `eligibility_evals`. An account with no
+  allowed treatment is recorded as `Excluded`, before the control split.
+- **Arrangement / promise-to-pay rule: off, `PENDING_BUSINESS_CONFIRMATION`.** Implemented and switchable
+  (`arrangement_blocks_new_offers`), but it does not block anything until the business confirms that an
+  active arrangement or pending promise to pay must stop a new plan or deferral offer. Each decision still
+  records what it would have done.
+- **Frozen context** (`feature_snapshots`): the raw request, the normalised values used, as-of time,
+  feature-set version, lineage, assumed and ignored fields, and freshness. Written once; the ORM refuses
+  updates. The decision audit screen reads it, never today's customer record.
+- **Freshness**: consent, contact history and restrictions are measured against per-field limits in
+  Platform Configuration. The 24-hour values there are **compliance placeholders, not approved
+  requirements** - they exist so the mechanism can be shown, and compliance must set the real limits. Only
+  v1 requests fail closed; for v0 staleness is logged as `NOT_ENFORCED_V0`.
+
+Check it with `tests/verify_context.py` (v1, snapshots, rule records, freshness, migration).
+
 Every call is in the audit log as the Nova agent. Nova's decisions are marked in **Decisions**, and
 **API & Integrations** shows the traffic and has a "Try it" panel that sends a real request.
 

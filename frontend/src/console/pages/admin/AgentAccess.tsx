@@ -16,6 +16,8 @@ const ACTION: Record<string, { label: string; tone: Tone }> = {
   contact_failed: { label: "Simulated send failed", tone: "bad" },
   cancelled: { label: "Cancelled before review", tone: "neutral" },
   would_be_blocked: { label: "Would be blocked", tone: "serious" },
+  restricted: { label: "Restriction on file", tone: "serious" },
+  blocked_stale_data: { label: "Data missing or out of date", tone: "serious" },
   control_bau: { label: "Control: business as usual", tone: "neutral" },
   no_action: { label: "No action", tone: "neutral" },
   refer_to_specialist: { label: "Refer to a specialist", tone: "info" },
@@ -112,9 +114,10 @@ function ResultView({ r, report, busy, onReport }: {
       )}
       {!!r.blocked_treatments?.length && (
         <div className="text-xs">
-          <p className="label mb-1">Not considered: blocked by the contact rules before Thompson sampling</p>
+          <p className="label mb-1">Not allowed: blocked by the rules before Thompson sampling</p>
           <ul className="space-y-0.5 text-fg-2">{r.blocked_treatments.map((b) => (
-            <li key={b.code}>{b.name}: {b.reason} <span className="font-mono text-2xs text-fg-3">{b.reason_code}</span></li>
+            <li key={b.code}>{b.name}: {(b.reasons?.length ? b.reasons : [b]).map((x) => x.reason).join("; ")}{" "}
+              <span className="font-mono text-2xs text-fg-3">{(b.reasons?.length ? b.reasons : [b]).map((x) => x.reason_code).join(", ")}</span></li>
           ))}</ul>
         </div>
       )}

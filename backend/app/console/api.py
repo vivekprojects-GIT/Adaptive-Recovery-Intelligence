@@ -19,10 +19,10 @@ from .. import models
 from ..db import get_db
 from ..scoring import KINDS, SEGMENT_ACTION, check_rules, eligibility, fit_reasons, nudge_explanation
 from . import analytics, compliance, engine, insights, mcp_server, playbook
-from .engine import arrears, jl
+from .engine import arrears, as_of_decision, jl
 from .models import (
-    AlertRule, AuditEvent, Campaign, ComplianceViolation, ContactRecord, Decision, EngagementEvent,
-    Handoff, Insight, Nudge, Outcome, PlatformConfig, RolePermission, TreatmentMeta, User,
+    AlertRule, AuditEvent, Campaign, ComplianceViolation, ContactRecord, Decision, EligibilityEval, EngagementEvent,
+    FeatureSnapshot, Handoff, Insight, Nudge, Outcome, PlatformConfig, RolePermission, TreatmentMeta, User,
 )
 from .platform import CONFIG_DEFAULTS, METRICS, STARTED_AT, audit, cfg, now
 from .rbac import LOCKED, PERMISSIONS, ROLES, current_user, granted, require
@@ -1004,11 +1004,16 @@ def decision_audit(did: str, user: User = Depends(require("view_ai_decisions")),
     c = db.get(models.Customer, d.customer_id)
     camp = db.get(Campaign, d.campaign_id)
     o = db.query(Outcome).filter(Outcome.decision_id == did).first()
-    snap = json.loads(d.snapshot)
+    # Everything about the customer comes from the decision's frozen context,
+    # never from today's customer record, which later requests may have changed.
+    fs = db.query(FeatureSnapshot).filter(FeatureSnapshot.decision_id == did).first()
+    snap = json.loads(fs.features) if fs else json.loads(d.snapshot)
+    evals = (db.query(EligibilityEval).filter(EligibilityEval.decision_id == did)
+             .order_by(EligibilityEval.eval_id).all())
     ranking = jl(d.ranking)
     t = _treatments(db)
     nudges = db.query(Nudge).filter(Nudge.decision_id == did).order_by(Nudge.scheduled_at).all()
-    expl = nudge_explanation(c)
+    expl = nudge_explanation(as_of_decision(snap))
     first = nudges[0] if nudges else None
     first_stages = jl(first.pipeline) if first else []
     guard = next((s for s in first_stages if s["stage"] == "Compliance check"), None)
@@ -1024,21 +1029,29 @@ def decision_audit(did: str, user: User = Depends(require("view_ai_decisions")),
         {"step": "Intervention fit", "agent": "Nudge & self-cure scoring", "ok": True,
          "detail": f"Nudge propensity {snap.get('nudge_score')} · self-cure {snap.get('self_cure_score')} "
                    f"→ {snap.get('segment')}"},
-        {"step": "Eligibility", "agent": "Business rules", "ok": bool(eligible),
-         "detail": f"{len(eligible)} of {len(jl(camp.treatment_codes))} strategy treatments eligible: "
-                   + ", ".join(t[x].name for x in eligible)},
-        {"step": "Control split", "agent": "Randomiser", "ok": True,
-         "detail": ("Assigned to the randomised control group (business as usual)."
-                    if d.group == "Control" else
-                    f"Treatment group (control share {camp.control_pct:.0%}).")},
     ]
+    blocked = jl(d.blocked_arms)
+    if evals:
+        arms = list(dict.fromkeys(e.arm_id for e in evals))
+        allowed = [a for a in arms if all(e.result == "PASS" for e in evals if e.arm_id == a)]
+        trace.append({"step": "Guardrails & eligibility", "agent": "Rules, every one for every treatment",
+                      "ok": bool(allowed),
+                      "detail": f"{len(evals)} rule results over {len(arms)} treatments. Allowed: "
+                                + (", ".join(t[a].name if a in t else a for a in allowed) or "none")
+                                + "".join(f". Not allowed: {b.get('name', b['code'])} ("
+                                          + "; ".join(r["reason"] for r in b.get("reasons", [b])) + ")"
+                                          for b in blocked)})
+    else:  # decided before per-rule results were kept
+        trace.append({"step": "Eligibility", "agent": "Business rules", "ok": bool(eligible),
+                      "detail": f"{len(eligible)} of {len(jl(camp.treatment_codes))} strategy treatments eligible: "
+                                + ", ".join(t[x].name for x in eligible if x in t)
+                                + ". Per-rule results were not recorded for this decision."})
+    trace.append({"step": "Control split", "agent": "Randomiser", "ok": d.group != "Excluded",
+                  "detail": ("Assigned to the randomised control group (business as usual)." if d.group == "Control"
+                             else "Not randomised: no treatment was allowed, so the account was excluded before "
+                                  "the control split." if d.group == "Excluded"
+                             else f"Treatment group (control share {camp.control_pct:.0%}).")})
     if d.group == "Treatment":
-        blocked = jl(d.blocked_arms)
-        allowed = [x for x in eligible if x not in {b["code"] for b in blocked}]
-        trace.append({"step": "Contact rules", "agent": "Consent, opt-out and contact caps", "ok": bool(allowed),
-                      "detail": ("; ".join(f"{b['name']} blocked: {b['reason']}" for b in blocked)
-                                 + f". {len(allowed)} of {len(eligible)} eligible treatments allowed."
-                                 if blocked else f"All {len(eligible)} eligible treatments allowed.")})
         trace.append({"step": "Treatment selection", "agent": "Thompson sampling with customer fit",
                       "ok": bool(d.treatment_code) or d.overridden, "detail": d.explanation})
         trace.append({"step": "Review policy", "agent": "Governance",
@@ -1070,7 +1083,19 @@ def decision_audit(did: str, user: User = Depends(require("view_ai_decisions")),
         "decision": _decision_row(d, o, _user_names(db), {camp.campaign_id: camp.name}, t,
                                   {c.customer_id: c.name}),
         "explanation": d.explanation, "exclusion_reason": d.exclusion_reason,
-        "blocked_arms": jl(d.blocked_arms),
+        "blocked_arms": blocked,
+        "evaluations": [{"arm_id": e.arm_id, "arm": t[e.arm_id].name if e.arm_id in t else e.arm_id,
+                         "arm_version": e.arm_version, "stage": e.stage, "rule_id": e.rule_id,
+                         "rule_version": e.rule_version, "result": e.result, "reason_code": e.reason_code,
+                         "reason": e.reason, "input_refs": jl(e.input_refs, {}), "evaluated_at": e.evaluated_at}
+                        for e in evals],
+        "context": None if fs is None else {
+            "feature_snapshot_id": fs.snapshot_id, "contract_version": fs.contract_version,
+            "request_id": fs.request_id, "as_of": fs.as_of_ts, "received_at": fs.received_at,
+            "feature_set_version": fs.feature_set_version, "assumed": jl(fs.assumed),
+            "ignored_fields": jl(fs.ignored_fields), "aliases_used": jl(fs.aliases_used),
+            "lineage_only": jl(fs.lineage_only), "source_lineage": jl(fs.source_lineage, {}),
+            "staleness": jl(fs.staleness, {}), "raw_payload": jl(fs.raw_payload, {})},
         "override_reason": d.override_reason, "original_treatment": d.original_treatment,
         "snapshot": snap, "ranking": ranking, "trace": trace,
         "factors": expl["contributions"], "self_cure": expl["self_cure_score"],
@@ -1124,7 +1149,8 @@ def override_decision(did: str, body: OverrideIn, user: User = Depends(require("
     d = db.get(Decision, did)
     if not d or d.group != "Treatment":
         raise HTTPException(409, "Only a treated decision can be overridden.")
-    c = db.get(models.Customer, d.customer_id)
+    fs = db.query(FeatureSnapshot).filter(FeatureSnapshot.decision_id == did).first()
+    c = as_of_decision(json.loads(fs.features) if fs else json.loads(d.snapshot))
     if body.treatment_code and not eligibility(body.treatment_code, c)[0]:
         raise HTTPException(400, f"{body.treatment_code} is not eligible for this customer: "
                                  f"{eligibility(body.treatment_code, c)[1]}.")

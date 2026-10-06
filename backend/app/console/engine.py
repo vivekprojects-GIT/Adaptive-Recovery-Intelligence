@@ -17,7 +17,9 @@ import json
 import math
 import threading
 import time
+from types import SimpleNamespace
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import numpy as np
 from sqlalchemy import func
@@ -26,8 +28,11 @@ from sqlalchemy.orm import Session
 from .. import models
 from ..experiments import snapshot, true_pay_probability
 from ..scoring import eligibility, fit_multiplier, fit_reasons, thompson_rank
+from . import rules
+from .contract import FEATURE_SET_VERSION, NovaAccount, guard_context
 from .models import (
-    Campaign, ContactRecord, Decision, EngagementEvent, ExternalCustomer, Nudge, Outcome,
+    Campaign, ContactRecord, Decision, EligibilityEval, EngagementEvent, ExternalCustomer, FeatureSnapshot, Nudge,
+    Outcome,
 )
 from .platform import cfg
 from .playbook import human_review_codes
@@ -42,11 +47,6 @@ CHANNEL_OF = {
     "S1": "SMS", "S2": "App push", "S3": "SMS + App", "S4": "SMS + App",
     "S5": "Outbound call", "S6": "Specialist team",
 }
-
-# Which consent a channel needs, in the Nova contract's terms (C1 consent).
-# App push and letters have no consent flag there; a specialist referral is
-# not a contact.
-CONSENT_FOR = {"SMS": "sms", "SMS + App": "sms", "Email": "email", "Outbound call": "call"}
 
 DELIVERY_FAILURE = {"SMS": 0.03, "App push": 0.02, "SMS + App": 0.02, "Email": 0.04, "Letter": 0.01,
                     "Outbound call": 0.12, "Specialist team": 0.0}
@@ -84,6 +84,16 @@ def jl(text: str | None, default=None):
         return json.loads(text) if text else (default if default is not None else [])
     except (TypeError, ValueError):
         return default if default is not None else []
+
+
+def as_of_decision(snap: dict) -> SimpleNamespace:
+    """The customer as they were when a decision was made, rebuilt from its
+    frozen snapshot - for audit views and overrides, which must not judge an
+    old decision on today's data."""
+    return SimpleNamespace(**{k: snap.get(k) for k in (
+        "customer_id", "name", "segment", "balance", "utilization", "tenure_years", "sms_responsive", "app_user",
+        "hardship_flag", "missed_payments", "payment_history", "days_past_due", "nudge_score", "cohort_id",
+        "client_risk_band", "client_risk_score", "self_cure_score")})
 
 
 def arrears(c) -> float:
@@ -353,61 +363,41 @@ def render(code: str, tone: str, c, st=None, *, due: float | None) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Contact rules (prevention). They run twice: before Thompson sampling, to
-# decide which treatments may be chosen at all, and again at send time,
-# because contacts can change between the decision and the send (an offer
-# approved a day later, say). Detection of what slipped through lives in
-# compliance.py and runs over the full contact history, ARI and BAU together.
+# Contact rules (prevention) live in rules.py. They run twice: before
+# Thompson sampling, for every candidate treatment, and again at send time,
+# because contacts can change between a decision and its send. Detection of
+# what slipped through lives in compliance.py.
 # ---------------------------------------------------------------------------
-def contact_rules(db: Session, customer_id: int | None, channel: str, at: datetime,
-                  reported_7d: int = 0, no_consent: tuple | list = ()) -> tuple[str | None, str]:
-    """(reason code, or None if the contact is allowed; note).
+CONSENT_FOR = rules.CONSENT_FOR
 
-    reported_7d: contacts in the last 7 days that ARI did not make but the
-    caller (Nova) counted - BAU dialler, letters, other systems.
-    no_consent: channels the customer has not consented to, as Nova reported."""
-    need = CONSENT_FOR.get(channel)
-    if need and need in no_consent:
-        return f"NO_{need.upper()}_CONSENT", f"No {need} consent on file"
-    # The session runs with autoflush off. Without this, contacts and opt-outs
-    # written earlier in the same wave are invisible here - the guard would
-    # approve a message to someone who opted out an hour ago.
-    db.flush()
-    # An opt-out is permanent, not a 7-day state: check the customer's whole history.
-    if channel in DIGITAL and (db.query(ContactRecord)
-                               .filter(ContactRecord.customer_id == customer_id,
-                                       ContactRecord.opted_out.is_(True),
-                                       ContactRecord.at <= iso(at)).first()):
-        return "OPTED_OUT", "Customer opted out of digital contact"
-    week_ago = iso(at - timedelta(days=7))
-    recent = (db.query(ContactRecord)
-              .filter(ContactRecord.customer_id == customer_id, ContactRecord.at >= week_ago,
-                      ContactRecord.opted_out.is_(False))
-              .all())
-    cap = int(cfg(db, "contact_cap_7d"))
-    seen = len(recent) + reported_7d
-    extra = f", {reported_7d} of them reported by the caller" if reported_7d else ""
-    if seen >= cap:
-        return "CONTACT_CAP", f"Contact cap reached ({seen} of {cap} in 7 days{extra})"
-    calls = sum(1 for r in recent if r.channel == "Outbound call")
-    if channel == "Outbound call" and calls >= int(cfg(db, "call_cap_7d")):
-        return "CALL_CAP", f"Call cap reached ({calls} calls in 7 days)"
-    return None, f"{seen} contacts in last 7 days{extra} (cap {cap}); consent and opt-out checked"
+CONSOLE_GUARD = {"contract_version": "console", "consent": {}, "contacts": {}, "vulnerability_flag": None,
+                 "restrictions": None, "arrangement": None, "timezone": None, "as_of": {}}
+
+
+def guard_of(ctx: dict) -> dict:
+    """The guardrail inputs of a decision's snapshot. Decisions made before
+    RecoveryContext carried only a consent list and a contact count."""
+    if ctx.get("guard"):
+        return ctx["guard"]
+    return {**CONSOLE_GUARD, "contract_version": "v0" if ctx.get("source") else "console",
+            "consent": {k: False for k in (ctx.get("no_consent") or [])},
+            "contacts": {"total": ctx.get("reported_contacts_7d")}}
 
 
 def guard(db: Session, customer_id: int, channel: str, at: datetime,
           reported_7d: int = 0, no_consent: tuple | list = ()) -> tuple[bool, str]:
-    """The send-time check: (allowed, note)."""
-    code, note = contact_rules(db, customer_id, channel, at, reported_7d, no_consent)
-    return code is None, note
+    """The send-time check for a v0-shaped context: (allowed, note)."""
+    g = {**CONSOLE_GUARD, "contract_version": "v0", "consent": {k: False for k in no_consent},
+         "contacts": {"total": reported_7d}}
+    return rules.send_check(db, customer_id, channel, g, at)
 
 
 def latest_context(db: Session, dec: Decision) -> tuple[dict, str | None]:
-    """The contact context to apply when a decision is executed after a wait
-    (a person approving an offer): what Nova told ARI most recently about the
-    account, over what it said at decision time. ARI cannot ask Nova for fresh
-    data, so the newest request is the best it has. Returns (context, when
-    that request arrived)."""
+    """The context to apply when a decision is executed after a wait (a person
+    approving an offer): what Nova told ARI most recently about the account,
+    over what it said at decision time. ARI cannot ask Nova for fresh data, so
+    the newest request is the best it has. Returns (context, when that request
+    arrived)."""
     ctx = jl(dec.snapshot, {})
     if dec.origin != "mcp":
         return ctx, None
@@ -415,11 +405,11 @@ def latest_context(db: Session, dec: Decision) -> tuple[dict, str | None]:
             .filter(ExternalCustomer.source == "nova", ExternalCustomer.customer_id == dec.customer_id).first())
     if link is None:
         return ctx, None
-    p = jl(link.payload, {})
-    consent = p.get("consent") or {}
-    return {**ctx, "reported_contacts_7d": int(p.get("contacts_last_7d") or 0),
-            "no_consent": [k for k, v in consent.items() if v is False],
-            "vulnerability_flag": bool(p.get("vulnerability_flag"))}, link.last_seen
+    try:
+        g = guard_context(NovaAccount.model_validate(jl(link.payload, {})))
+    except ValueError:
+        return ctx, None
+    return {**ctx, "guard": g}, link.last_seen
 
 
 def cancel_pending(dec: Decision, reason: str, actor: str) -> None:
@@ -506,22 +496,70 @@ def undecided_pool(db: Session, camp: Campaign) -> list[models.Customer]:
     return pool
 
 
+def console_context(c) -> dict:
+    """The decision context of a console wave: the synthetic handoff record,
+    with no Nova guardrail data."""
+    return {"contract_version": "console", "request_id": None, "account_ref": None, "party_ref": None,
+            "as_of": None, "raw": None, "guard": CONSOLE_GUARD, "snapshot_extra": {}, "assumed": [],
+            "ignored": [], "aliases": [], "lineage_only": [],
+            "source_lineage": {"source": "Collections handoff (synthetic console data)", "customer_id": c.customer_id}}
+
+
 def decide_one(db: Session, camp: Campaign, c, *, decision_id: str, wave: int, decided_at: datetime,
                rng: np.random.Generator, arms_state: dict, human_review: set[str], auto_approve: bool,
-               origin: str = "wave", extra_snapshot: dict | None = None) -> Decision:
-    """One customer, one strategy: the randomised control split, then the
-    contact rules, then Thompson sampling (with a customer-fit adjustment)
-    among the eligible treatments the rules still allow. Returns the Decision
-    without adding it to the session. Waves and agent requests both decide
-    through here, so they can never diverge."""
+               origin: str = "wave", context: dict | None = None) -> Decision:
+    """One customer, one strategy. Every rule is evaluated for every candidate
+    treatment first (rules.py); then the randomised control split among those
+    with at least one allowed treatment; then Thompson sampling (with a
+    customer-fit adjustment) among the allowed treatments. An account with no
+    allowed treatment is Excluded - recorded, but outside the experiment.
+
+    Returns the Decision without adding it to the session; its frozen context
+    (FeatureSnapshot) and rule results (EligibilityEval) ride along and are
+    stored by add_decision. Waves and agent requests both decide through here,
+    so they can never diverge."""
     t0 = time.perf_counter()
+    ctx = context or console_context(c)
+    g = ctx["guard"]
     s = snapshot(c)
     snap = {**vars(s), "client_risk_band": c.client_risk_band, "client_risk_score": c.client_risk_score,
-            "self_cure_score": c.self_cure_score, "arrears": arrears(c), **(extra_snapshot or {})}
-    eligible = [code for code in jl(camp.treatment_codes) if eligibility(code, c)[0]]
+            "self_cure_score": c.self_cure_score, "arrears": arrears(c), **ctx["snapshot_extra"],
+            "contract_version": ctx["contract_version"], "guard": g}
+    codes = [k for k in jl(camp.treatment_codes) if k in arms_state]
+    eligible = [code for code in codes if eligibility(code, c)[0]]
+    allowed, rows, fresh = rules.evaluate(db, codes, c, g, decided_at)
+    blocked = rules.blocked_summary(rows)
+    for b in blocked:
+        b["name"] = arms_state[b["code"]]["name"]
     dec = Decision(decision_id=decision_id, campaign_id=camp.campaign_id, customer_id=c.customer_id,
                    wave=wave, origin=origin, eligible_arms=json.dumps(eligible), snapshot=json.dumps(snap),
-                   decided_at=iso(decided_at))
+                   blocked_arms=json.dumps(blocked), decided_at=iso(decided_at),
+                   contract_version=ctx["contract_version"], request_id=ctx["request_id"], context_as_of=ctx["as_of"])
+    evaluated_at = iso(decided_at)
+    dec._evals = [EligibilityEval(decision_id=decision_id, arm_id=x["arm_id"], arm_version=x["arm_version"],
+                                  stage=x["stage"], rule_id=x["rule_id"], rule_version=x["rule_version"],
+                                  result=x["result"], reason_code=x["reason_code"], reason=x["reason"],
+                                  input_refs=json.dumps(x["input_refs"], default=str), evaluated_at=evaluated_at)
+                  for x in rows]
+    dec._feature_snapshot = FeatureSnapshot(
+        decision_id=decision_id, account_ref=ctx["account_ref"], party_ref=ctx["party_ref"],
+        contract_version=ctx["contract_version"], request_id=ctx["request_id"], as_of_ts=ctx["as_of"],
+        received_at=ctx.get("received_at") or evaluated_at, feature_set_version=FEATURE_SET_VERSION,
+        raw_payload=json.dumps(ctx["raw"] or {}, default=str), features=json.dumps(snap, default=str),
+        guard_context=json.dumps(g, default=str), assumed=json.dumps(ctx["assumed"]),
+        ignored_fields=json.dumps(ctx["ignored"]), aliases_used=json.dumps(ctx["aliases"]),
+        lineage_only=json.dumps(ctx["lineage_only"]), source_lineage=json.dumps(ctx["source_lineage"], default=str),
+        staleness=json.dumps(fresh))
+    not_allowed = "; ".join(f"{b['name']} ({', '.join(r['reason'][0].lower() + r['reason'][1:] for r in b['reasons'])})"
+                            for b in blocked)
+    if not allowed:
+        # Excluded before the control split: the same exclusions apply to
+        # treated and control alike, so the comparison stays fair.
+        dec.group = "Excluded"
+        dec.exclusion_reason = rules.exclusion_action(rows)
+        dec.explanation = f"No treatment allowed: {not_allowed}. Nothing is sent."
+        dec.latency_ms = round((time.perf_counter() - t0) * 1000, 1)
+        return dec
     # A record that is not stored yet (a preview) has no id to randomise on: it
     # is shown as treated, and the caller says so.
     if c.customer_id is not None and _bucket(camp.campaign_id, c.customer_id) < camp.control_pct:
@@ -530,26 +568,6 @@ def decide_one(db: Session, camp: Campaign, c, *, decision_id: str, wave: int, d
                            "so every treated result has a fair comparison.")
     else:
         dec.group = "Treatment"
-        # Contact rules first: the bandit only ever chooses among treatments
-        # the customer may actually receive. A treatment blocked here is not
-        # sampled, so the selection probabilities are over allowed arms only.
-        reported, no_consent = int(snap.get("reported_contacts_7d") or 0), snap.get("no_consent") or ()
-        allowed, blocked = [], []
-        for k in eligible:
-            if k not in arms_state:
-                continue
-            reason_code, note = contact_rules(db, c.customer_id, channel_of(db, k), decided_at, reported, no_consent)
-            if reason_code:
-                blocked.append({"code": k, "name": arms_state[k]["name"], "reason_code": reason_code, "reason": note})
-            else:
-                allowed.append(k)
-        dec.blocked_arms = json.dumps(blocked)
-        not_considered = "; ".join(f"{b['name']} ({b['reason'][0].lower() + b['reason'][1:]})" for b in blocked)
-        if not allowed:
-            dec.explanation = (f"No treatment chosen: every eligible treatment is blocked by the contact rules - "
-                               f"{not_considered}. Nothing is sent.")
-            dec.latency_ms = round((time.perf_counter() - t0) * 1000, 1)
-            return dec
         arms = [{"code": k, "name": arms_state[k]["name"], "a": arms_state[k]["a"],
                  "b": arms_state[k]["b"]} for k in allowed]
         ranking = thompson_rank(arms, c, rng)
@@ -568,7 +586,7 @@ def decide_one(db: Session, camp: Campaign, c, *, decision_id: str, wave: int, d
             f"x{ranking[0]['fit']:.2f}."
             + (f" Runner-up {runner['name']} at {runner['score']:.2f}." if runner else "")
             + f" Chosen {probs.get(chosen, 0):.0%} of the time in this context."
-            + (f" Not considered: {not_considered}." if blocked else ""))
+            + (f" Not allowed: {not_allowed}." if blocked else ""))
         if chosen in human_review:
             dec.review_policy = "human_review"
             dec.review_status = "approved" if auto_approve else "pending"
@@ -578,6 +596,18 @@ def decide_one(db: Session, camp: Campaign, c, *, decision_id: str, wave: int, d
     return dec
 
 
+def add_decision(db: Session, dec: Decision) -> None:
+    """Store a decision with its frozen context and every rule result."""
+    db.add(dec)
+    db.flush()
+    fs = getattr(dec, "_feature_snapshot", None)
+    if fs is not None:
+        db.add(fs)
+        db.add_all(dec._evals)
+        db.flush()
+        dec.feature_snapshot_id = fs.snapshot_id
+
+
 def _treated_in_wave(db: Session, camp: Campaign, wave: int) -> int:
     db.flush()
     return (db.query(func.count(Decision.decision_id))
@@ -585,7 +615,7 @@ def _treated_in_wave(db: Session, camp: Campaign, wave: int) -> int:
                     Decision.group == "Treatment").scalar() or 0)
 
 
-def decide_now(db: Session, camp: Campaign, c, *, origin: str, extra_snapshot: dict | None = None,
+def decide_now(db: Session, camp: Campaign, c, *, origin: str, context: dict | None = None,
                at: datetime | None = None) -> tuple[Decision, "Nudge | None"]:
     """One decision outside a wave: an agent asking about one account.
 
@@ -601,8 +631,8 @@ def decide_now(db: Session, camp: Campaign, c, *, origin: str, extra_snapshot: d
         f"{camp.campaign_id}:{c.customer_id}:{wave}".encode()).hexdigest()[:8], 16))
     dec = decide_one(db, camp, c, decision_id=seq.decision(), wave=wave, decided_at=at, rng=rng,
                      arms_state=beliefs(db, camp), human_review=human_review_codes(db), auto_approve=False,
-                     origin=origin, extra_snapshot=extra_snapshot)
-    db.add(dec)
+                     origin=origin, context=context)
+    add_decision(db, dec)
     nudge = None
     if dec.group == "Treatment" and dec.treatment_code and dec.review_status != "pending":
         nudge = execute(db, camp, dec, c, at, rng, seq)
@@ -640,21 +670,18 @@ def run_wave(db: Session, camp: Campaign, at: datetime | None = None, actor: str
         decided_at = at + timedelta(minutes=int(rng.integers(0, 240)))
         dec = decide_one(db, camp, c, decision_id=seq.decision(), wave=wave, decided_at=decided_at, rng=rng,
                          arms_state=arms_state, human_review=human_review, auto_approve=realise)
+        add_decision(db, dec)
+        summary["decided"] += 1
+        if dec.group == "Excluded":
+            summary["excluded"] += 1  # no allowed treatment: outside the experiment, nothing to send
+            continue
         if dec.group == "Control":
             summary["control"] += 1
-        else:
-            summary["treatment"] += 1
-            if dec.treatment_code:
-                summary["by_treatment"][dec.treatment_code] = summary["by_treatment"].get(dec.treatment_code, 0) + 1
-        db.add(dec)
-        summary["decided"] += 1
-
-        if dec.group == "Control" or not dec.treatment_code:
-            if not dec.treatment_code and dec.group == "Treatment":
-                summary["blocked_by_guard"] += 1  # every allowed treatment was blocked: nothing to send
             if realise:
                 _observe(db, camp, dec, c, None, decided_at, rng, pending_learning, first=None)
             continue
+        summary["treatment"] += 1
+        summary["by_treatment"][dec.treatment_code] = summary["by_treatment"].get(dec.treatment_code, 0) + 1
         if dec.review_status == "pending":
             summary["held_for_review"] += 1
             continue
@@ -694,15 +721,20 @@ def execute(db: Session, camp: Campaign, dec, c, at: datetime,
     code = code or dec.treatment_code
     st = db.get(models.Strategy, code)
     channel = st.channel if st else CHANNEL_OF.get(code, "SMS")
-    hour = _send_hour(camp, rng)
-    send_at = at.replace(hour=hour, minute=int(rng.integers(0, 59)), second=0)
-    if send_at < at:
-        send_at += timedelta(days=1)
     # What the caller told us (Nova: consent, contacts made elsewhere). By
     # default the decision-time context; an approval passes the newest.
     ctx = ctx if ctx is not None else jl(dec.snapshot, {})
-    ok, guard_note = guard(db, c.customer_id, channel, send_at, int(ctx.get("reported_contacts_7d") or 0),
-                           ctx.get("no_consent") or ())
+    g = guard_of(ctx)
+    # The send window is the customer's local time when Nova gives a time zone;
+    # otherwise UTC, as before.
+    tz = ZoneInfo(g["timezone"]) if g.get("timezone") else UTC
+    hour = _send_hour(camp, rng)
+    local_at = at.astimezone(tz)
+    send_local = local_at.replace(hour=hour, minute=int(rng.integers(0, 59)), second=0, microsecond=0)
+    if send_local < local_at:
+        send_local += timedelta(days=1)
+    send_at = send_local.astimezone(UTC)
+    ok, guard_note = rules.send_check(db, c.customer_id, channel, g, send_at)
     guard_note += ctx_source
     content = manual_text or render(code, camp.tone, c, st, due=message_amount(dec, c))
     n = Nudge(nudge_id=seq.nudge(), decision_id=dec.decision_id, campaign_id=camp.campaign_id,
@@ -743,7 +775,7 @@ def execute(db: Session, camp: Campaign, dec, c, at: datetime,
     db.add(n)
     if not failed:
         db.add(ContactRecord(customer_id=c.customer_id, channel=channel, source="ARI",
-                             nudge_id=n.nudge_id, at=iso(send_at), local_hour=send_at.hour))
+                             nudge_id=n.nudge_id, at=iso(send_at), local_hour=send_local.hour))
     return n
 
 
@@ -824,7 +856,7 @@ def _observe(db: Session, camp: Campaign, dec: Decision, c, code: str | None, at
     db.add(Outcome(decision_id=dec.decision_id, campaign_id=camp.campaign_id, customer_id=c.customer_id,
                    paid=paid, amount=amount, days_to_pay=days, escalated=escalated, window_days=window,
                    reward=reward if (not is_treated or delivered) else None,
-                   learned=learned,
+                   reward_policy="binary-paid-in-window/1", learned=learned,
                    observed_at=iso(at + timedelta(days=days or window))))
     if learned:
         pending.append((code, reward))
@@ -843,9 +875,13 @@ def approve_and_execute(db: Session, dec: Decision, reviewer: str, approve: bool
         db.commit()
         return {"executed": False}
     ctx, seen = latest_context(db, dec)
-    if ctx.get("vulnerability_flag"):
-        reason = (f"Nova reported a vulnerability flag on {seen[:10]}, after this offer was proposed. No automated "
-                  f"treatment: refer the customer to a trained specialist.")
+    g = guard_of(ctx)
+    now_ = datetime.now(UTC)
+    stops = [x for x in rules.account_rules(g, rules.freshness(db, g, now_)) if x["result"] == "BLOCK"]
+    if stops:
+        when = f" on {seen[:10]}" if seen else ""
+        reason = (f"Nova's data{when} stops automated treatment, after this offer was proposed: "
+                  + "; ".join(x["reason"] for x in stops) + ".")
         cancel_pending(dec, reason, reviewer)
         db.commit()
         return {"executed": False, "cancelled": reason}
