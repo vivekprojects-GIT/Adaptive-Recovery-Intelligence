@@ -29,9 +29,12 @@ from sqlalchemy.orm import Session
 from .. import models
 from ..scoring import SEGMENT_ACTION, nudge_score, self_cure_score, segment_for
 from . import analytics, engine, rules
-from .contract import (  # noqa: F401  (Consent and NovaAccount are re-exported for callers of this module)
+from .contract import (
     FEATURE_SET_VERSION, Consent, NovaAccount, Received, RecoveryContextV1, guard_context, lineage_only, receive,
 )
+
+# Re-exported: callers use nova.NovaAccount and nova.Consent.
+__all__ = ["Consent", "NovaAccount"]
 from .engine import UNNAMED, iso, jl
 from .models import Campaign, Decision, ExternalCustomer, FeatureSnapshot, Nudge, Outcome, TreatmentMeta
 from .platform import audit, cfg, now
@@ -269,12 +272,12 @@ def describe(db: Session, dec: Decision, c, camp: Campaign, account_id: str, *, 
         summary = f"{t['name']} was chosen, but the send-time contact check held it: {nudge.failure_reason}."
     elif nudge is not None and nudge.status == "Failed":
         action = "contact_failed"
-        summary = (f"{t['name']} via {t['channel']} was chosen, but the simulated send failed "
-                   f"({nudge.failure_reason}). No channel gateway is connected; nobody was contacted.")
+        summary = (f"{t['name']} via {t['channel']} was chosen, but the delivery check failed "
+                   f"({nudge.failure_reason}). Channel delivery is not connected; no message was sent.")
     else:
         action = "contact"
         summary = (f"{t['name']} via {t['channel']}, chosen by Thompson sampling ({p:.0%} of the time for "
-                   f"accounts like this). Simulated send: no channel gateway is connected, so nobody is contacted.")
+                   f"accounts like this). {NOT_CONNECTED}.")
 
     message = None
     if t:
@@ -336,6 +339,9 @@ def describe(db: Session, dec: Decision, c, camp: Campaign, account_id: str, *, 
     if checked:
         out["strategies_checked"] = checked
     return out
+
+
+NOT_CONNECTED = "Channel delivery is not connected, so no message is sent"
 
 
 def _exclusion_summary(action: str, blocked: list[dict], explanation: str) -> str:

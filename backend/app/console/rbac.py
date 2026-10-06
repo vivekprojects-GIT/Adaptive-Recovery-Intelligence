@@ -12,7 +12,7 @@ from __future__ import annotations
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
-from ..db import get_db
+from ..core.database import get_db
 from .models import RolePermission, User
 
 ROLES = {

@@ -13,7 +13,7 @@ const ACTION: Record<string, { label: string; tone: Tone }> = {
   contact: { label: "Contact", tone: "good" },
   awaiting_approval: { label: "Awaiting approval", tone: "warn" },
   contact_blocked: { label: "Blocked by the contact rules", tone: "serious" },
-  contact_failed: { label: "Simulated send failed", tone: "bad" },
+  contact_failed: { label: "Delivery check failed", tone: "bad" },
   cancelled: { label: "Cancelled before review", tone: "neutral" },
   would_be_blocked: { label: "Would be blocked", tone: "serious" },
   restricted: { label: "Restriction on file", tone: "serious" },
@@ -123,7 +123,7 @@ function ResultView({ r, report, busy, onReport }: {
       )}
       {r.contact && (
         <p className="text-2xs leading-4 text-fg-3">
-          {r.contact.channel}: {r.contact.status.toLowerCase()} for {dateTime(r.contact.send_at)}{r.contact.simulated ? " (simulated - no channel gateway connected)" : ""}. Send-time check: {r.contact.guard}
+          {r.contact.channel}: {r.contact.status.toLowerCase()} for {dateTime(r.contact.send_at)}{r.contact.simulated ? " (channel delivery not connected; no message sent)" : ""}. Send-time check: {r.contact.guard}
         </p>
       )}
       {r.note && <p className="text-2xs leading-4 text-fg-3">{r.note}</p>}

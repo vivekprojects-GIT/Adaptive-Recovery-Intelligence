@@ -2,7 +2,7 @@
 from __future__ import annotations
 import random
 
-from .db import Base, engine, SessionLocal
+from .core.database import Base, engine, SessionLocal
 from . import models
 from .scoring import nudge_score, self_cure_score, segment_for
 

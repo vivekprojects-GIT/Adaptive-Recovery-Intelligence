@@ -64,9 +64,9 @@ CONFIG_DEFAULTS: list[tuple[str, str, str, str, str, str]] = [
     ("recovery_rate_target", "0.40", "Portfolio recovery-rate target", "Targets", "percent", ""),
     ("cost_per_recovery_target", "8.00", "Cost-per-recovery target ($)", "Targets", "number", ""),
     ("escalation_rate_target", "0.08", "Escalation-rate ceiling", "Targets", "percent", ""),
-    ("shadow_mode", "true", "Shadow mode", "Operations", "bool",
-     "Locked on. Decisions are made and logged, but no channel gateway is connected: every send is "
-     "simulated and nothing reaches a customer."),
+    ("shadow_mode", "true", "Pilot mode (channel delivery off)", "Operations", "bool",
+     "Locked on until a channel gateway is connected. Decisions, approvals and compliance checks are recorded; "
+     "no message is sent to a customer."),
     ("auto_handoff", "true", "Receive next handoff automatically", "Operations", "bool",
      "When a strategy's audience is too small for a full wave, pull the next cohort handoff from the "
      "collections system before the wave runs."),

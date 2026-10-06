@@ -71,7 +71,7 @@ export default function SignIn() {
           <p className="mt-1.5 text-center text-2xs text-fg-3">Available when connected to the bank's identity provider.</p>
 
           <div className="my-6 flex items-center gap-3 text-2xs font-medium uppercase tracking-[0.1em] text-fg-3">
-            <span className="h-px flex-1 bg-line" />Demo personas<span className="h-px flex-1 bg-line" />
+            <span className="h-px flex-1 bg-line" />Accounts in this environment<span className="h-px flex-1 bg-line" />
           </div>
 
           {error && !users.length && <p className="mb-3 text-sm text-bad">Cannot reach the ARI service: {error}</p>}
@@ -100,7 +100,7 @@ export default function SignIn() {
             })}
           </ul>
           <p className="mt-6 text-xs leading-5 text-fg-3">
-            Personas stand in for single sign-on. Every action is recorded in the audit log against the signed-in user, and permissions are enforced by the API.
+            Single sign-on is not connected in this environment. Every action is recorded in the audit log against the account you choose, and permissions are enforced on every request.
           </p>
         </div>
       </section>

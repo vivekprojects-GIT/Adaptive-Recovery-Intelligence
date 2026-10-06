@@ -10,13 +10,10 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from .core.config import settings
 from .main import app as api, lifespan
 
-STATIC_DIR = os.getenv(
-    "STATIC_DIR",
-    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-                 "frontend", "dist"),
-)
+STATIC_DIR = settings.static_dir
 
 
 class SPAStaticFiles(StaticFiles):

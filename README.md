@@ -35,7 +35,7 @@ All values live in `frontend/tailwind.config.js` and the `:root` block of `front
 
 **What is real.** Every decision, nudge, engagement event, outcome, violation and audit entry is written by the engine to SQLite, and every screen reads from that log. Five weeks of history are produced on first start by running the real engine week by week. Permissions are enforced by the API on every request, not just hidden in the UI. System Health latency is measured from live requests.
 
-**What is simulated.** Customer behaviour (`experiments.true_pay_probability`) and channel delivery. No channel gateway is connected, so shadow mode is locked on: decisions are made and logged, every send is simulated, and no customer is contacted. Messages quote only amounts the bank supplied and never a card number.
+**What is simulated.** Customer behaviour (`app/simulation.py`) and channel delivery. No channel gateway is connected, so shadow mode is locked on: decisions are made and logged, every send is simulated, and no customer is contacted. Messages quote only amounts the bank supplied and never a card number.
 
 **Thompson sampling, precisely.** One Beta posterior per treatment per strategy, learned from outcomes. A fixed, hand-written customer-fit table tilts each draw toward the customer's profile; the learner does not estimate those effects itself. A learned contextual model is a later phase.
 
@@ -63,8 +63,6 @@ All values live in `frontend/tailwind.config.js` and the `:root` block of `front
 - **Run 5** runs five waves in a row. When a strategy's audience is too small for a full wave, the next cohort handoff arrives automatically (Platform Config can switch this off; **Receive next handoff** does it by hand).
 - **Strategy Analytics** puts every strategy side by side: its result against its own control group, and where Thompson sampling stands in it (settled, leaning or exploring, and on which treatment). Each row opens to the per-treatment detail. When a favourite reaches few customers, the verdict says why: few are eligible for it, or customer fit sends people elsewhere.
 
-The earlier eight-page flow lives in `frontend/src/legacy/` (excluded from the build). Its substance is inside the console: cohort intake is on **Cohorts & Handoffs**, the treatment sheet is the **Treatment Playbook**, and the experiment flow is on each strategy's **Experiment** tab.
-
 ---
 
 ## Quick start
@@ -84,27 +82,27 @@ cd frontend && npm install && npm run dev
 ```
 
 Open <http://localhost:5173>. The database seeds itself on first boot. API docs are at
-<http://localhost:8000/docs>. `POST /admin/reseed` puts the demo data back to its starting state.
+<http://localhost:8000/docs>. A platform admin can put the data back to its starting state with
+`POST /console/admin/reseed`.
 
-**Check that the engine learns** (runs the real API on a throwaway database; needs `httpx`):
+**Tests.** One command runs every end-to-end suite (each starts the real API on a throwaway
+database) and a static check:
 
 ```bash
-cd backend && .venv/Scripts/python.exe tests/verify_thompson.py
+cd backend && .venv/Scripts/python.exe -m pip install -r requirements-dev.txt && .venv/Scripts/python.exe -m pytest -q
 ```
 
-It adds treatments, runs the full strategy lifecycle (create, approve, launch, revise, delete) and checks that Thompson sampling finds a better new treatment, drops a weak one, and never counts an empty wave.
+| Suite | Covers |
+| --- | --- |
+| `tests/verify_mcp.py` | The MCP server over the real protocol: access, routing, consent and caps, learning, approvals, batch |
+| `tests/verify_thompson.py` | Treatment playbook, strategy lifecycle and versions, and that Thompson sampling finds a better treatment and drops a weak one |
+| `tests/verify_context.py` | RecoveryContext v1, frozen snapshots, per-rule eligibility records, freshness, migration of an older database |
+| `tests/verify_suggestions.py` | Suggested strategies: evidence, drafting, versioning and approval |
+
+GitHub Actions (`.github/workflows/ci.yml`) runs the same tests and the frontend type-check and
+build on every push to `main` and on pull requests.
 
 ---
-
-## The flow, screen by screen
-
-| Step | Screen | What it shows |
-| --- | --- | --- |
-| 00 | **Client upstream** | The client's existing pipeline (dashboard → DPD buckets → risk segmentation → cohort identification), marked as *not rebuilt*. The cohorts it hands off, with DPD bucket, client risk band and expected payment window. |
-| 01 | **Cohort / customer** | Group view: the handed-off cohort split by whether an intervention can change the outcome. Customer view: one account, with the client's data labelled as such, and ARI's intervention-fit scoring. |
-| 02 | **Strategy sheet** | Every strategy in the playbook: channel, offer, timing, eligibility rule, how many qualify, cost, past success rate, fit, and a recommendation. Pick the strategies to test. Works at group and customer level. |
-| 03 | **Experiment** | Eligible population (who takes part, who is routed elsewhere and why) → random control holdout → strategy assignment in waves, adaptive or fixed split. Customer view shows how one customer is assigned. |
-| 04 | **Outcome tracking** | Pay rate for treatment vs control, uplift, results by strategy, cost per payment, and how the system's belief in each strategy moved wave by wave. |
 
 ### The example cohort
 
@@ -142,47 +140,50 @@ with the handoff and are shown as client data.
 - *Self-cure* - how likely they are to pay without help.
 
 Together they give four groups: can be helped, will pay anyway, needs hardship support, leave alone.
-Only the first group is experimented on by default.
+Strategies target the groups an intervention can change.
 
-**Strategy sheet.** Eligibility is a set of policy rules per strategy (for example, a split plan
-needs a balance of at least $500 and no more than 2 missed payments). Fit is how strongly a
-customer's profile favours a strategy. The cohort-level recommendation weighs expected success
-against cost per contact.
+**Rules before learning** (`app/console/rules.py`). Every candidate treatment is checked against
+every rule - playbook status, its own eligibility rules, hard stops, consent, opt-out, contact caps,
+freshness - and every result is stored. Only treatments that pass every rule can be chosen.
 
-**Experiment** (`app/experiments.py`).
-1. *Eligible population*: cohort members in the chosen groups who qualify for at least one selected
-   strategy.
-2. *Sampling*: a random 10% or 20% held back as control.
-3. *Assignment*: treatment customers are assigned in waves. In adaptive mode, each customer gets
-   one draw per eligible strategy from its current belief (a Beta distribution seeded from the
-   client's historical success rate), tilted by fit, and the highest draw wins. In fixed mode, the
-   strategies are split equally. Results are applied at the end of each wave.
-4. *Outcomes*: paid / not paid, compared against control.
+**Decisions** (`app/console/engine.py`). A deterministic share of each strategy's accounts is held
+out as its control group. For the rest, Thompson sampling draws once per allowed treatment from its
+belief (a Beta distribution seeded lightly from the playbook's historical rate), tilts the draw by
+customer fit, and the highest draw wins. Console waves learn in batches; agent decisions learn as
+outcomes are reported.
 
-Outcomes come from a simulator with hidden true response rates per group and strategy. The
-experiment never sees those rates, only the paid / not-paid results.
-
-Experiments are held in memory. They reset if the server restarts.
+**Outcomes in test environments** (`app/simulation.py`). Customer responses come from a simulator
+with hidden true response rates per fit group and treatment kind. The engine never reads them; it
+only sees paid / not-paid results.
 
 ---
 
-## API
+## Code layout
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| GET | `/cohorts` | Cohorts handed off by the client |
-| GET | `/cohorts/{id}` | Cohort profile, fit groups, named customers |
-| GET | `/customers` | Filter by `cohort_id`, `segment`, `search` |
-| GET | `/customers/{id}` | One customer |
-| GET | `/customers/{id}/fit` | Influenceability, self-cure, group, factor breakdown |
-| GET | `/strategies` | The strategy playbook |
-| GET | `/strategy-sheet/cohort/{id}` | Strategy sheet for a cohort |
-| GET | `/strategy-sheet/customer/{id}` | Strategy sheet for one customer |
-| POST | `/experiments` | Create an experiment (cohort, strategies, control %, mode, wave size) |
-| GET | `/experiments/{id}` | Population, groups, assignments, results |
-| POST | `/experiments/{id}/waves?count=N` | Run the next N waves |
-| GET | `/experiments/{id}/customers/{cid}` | One customer's status in an experiment |
-| GET | `/customers/{id}/assignment-preview` | Customer-level assignment draw |
+```
+backend/app/
+  core/            settings (environment) and database access
+  console/
+    routes/        the console API, one module per area: session, strategies, treatments, handoffs,
+                   dashboards, customers, decisions, compliance, workbench, reports, alerts, admin
+    contract.py    RecoveryContext v0 / v1: what Nova may send
+    rules.py       guardrails and eligibility, every rule for every candidate treatment
+    engine.py      control split, Thompson sampling, execution, learning
+    nova.py        the agent (MCP) service: decisions and outcome reports
+    mcp_server.py  the MCP transport and access
+    suggest.py     suggested strategies from the decision log
+    analytics.py   uplift, results and learning read models
+  scoring.py       intervention fit and eligibility rules
+  simulation.py    customer responses for test environments
+frontend/src/console/
+  shell/           header, sidebar, menus, environment panel
+  routes.tsx       every page and the permission it needs
+  pages/           one folder per workspace; large pages split by feature (strategist/builder/)
+  ui/              shared components and charts
+```
+
+Every console route names the permission it needs (`console/rbac.py`); the UI hiding a control is
+never the only check.
 
 ---
 

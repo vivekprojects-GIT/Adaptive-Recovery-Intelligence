@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from .. import models
-from .engine import CHANNEL_OF, arrears, jl
+from .engine import arrears, jl
 from .models import (
     Campaign, ContactRecord, Decision, EngagementEvent, Nudge, Outcome, User,
 )

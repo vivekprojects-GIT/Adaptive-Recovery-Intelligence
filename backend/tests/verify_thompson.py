@@ -31,7 +31,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app.console.models import Decision  # noqa: E402
-from app.db import SessionLocal  # noqa: E402
+from app.core.database import SessionLocal  # noqa: E402
 from app.main import app  # noqa: E402
 
 MAYA, JAMES, PRIYA = ({"X-User-Id": u} for u in ("u-maya", "u-james", "u-priya"))

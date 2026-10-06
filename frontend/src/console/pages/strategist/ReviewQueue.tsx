@@ -25,7 +25,7 @@ export default function ReviewQueue() {
       (r) => !approve ? `${d.decision_id} rejected. Nothing was sent.`
         : r.cancelled ? `${d.decision_id} was not sent: ${r.cancelled}`
         : r.status === "Held" ? `${d.decision_id} approved, but the send-time check held it: ${r.note}.`
-        : `${d.decision_id} approved; simulated send ${(r.status ?? "executed").toLowerCase()}.`)
+        : `${d.decision_id} approved and recorded. Channel delivery is not connected, so no message was sent.`)
       .then((r) => { if (r) { reload(); refresh(); } });
 
   const toggle = async (id: string) => {
@@ -41,7 +41,7 @@ export default function ReviewQueue() {
       <PageHeader title="Review Queue" subtitle="Forbearance offers chosen by the engine, waiting for a person" role={me?.user.role_label} />
       <Page>
         <Banner tone="info" title="Why these wait">
-          Payment plans, deferrals and hardship referrals change what a customer owes or when. They are chosen by the model like any treatment, but nothing is sent until you approve it. Approving re-checks consent, contact limits and any vulnerability flag against the newest data from Nova, then sends it (simulated: no channel gateway is connected). Rejecting records why and sends nothing.
+          Payment plans, deferrals and hardship referrals change what a customer owes or when. They are chosen by the model like any treatment, but nothing is sent until you approve it. Approving re-checks consent, contact limits and any vulnerability flag against the newest data from Nova, then sends it. While channel delivery is not connected, the send is recorded and no message reaches the customer. Rejecting records why and sends nothing.
         </Banner>
         <Card flush title={`${data?.total ?? 0} decisions waiting`}>
           <Table>

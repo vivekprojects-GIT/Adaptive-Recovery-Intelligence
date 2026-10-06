@@ -7,7 +7,7 @@ Everything is written to the decision log, so the journey, nudge, decision
 audit and every dashboard read the same records. Nothing on screen is
 synthesised separately from what the engine actually did.
 
-Simulation boundary: `experiments.true_pay_probability` stands in for real
+Simulation boundary: `simulation.true_pay_probability` stands in for real
 customers. The engine never reads it when deciding; it only produces outcomes.
 """
 from __future__ import annotations
@@ -26,7 +26,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from .. import models
-from ..experiments import snapshot, true_pay_probability
+from ..simulation import snapshot, true_pay_probability
 from ..scoring import eligibility, fit_multiplier, fit_reasons, thompson_rank
 from . import rules
 from .contract import FEATURE_SET_VERSION, NovaAccount, guard_context
@@ -763,9 +763,9 @@ def execute(db: Session, camp: Campaign, dec, c, at: datetime,
         return n
     failed = rng.random() < DELIVERY_FAILURE.get(channel, 0.03)
     stages.append({"stage": "Delivery", "at": iso(send_at), "ok": not failed,
-                   "detail": ("Simulated failure: number unreachable. No channel gateway is connected."
+                   "detail": ("Delivery check failed: number unreachable. Channel delivery is not connected."
                               if failed else
-                              f"Simulated {channel} send - no channel gateway is connected, nobody was contacted "
+                              f"{channel} send recorded. Channel delivery is not connected, so no message was sent "
                               f"(ref SIM-{n.nudge_id[2:]})")})
     n.status = "Failed" if failed else "Delivered"
     n.sent_at = iso(send_at)

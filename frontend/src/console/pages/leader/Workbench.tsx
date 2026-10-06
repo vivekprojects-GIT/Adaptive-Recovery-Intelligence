@@ -53,7 +53,7 @@ export default function Workbench() {
       <Page>
         <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)_280px]">
           <div className="space-y-3">
-            <p className="label">Problem areas · detected from live data</p>
+            <p className="label">Problem areas · detected from the decision log</p>
             {data.areas.map((a) => (
               <button key={a.id} onClick={() => pick(a)} className={clsx("w-full rounded-lg border bg-surface p-3 text-left shadow-card transition",
                 active === a.id ? "border-primary-500 ring-2 ring-primary-500/15" : "border-line hover:border-line-strong")}>

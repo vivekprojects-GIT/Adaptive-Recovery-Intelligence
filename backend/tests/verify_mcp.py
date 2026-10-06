@@ -34,7 +34,7 @@ from mcp.client.streamable_http import streamablehttp_client  # noqa: E402
 
 from app.console import mcp_server  # noqa: E402
 from app.console.models import Decision, Outcome  # noqa: E402
-from app.db import SessionLocal  # noqa: E402
+from app.core.database import SessionLocal  # noqa: E402
 
 failures: list[str] = []
 
@@ -67,7 +67,7 @@ def start_server() -> tuple[uvicorn.Server, int]:
         port = s.getsockname()[1]
     server = uvicorn.Server(uvicorn.Config("app.main:app", host="127.0.0.1", port=port, log_level="warning"))
     threading.Thread(target=server.run, daemon=True).start()
-    for _ in range(600):
+    for _ in range(1200):  # startup seeds a database; allow for a busy machine
         if server.started:
             return server, port
         time.sleep(0.05)
@@ -344,9 +344,9 @@ async def main(port: int) -> None:
         r = await h.put(f"http://127.0.0.1:{port}/console/admin/config", json={"values": {"shadow_mode": "false"}},
                         headers={"X-User-Id": "u-priya"})
         check(r.status_code == 409, "shadow mode cannot be switched off: no channel gateway is connected (409)")
-        r = await h.post(f"http://127.0.0.1:{port}/admin/reseed")
+        r = await h.post(f"http://127.0.0.1:{port}/console/admin/reseed")
         check(r.status_code == 401, "wiping the data without a signed-in user is refused (401)")
-        r = await h.post(f"http://127.0.0.1:{port}/admin/reseed", headers={"X-User-Id": "u-maya"})
+        r = await h.post(f"http://127.0.0.1:{port}/console/admin/reseed", headers={"X-User-Id": "u-maya"})
         check(r.status_code == 403, "a strategist cannot wipe the data (403)")
 
 

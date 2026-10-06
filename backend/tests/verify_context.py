@@ -39,7 +39,7 @@ from sqlalchemy import text  # noqa: E402
 from app import models  # noqa: E402
 from app.console import mcp_server  # noqa: E402
 from app.console.models import ContactRecord, Decision, EligibilityEval, FeatureSnapshot, Nudge, Outcome  # noqa: E402
-from app.db import SessionLocal  # noqa: E402
+from app.core.database import SessionLocal  # noqa: E402
 
 UTC = timezone.utc
 NOW = datetime.now(UTC)
@@ -171,7 +171,7 @@ async def main(port: int) -> None:
                   f"snapshot: as-of {fs.as_of_ts[:16]}, request REQ-A, {fs.feature_set_version}")
             check(lineage["source_system"] == "NOVA_TEST" and lineage["contract_version"] == "v1",
                   f"source lineage: {lineage['source']} / {lineage['source_system']}")
-            check(all(v["status"] == "fresh" for v in stale.values()), f"staleness flags: "
+            check(all(v["status"] == "fresh" for v in stale.values()), "staleness flags: "
                   + ", ".join(f"{k} {v['status']}" for k, v in stale.items()))
             check({"risk_score", "product", "account_status"} <= set(json.loads(fs.lineage_only)),
                   "fields stored but not used to decide are listed as lineage-only")
@@ -194,7 +194,7 @@ async def main(port: int) -> None:
             sms_rows = [e for e in evals_of(out["decision_id"]) if e.arm_id == "S1" and e.result == "BLOCK"]
             codes = {e.reason_code for e in sms_rows}
             check({"NO_SMS_CONSENT", "CONSENT_STALE"} <= codes,
-                  f"a blocked treatment keeps every reason: S1 blocked by {sorted(codes)}")
+                  "a blocked treatment keeps every reason: S1 blocked by {sorted(codes)}")
             b = next(x for x in out["blocked_treatments"] if x["code"] == "S1")
             check(len(b["reasons"]) >= 2, f"the answer lists them too: {[x['reason_code'] for x in b['reasons']]}")
             s2 = [e for e in evals_of(out["decision_id"]) if e.arm_id == "S2"]
@@ -355,7 +355,7 @@ def migration() -> None:
     columns. Startup must bring it up to date without losing a decision."""
     print("\n10. Migration of a pre-P1 database")
     from app.console.seed import ensure_console
-    from app.db import Base, engine
+    from app.core.database import Base, engine
     db = SessionLocal()
     decisions = db.query(Decision).count()
     for stmt in ("DROP TABLE eligibility_evals", "DROP TABLE feature_snapshots",

@@ -35,7 +35,6 @@ export default function KpiDashboard() {
     <>
       <PageHeader title="KPI Dashboard" subtitle={`Portfolio overview · last 30 days · ${me?.user.name}`} role={me?.user.role_label}
         actions={<>
-          <Chip tone="good">● Live data</Chip>
           {can("export_reports") && <Button variant="primary" icon={<Download className="h-3.5 w-3.5" />} loading={busy === "x"}
             onClick={() => run("x", () => api.download("/reports/portfolio.csv", "ari-portfolio.csv"), "Portfolio report downloaded.")}>Export Report</Button>}
         </>} />

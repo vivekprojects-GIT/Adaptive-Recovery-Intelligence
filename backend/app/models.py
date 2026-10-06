@@ -1,6 +1,6 @@
 from sqlalchemy import String, Integer, Float, Boolean, Text
 from sqlalchemy.orm import Mapped, mapped_column
-from .db import Base
+from .core.database import Base
 
 
 class Cohort(Base):

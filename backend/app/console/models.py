@@ -20,7 +20,7 @@ from __future__ import annotations
 from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text, UniqueConstraint, event
 from sqlalchemy.orm import Mapped, mapped_column
 
-from ..db import Base
+from ..core.database import Base
 
 
 class User(Base):
@@ -53,7 +53,7 @@ class Campaign(Base):
     # Draft -> In review -> Approved -> Live -> Paused -> Archived
     status: Mapped[str] = mapped_column(String(12), default="Draft")
     version: Mapped[int] = mapped_column(Integer, default=1)
-    source: Mapped[str] = mapped_column(String(12), default="manual")       # manual | clone | ai_draft
+    source: Mapped[str] = mapped_column(String(12), default="manual")       # manual | clone | ai_draft | revision | suggested
     steps_completed: Mapped[int] = mapped_column(Integer, default=0)        # guided build progress 0-6
 
     # 1. Segment

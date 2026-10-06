@@ -18,7 +18,6 @@ No `from __future__ import annotations` here: FastMCP inspects the tool
 signatures at registration and needs real types, not strings.
 """
 import hmac
-import os
 import secrets
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
@@ -32,7 +31,8 @@ from pydantic import Field
 from sqlalchemy.orm import Session
 from starlette.responses import JSONResponse
 
-from ..db import SessionLocal
+from ..core.config import settings
+from ..core.database import SessionLocal
 from . import nova
 from .contract import NovaAccount, RecoveryContextV1
 from .engine import ENGINE_LOCK
@@ -266,7 +266,7 @@ def _new_token() -> str:
 
 def access_token(db: Session) -> tuple[str, str]:
     """(token, where it comes from). Created on first use."""
-    env = os.getenv("ARI_MCP_TOKEN", "").strip()
+    env = settings.mcp_token
     if env:
         return env, "environment"
     row = db.get(PlatformConfig, TOKEN_KEY)
@@ -280,7 +280,7 @@ def access_token(db: Session) -> tuple[str, str]:
 
 
 def rotate_token(db: Session, actor: str) -> str:
-    if os.getenv("ARI_MCP_TOKEN", "").strip():
+    if settings.mcp_token:
         raise ValueError("This token is set by ARI_MCP_TOKEN in the server environment; change it there.")
     access_token(db)
     row = db.get(PlatformConfig, TOKEN_KEY)

@@ -299,7 +299,7 @@ def _manual_nudges(db: Session, camps: dict, now: datetime) -> None:
     ]
     seq = engine.Seq(db)
     used: set[int] = set()
-    for i, (cid, text) in enumerate(texts):
+    for i, (cid, message) in enumerate(texts):
         at = now - timedelta(days=2 + i * 3)
         # A strategist would message someone the guard allows; pick such a customer.
         d = next((x for x in db.query(Decision).filter(Decision.campaign_id == cid, Decision.group == "Treatment")
@@ -310,7 +310,7 @@ def _manual_nudges(db: Session, camps: dict, now: datetime) -> None:
         used.add(d.customer_id)
         c = db.get(models.Customer, d.customer_id)
         rng = np.random.default_rng(900 + i)
-        engine.execute(db, camps[cid], d, c, at, rng, seq, touch=9, manual_text=text, code="S1")
+        engine.execute(db, camps[cid], d, c, at, rng, seq, touch=9, manual_text=message, code="S1")
         audit(db, "u-ravi" if cid == "STR-031" else "u-maya", "CREATE", "nudge", d.decision_id,
               f"Sent manual nudge to customer {d.customer_id}", at=_iso(at))
 

@@ -53,7 +53,7 @@ ACCOUNTS = [
 
 def local_token() -> str:
     from app.console.mcp_server import access_token
-    from app.db import SessionLocal
+    from app.core.database import SessionLocal
     db = SessionLocal()
     try:
         return access_token(db)[0]
