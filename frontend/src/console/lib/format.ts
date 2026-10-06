@@ -67,9 +67,16 @@ export const initials = (name: string) =>
   name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
 
 export const SEGMENTS = ["Persuadable", "Sure Thing", "Lost Cause", "Sleeping Dog"];
+/** The colour that identifies each fit group in charts and their legends. */
+export const SEGMENT_COLOR: Record<string, string> = {
+  Persuadable: "var(--series-1)", "Sure Thing": "var(--series-3)", "Lost Cause": "var(--series-4)", "Sleeping Dog": "var(--control)",
+};
 export const SEGMENT_LABEL: Record<string, string> = {
   "Persuadable": "Likely responsive",
   "Sure Thing": "Likely self-cure",
   "Lost Cause": "Needs support",
   "Sleeping Dog": "Do not contact",
 };
+
+/** The customer ID as people see and search it (the API accepts CUS-11342 or 11342). */
+export const customerRef = (id: number) => `CUS-${10000 + id}`;

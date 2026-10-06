@@ -25,7 +25,8 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")  # rule text uses ≥ and ≤; Windows consoles default to cp1252
 
 TMP = tempfile.mkdtemp(prefix="ari-verify-")
-os.environ["DATABASE_URL"] = f"sqlite:///{os.path.join(TMP, 'verify.db')}"
+# ARI_TEST_DATABASE_URL runs the suite against another database (an empty Postgres, say).
+os.environ["DATABASE_URL"] = os.environ.get("ARI_TEST_DATABASE_URL") or f"sqlite:///{os.path.join(TMP, 'verify.db')}"
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi.testclient import TestClient  # noqa: E402

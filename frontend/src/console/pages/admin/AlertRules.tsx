@@ -3,7 +3,7 @@ import { useState } from "react";
 
 import { api } from "../../lib/api";
 import { ago } from "../../lib/format";
-import { useApi, useSession } from "../../lib/session";
+import { useApi } from "../../lib/session";
 import { Button, Card, Chip, Drawer, Empty, ErrorState, Field, Page, PageHeader, Select, Spinner, StatusChip, Table, Td, Th, Toggle, Tr, inputCls, useAction } from "../../ui/ui";
 
 interface Rule { rule_id: number; name: string; metric: string; metric_label: string; comparator: string; threshold: number; scope: string;
@@ -11,7 +11,6 @@ interface Rule { rule_id: number; name: string; metric: string; metric_label: st
 const BLANK = { name: "", metric: "escalation_rate", comparator: "gt", threshold: 0.1, severity: "High", enabled: true, notify: "" };
 
 export default function AlertRules() {
-  const { me } = useSession();
   const { data, error, loading, reload } = useApi<{ rules: Rule[]; metrics: { key: string; label: string }[] }>("/admin/alerts");
   const [edit, setEdit] = useState<Rule | null>(null);
   const [form, setForm] = useState(BLANK);
@@ -24,7 +23,7 @@ export default function AlertRules() {
     .then((r) => { if (r) { setOpen(false); reload(); } });
   return (
     <>
-      <PageHeader title="Alert Rules" subtitle="Thresholds evaluated against live metrics; firing alerts appear on the leader dashboard" role={me?.user.role_label}
+      <PageHeader title="Alert Rules" subtitle="Thresholds evaluated against live metrics; firing alerts appear on the leader dashboard"
         actions={<Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => start()}>New rule</Button>} />
       <Page>
         <Card flush>

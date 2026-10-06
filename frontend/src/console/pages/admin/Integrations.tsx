@@ -1,14 +1,13 @@
 import { ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
 
 import { ago } from "../../lib/format";
-import { useApi, useSession } from "../../lib/session";
+import { useApi } from "../../lib/session";
 import { Banner, Card, ErrorState, Page, PageHeader, Spinner, StatusChip } from "../../ui/ui";
 import { AgentAccess } from "./AgentAccess";
 
 interface I { id: string; name: string; kind: string; status: string; mode: string; detail: string; last_sync: string | null }
 
 export default function Integrations() {
-  const { me } = useSession();
   const { data, error, loading, reload } = useApi<{ feeds: I[]; channels: I[]; shadow_mode: boolean }>("/admin/integrations");
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (loading || !data) return <Spinner />;
@@ -30,7 +29,7 @@ export default function Integrations() {
   );
   return (
     <>
-      <PageHeader title="API & Integrations" subtitle="Agents that ask ARI for decisions, data flowing in from the bank, and the channels ARI decides for" role={me?.user.role_label} />
+      <PageHeader title="API & Integrations" subtitle="Agents that ask ARI for decisions, data flowing in from the bank, and the channels ARI decides for" />
       <Page>
         {data.shadow_mode && (
           <Banner tone="neutral" title="Channel delivery is not connected">

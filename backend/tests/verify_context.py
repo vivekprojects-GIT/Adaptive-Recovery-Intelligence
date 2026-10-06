@@ -26,7 +26,8 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 TMP = tempfile.mkdtemp(prefix="ari-context-")
-os.environ["DATABASE_URL"] = f"sqlite:///{os.path.join(TMP, 'context.db')}"
+# ARI_TEST_DATABASE_URL runs the suite against another database (an empty Postgres, say).
+os.environ["DATABASE_URL"] = os.environ.get("ARI_TEST_DATABASE_URL") or f"sqlite:///{os.path.join(TMP, 'context.db')}"
 os.environ.pop("ARI_MCP_TOKEN", None)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -355,7 +356,10 @@ def migration() -> None:
     columns. Startup must bring it up to date without losing a decision."""
     print("\n10. Migration of a pre-P1 database")
     from app.console.seed import ensure_console
-    from app.core.database import Base, engine
+    from app.core.database import IS_SQLITE, Base, engine
+    if not IS_SQLITE:
+        print("  SKIP  the in-place column migration is for SQLite; a server database is created fresh")
+        return
     db = SessionLocal()
     decisions = db.query(Decision).count()
     for stmt in ("DROP TABLE eligibility_evals", "DROP TABLE feature_snapshots",

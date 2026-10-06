@@ -78,7 +78,7 @@ export default function MyDashboard() {
   const k = data.kpis;
   return (
     <>
-      <PageHeader title="My Dashboard" subtitle={`Strategist workspace · ${me?.user.name}`} role={me?.user.role_label}
+      <PageHeader title="My Dashboard" subtitle={`Strategist workspace · ${me?.user.name}`}
         actions={<Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => navigate("/builder")}>New Strategy</Button>} />
       <Page>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -86,7 +86,7 @@ export default function MyDashboard() {
           <Kpi label="Accounts decided" value={num(k.accounts)} sub="across my strategies" />
           <Kpi label="Recovery rate (treated)" value={pct(k.recovery_rate)}
             sub={k.control_rate !== null ? `control ${pct(k.control_rate)} · uplift ${pp(k.uplift)}` : "no control yet"} />
-          <Kpi label="AI decisions, last 24h" value={num(k.decisions_24h)} sub="from my strategies" />
+          <Kpi label="Decisions, last 24h" value={num(k.decisions_24h)} sub="from my strategies" />
         </div>
 
         {k.pending_review > 0 && (
@@ -99,7 +99,7 @@ export default function MyDashboard() {
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="min-w-0 space-y-4">
             {data.draft && (
-              <div className="rounded-lg border border-primary-200 bg-gradient-to-r from-primary-50 to-ai-50/60 p-4 shadow-card">
+              <div className="rounded-lg border border-line border-l-[3px] border-l-primary-500 bg-surface p-4 shadow-card">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="text-2xs font-semibold uppercase tracking-wide text-primary-600">
@@ -138,7 +138,7 @@ export default function MyDashboard() {
           </div>
 
           <Card title={<span className="flex items-center gap-1.5"><Lightbulb className="h-4 w-4 text-fg-3" />Leadership Insights</span>}
-            subtitle="From the AI Workbench, sent by your strategy leader">
+            subtitle="From the Strategy Workbench, sent by your strategy leader">
             <div className="space-y-2.5">
               {data.insights.map((i) => <InsightCard key={i.insight_id} i={i} onDone={reload} />)}
               {!data.insights.length && <p className="py-6 text-center text-xs text-fg-3">No insights yet.</p>}

@@ -24,7 +24,7 @@ export default function LiveCampaigns() {
     .then((r) => { if (r) { reload(); handoffs.reload(); refresh(); } });
   return (
     <>
-      <PageHeader title="Live Campaigns" subtitle="Running strategies: decide the next wave, watch the comparison with control build up" role={me?.user.role_label}
+      <PageHeader title="Live Campaigns" subtitle="Running strategies: decide the next wave, watch the comparison with control build up"
         actions={can("launch_strategy") && (
           <Button icon={<Inbox className="h-4 w-4" />} loading={busy === "handoff"} onClick={receive}>Receive next handoff</Button>
         )} />

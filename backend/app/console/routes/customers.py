@@ -6,7 +6,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import String, cast
+
 from sqlalchemy.orm import Session
 
 
@@ -16,9 +16,9 @@ from ...scoring import eligibility, fit_reasons, nudge_explanation
 from .. import analytics, compliance, engine
 from ..engine import arrears
 from ..models import Campaign, Decision, User
-from ..platform import audit
+from ..platform import audit, customer_ref
 from ..rbac import require
-from .common import UTC, _ordered_treatments, _treatments
+from .common import UTC, _ordered_treatments, _treatments, customer_match
 
 router = APIRouter()
 
@@ -29,10 +29,8 @@ def customers(view: str = "all", q: str = "", cohort: str = "", page: int = 1, p
     query = db.query(models.Customer)
     if cohort:
         query = query.filter(models.Customer.cohort_id == cohort)
-    if q:
-        like = f"%{q}%"
-        query = query.filter((models.Customer.name.like(like)) |
-                             (cast(models.Customer.customer_id, String).like(like)))
+    if q.strip():
+        query = query.filter(customer_match(q))
     all_rows = query.all()
     states = analytics.customer_state(db, [c.customer_id for c in all_rows])
     t = _treatments(db)
@@ -104,7 +102,7 @@ def customer_action(customer_id: int, body: CustomerAction,
             n = engine.execute(db, camp, d, c, datetime.now(UTC), np.random.default_rng(),
                                engine.Seq(db), touch=9, manual_text=body.message, code="S1")
         audit(db, user.user_id, "CREATE", "nudge", n.nudge_id,
-              f"Sent manual nudge to customer {customer_id}", {"status": n.status})
+              f"Sent manual nudge to {customer_ref(customer_id)}", {"status": n.status})
         db.commit()
         compliance.scan(db)
         return {"nudge_id": n.nudge_id, "status": n.status, "note": n.failure_reason}
@@ -113,6 +111,6 @@ def customer_action(customer_id: int, body: CustomerAction,
     label = {"pause_journey": "Paused journey", "resume_journey": "Resumed journey",
              "skip_next_step": "Skipped next step"}[body.action]
     audit(db, user.user_id, "UPDATE", "journey", str(customer_id),
-          f"{label} for customer {customer_id}: {body.reason}")
+          f"{label} for {customer_ref(customer_id)}: {body.reason}")
     db.commit()
     return {"ok": True, "message": f"{label}. Recorded in the audit log."}

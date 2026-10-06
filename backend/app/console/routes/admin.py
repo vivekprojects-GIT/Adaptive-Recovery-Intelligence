@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 
@@ -299,12 +299,17 @@ def reseed(user: User = Depends(require("configure_platform"))):
 @router.get("/admin/health")
 def system_health(user: User = Depends(require("view_system_health")), db: Session = Depends(get_db)):
     import os
-    from ...core.database import DB_PATH
+    from ...core.database import DB_PATH, IS_SQLITE
     m = METRICS.snapshot()
     day = (datetime.now(UTC) - timedelta(days=1)).isoformat(timespec="seconds")
     lat = db.query(func.avg(Decision.latency_ms)).scalar() or 0
     last_wave = db.query(func.max(Decision.decided_at)).filter(Decision.decided_at <= now()).scalar()
-    size = os.path.getsize(DB_PATH) if os.path.exists(DB_PATH) else 0
+    if IS_SQLITE:
+        size = os.path.getsize(DB_PATH) if os.path.exists(DB_PATH) else 0
+        database = f"SQLite · {size / 1_048_576:.1f} MB"
+    else:
+        size = db.execute(text("SELECT pg_database_size(current_database())")).scalar() or 0
+        database = f"PostgreSQL · {size / 1_048_576:.1f} MB"
     components = [
         {"name": "Decision API", "status": "Operational" if m["error_rate"] < 0.01 else "Degraded",
          "detail": f"p95 {m['latency_p95_ms']} ms over {len(METRICS.samples)} recent requests"},
@@ -314,7 +319,7 @@ def system_health(user: User = Depends(require("view_system_health")), db: Sessi
          "detail": f"last scan {(db.get(PlatformConfig, '_compliance_scanned_until').value if db.get(PlatformConfig, '_compliance_scanned_until') else 'never')}"},
         {"name": "Channel gateways", "status": "Not connected" if cfg(db, "shadow_mode") == "true" else "Operational",
          "detail": "No gateway connected: decisions are recorded, no message is sent"},
-        {"name": "Database", "status": "Operational", "detail": f"SQLite · {size / 1_048_576:.1f} MB"},
+        {"name": "Database", "status": "Operational", "detail": database},
     ]
     return {"metrics": m, "components": components, "model_version": cfg(db, "model_version"),
             "decisions_24h": db.query(Decision).filter(Decision.decided_at >= day,

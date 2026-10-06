@@ -1,18 +1,17 @@
 import { Download, FileSpreadsheet } from "lucide-react";
 
 import { api } from "../../lib/api";
-import { useApi, useSession } from "../../lib/session";
+import { useApi } from "../../lib/session";
 import { Banner, Button, Card, ErrorState, Page, PageHeader, Spinner, useAction } from "../../ui/ui";
 
 export default function Reports() {
-  const { me } = useSession();
   const { data, error, loading, reload } = useApi<{ id: string; name: string; description: string }[]>("/reports");
   const { run, busy } = useAction();
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (loading || !data) return <Spinner />;
   return (
     <>
-      <PageHeader title="Reports" subtitle="CSV exports for model risk, compliance and management reporting" role={me?.user.role_label} />
+      <PageHeader title="Reports" subtitle="CSV exports for model risk, compliance and management reporting" />
       <Page>
         <Banner tone="neutral">Every export is recorded in the audit log with who ran it and when.</Banner>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

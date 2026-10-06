@@ -32,7 +32,7 @@ export default function UserManagement() {
 
   return (
     <>
-      <PageHeader title="User Management" subtitle="Manage access, roles and status" role={me?.user.role_label}
+      <PageHeader title="User Management" subtitle="Manage access, roles and status"
         actions={<Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => setInvite(true)}>Invite User</Button>} />
       <Page>
         <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">

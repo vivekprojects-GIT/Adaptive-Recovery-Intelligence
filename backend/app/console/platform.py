@@ -86,6 +86,15 @@ def cfg_float(db: Session, key: str) -> float:
     return float(cfg(db, key))
 
 
+# Customers are shown as CUS-<offset + internal id> (frontend lib/format customerRef).
+CUSTOMER_REF_OFFSET = 10000
+
+
+def customer_ref(customer_id: int) -> str:
+    """The customer ID as people see and search it, e.g. CUS-10517."""
+    return f"CUS-{CUSTOMER_REF_OFFSET + customer_id}"
+
+
 def now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 

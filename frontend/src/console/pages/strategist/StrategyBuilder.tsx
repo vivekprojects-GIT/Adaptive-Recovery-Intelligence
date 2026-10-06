@@ -2,7 +2,6 @@ import { BookOpen, FilePenLine, Lightbulb, Wrench } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { useSession } from "../../lib/session";
 import { Page, PageHeader, Tabs } from "../../ui/ui";
 import Suggested from "./builder/Suggested";
 import Library from "./builder/Library";
@@ -13,13 +12,12 @@ type Tab = "suggested" | "library" | "guided" | "ai";
 
 export default function StrategyBuilder() {
   const { id } = useParams();
-  const { me } = useSession();
   const [tab, setTab] = useState<Tab>(id ? "guided" : "suggested");
   useEffect(() => { if (id) setTab("guided"); }, [id]);
   const navigate = useNavigate();
   return (
     <>
-      <PageHeader title="Strategy Builder" subtitle={id ? `${id} · editing` : "Start from a suggestion, clone a strategy, or build one"} role={me?.user.role_label}
+      <PageHeader title="Strategy Builder" subtitle={id ? `${id} · editing` : "Start from a suggestion, clone a strategy, or build one"}
         crumbs={[{ label: "Strategies", to: "/strategies" }, { label: "Builder" }]} />
       <div className="bg-surface px-6"><Tabs<Tab> active={tab} onChange={(t) => { setTab(t); if (t !== "guided" && id) navigate("/builder"); }} tabs={[
         { id: "suggested", label: "Suggested", icon: <Lightbulb className="h-3.5 w-3.5" /> },

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { api, type InsightRow } from "../../lib/api";
 import { ago } from "../../lib/format";
-import { useApi, useSession } from "../../lib/session";
+import { useApi } from "../../lib/session";
 import { Banner, Button, Card, Chip, ErrorState, Page, PageHeader, Spinner, StatusChip, useAction } from "../../ui/ui";
 
 interface Area { id: string; kind: string; campaign_id: string | null; severity: string; title: string; metrics: string }
@@ -12,7 +12,6 @@ interface Idea { title: string; body: string; evidence: string; priority: string
 interface Msg { from: "ai" | "me"; text: string; ideas?: Idea[] }
 
 export default function Workbench() {
-  const { me } = useSession();
   const { data, error, loading, reload } = useApi<{ areas: Area[]; sent: InsightRow[] }>("/workbench");
   const [active, setActive] = useState<string | null>(null);
   const [ideas, setIdeas] = useState<Idea[]>([]);
@@ -49,9 +48,9 @@ export default function Workbench() {
 
   return (
     <>
-      <PageHeader title="AI Strategy Workbench" subtitle="Find what is underperforming, draft improvements, send them to the strategy owner" role={me?.user.role_label} />
+      <PageHeader title="Strategy Workbench" subtitle="Find what is underperforming, draft improvements, send them to the strategy owner" />
       <Page>
-        <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)_280px]">
+        <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)_280px]">
           <div className="space-y-3">
             <p className="label">Problem areas · detected from the decision log</p>
             {data.areas.map((a) => (
@@ -102,7 +101,7 @@ export default function Workbench() {
             </form>
           </Card>
 
-          <div className="space-y-3">
+          <div className="space-y-3 lg:col-start-2 xl:col-start-auto">
             <p className="label">Suggested improvements · review, then send to the owner</p>
             {ideas.map((i) => (
               <div key={i.title} className="rounded-lg border border-line bg-surface p-3 shadow-card">

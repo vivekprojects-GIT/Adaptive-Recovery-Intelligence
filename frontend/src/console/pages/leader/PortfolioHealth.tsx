@@ -1,8 +1,8 @@
 import { useNavigate } from "react-router-dom";
 
 import { money, num, pct, pp, SEGMENT_LABEL, SEGMENTS } from "../../lib/format";
-import { useApi, useSession } from "../../lib/session";
-import { BarList, SERIES } from "../../ui/charts";
+import { useApi } from "../../lib/session";
+import { BarList } from "../../ui/charts";
 import { Card, ErrorState, Kpi, Page, PageHeader, Spinner, StatusChip, Table, Td, Th, Tr } from "../../ui/ui";
 
 interface Cohort { cohort_id: string; name: string; dpd_bucket: string; risk_band: string; customers: number; in_strategy: number; arrears: number;
@@ -12,7 +12,6 @@ interface Data { cohorts: Cohort[]; pipeline: Record<string, number>; not_in_str
 const ORDER = ["Resolved", "Accepted", "Engaged", "Responding", "In window", "Pending review", "Unresponsive", "Escalated", "Suppressed", "Holdout"];
 
 export default function PortfolioHealth() {
-  const { me } = useSession();
   const { data, error, loading, reload } = useApi<Data>("/portfolio-health");
   const navigate = useNavigate();
   if (error) return <ErrorState message={error} onRetry={reload} />;
@@ -21,7 +20,7 @@ export default function PortfolioHealth() {
   const resolved = (data.pipeline.Resolved ?? 0) + (data.pipeline.Accepted ?? 0);
   return (
     <>
-      <PageHeader title="Portfolio Health" subtitle="Where every handed-over account stands" role={me?.user.role_label} />
+      <PageHeader title="Portfolio Health" subtitle="Where every handed-over account stands" />
       <Page>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Kpi label="Accounts handed over" value={num(data.customers)} sub={`${data.cohorts.length} cohorts`} />
@@ -31,7 +30,7 @@ export default function PortfolioHealth() {
         </div>
         <div className="grid gap-4 xl:grid-cols-[1fr_1.4fr]">
           <Card title="Pipeline status" subtitle="Latest state of every customer a strategy has decided">
-            <BarList rows={ORDER.filter((s) => data.pipeline[s]).map((s, i) => ({ label: s, value: data.pipeline[s], color: SERIES[i % 5] }))}
+            <BarList rows={ORDER.filter((s) => data.pipeline[s]).map((s) => ({ label: s, value: data.pipeline[s] }))}
               format={(v) => num(v ?? 0)} />
           </Card>
           <Card title="Cohorts" flush>

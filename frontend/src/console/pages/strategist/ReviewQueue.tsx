@@ -3,14 +3,14 @@ import { Fragment, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api, type DecisionRow } from "../../lib/api";
-import { ago, money, pct } from "../../lib/format";
+import { ago, customerRef, money, pct } from "../../lib/format";
 import { useApi, useSession } from "../../lib/session";
 import { Banner, Button, Card, Empty, ErrorState, Field, Modal, Page, PageHeader, Spinner, Table, Td, Th, Tr, inputCls, useAction } from "../../ui/ui";
 
 interface Detail { snapshot: Record<string, number | string>; explanation: string }
 
 export default function ReviewQueue() {
-  const { me, refresh } = useSession();
+  const { refresh } = useSession();
   const { data, error, loading, reload } = useApi<{ rows: DecisionRow[]; total: number }>("/decisions?review=pending&page_size=100");
   const [reject, setReject] = useState<DecisionRow | null>(null);
   const [note, setNote] = useState("");
@@ -38,7 +38,7 @@ export default function ReviewQueue() {
 
   return (
     <>
-      <PageHeader title="Review Queue" subtitle="Forbearance offers chosen by the engine, waiting for a person" role={me?.user.role_label} />
+      <PageHeader title="Review Queue" subtitle="Forbearance offers chosen by the engine, waiting for a person" />
       <Page>
         <Banner tone="info" title="Why these wait">
           Payment plans, deferrals and hardship referrals change what a customer owes or when. They are chosen by the model like any treatment, but nothing is sent until you approve it. Approving re-checks consent, contact limits and any vulnerability flag against the newest data from Nova, then sends it. While channel delivery is not connected, the send is recorded and no message reaches the customer. Rejecting records why and sends nothing.
@@ -51,7 +51,7 @@ export default function ReviewQueue() {
                 <Fragment key={d.decision_id}>
                   <Tr>
                     <Td><button onClick={() => toggle(d.decision_id)} className="font-mono text-xs font-medium text-primary-500 hover:underline">{d.decision_id}</button></Td>
-                    <Td><Link to={`/journeys/${d.customer_id}`} className="hover:text-primary-500">{d.customer}</Link><span className="block text-2xs text-fg-3">#{d.customer_id}</span></Td>
+                    <Td><Link to={`/journeys/${d.customer_id}`} className="hover:text-primary-500">{d.customer}</Link><span className="block text-2xs text-fg-3">{customerRef(d.customer_id)}</span></Td>
                     <Td className="text-xs">{d.campaign_id}</Td>
                     <Td className="font-medium">{d.treatment}</Td>
                     <Td align="right">{pct(d.selection_probability, 0)}</Td>

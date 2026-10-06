@@ -21,13 +21,12 @@ export default function DraftFromBrief() {
     <div className="mx-auto grid max-w-5xl gap-4 lg:grid-cols-[1fr_1fr]">
       <Card title="Describe the recovery campaign"
         subtitle="ARI drafts a complete strategy from your brief. Every setting is explained and you review it before it is submitted.">
-        <p className="label mb-1.5">Quick presets</p>
-        <div className="mb-3 flex flex-wrap gap-1.5">
-          {presets.presets.map((p) => (
-            <button key={p.label} onClick={() => { setBrief(p.brief); setRisk(p.risk); setGoal(p.goal); }}
-              className="rounded-full border border-line-strong px-3 py-1 text-xs text-fg-2 hover:border-primary-500 hover:bg-primary-50 hover:text-primary-600">{p.label}</button>
-          ))}
-        </div>
+        <div className="mb-3"><Field label="Start from a template">
+          <Select value="" onChange={(v) => {
+            const p = presets.presets.find((x) => x.label === v);
+            if (p) { setBrief(p.brief); setRisk(p.risk); setGoal(p.goal); }
+          }} options={[{ value: "", label: "Choose a template…" }, ...presets.presets.map((p) => ({ value: p.label, label: p.label }))]} />
+        </Field></div>
         <textarea rows={6} value={brief} onChange={(e) => setBrief(e.target.value)}
           placeholder="e.g. Build a recovery campaign for medium-risk 30 DPD card accounts with balances between $2k-$10k. Offer flexible payment plans and avoid aggressive escalation in the first 14 days."
           className={`${inputCls} h-auto py-2 leading-5`} />

@@ -378,6 +378,6 @@ class AuditEvent(Base):
     actor: Mapped[str] = mapped_column(String(20))
     action: Mapped[str] = mapped_column(String(10))        # CREATE | READ | UPDATE | DELETE | APPROVE | EXPORT
     entity: Mapped[str] = mapped_column(String(30))
-    entity_id: Mapped[str] = mapped_column(String(30), default="")
+    entity_id: Mapped[str] = mapped_column(String(64), default="")   # long enough for a Nova account id
     summary: Mapped[str] = mapped_column(Text)
     detail: Mapped[str] = mapped_column(Text, default="{}")

@@ -760,6 +760,7 @@ def execute(db: Session, camp: Campaign, dec, c, at: datetime,
         n.failure_reason = guard_note
         n.pipeline = json.dumps(stages)
         db.add(n)
+        db.flush()  # written now: later rows (engagement, follow-ups) refer to it by foreign key
         return n
     failed = rng.random() < DELIVERY_FAILURE.get(channel, 0.03)
     stages.append({"stage": "Delivery", "at": iso(send_at), "ok": not failed,
@@ -773,6 +774,7 @@ def execute(db: Session, camp: Campaign, dec, c, at: datetime,
         n.failure_reason = "Number unreachable (simulated)"
     n.pipeline = json.dumps(stages)
     db.add(n)
+    db.flush()  # written now: engagement events and follow-ups refer to it by foreign key
     if not failed:
         db.add(ContactRecord(customer_id=c.customer_id, channel=channel, source="ARI",
                              nudge_id=n.nudge_id, at=iso(send_at), local_hour=send_local.hour))

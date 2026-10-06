@@ -14,7 +14,7 @@ interface Data {
 }
 
 export default function RolesPermissions() {
-  const { me, refresh } = useSession();
+  const { refresh } = useSession();
   const { data, error, loading, reload } = useApi<Data>("/admin/roles");
   const [matrix, setMatrix] = useState<Data["matrix"]>({});
   const [role, setRole] = useState("strategist");
@@ -49,7 +49,7 @@ export default function RolesPermissions() {
 
   return (
     <>
-      <PageHeader title="Roles & Permissions" subtitle="Configure access control policies. Enforced by the API on every request." role={me?.user.role_label}
+      <PageHeader title="Roles & Permissions" subtitle="Configure access control policies. Enforced by the API on every request."
         actions={<>
           {dirty && <Button variant="ghost" onClick={() => setMatrix(JSON.parse(JSON.stringify(data.matrix)))}>Discard</Button>}
           <Button variant="primary" disabled={!dirty} loading={busy === "save"}

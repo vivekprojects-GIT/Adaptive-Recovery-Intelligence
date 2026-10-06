@@ -15,7 +15,7 @@ export const SEGMENT_TONE: Record<string, Tone> = {
 
 /** Where Thompson sampling stands. Exploring is normal, not a fault. */
 export const LEARNING_TONE: Record<LearningState["state"], Tone> = {
-  Settled: "good", Leaning: "info", Exploring: "warn", "Not started": "neutral", "Single treatment": "neutral",
+  Settled: "good", Leaning: "info", Exploring: "neutral", "Not started": "neutral", "Single treatment": "neutral",
   "No treatments": "neutral",
 };
 
@@ -28,7 +28,7 @@ export const RESULT_TONE: Record<ResultsState["state"], Tone> = {
  *  a treated-vs-untreated contrast a single score cannot measure, so the UI
  *  says what the score actually estimates and keeps the quadrant name as a hint. */
 export const SegmentChip = ({ segment }: { segment: string }) => (
-  <Chip tone={SEGMENT_TONE[segment] ?? "neutral"} title={`Quadrant: ${segment} (provisional until the uplift model)`}>
+  <Chip title={`Quadrant: ${segment} (provisional until the uplift model)`}>
     {SEGMENT_LABEL[segment] ?? segment}
   </Chip>
 );

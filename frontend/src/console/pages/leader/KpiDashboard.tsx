@@ -33,7 +33,7 @@ export default function KpiDashboard() {
   const rr = k.recovery_rate.value ?? 0;
   return (
     <>
-      <PageHeader title="KPI Dashboard" subtitle={`Portfolio overview · last 30 days · ${me?.user.name}`} role={me?.user.role_label}
+      <PageHeader title="KPI Dashboard" subtitle={`Portfolio overview · last 30 days · ${me?.user.name}`}
         actions={<>
           {can("export_reports") && <Button variant="primary" icon={<Download className="h-3.5 w-3.5" />} loading={busy === "x"}
             onClick={() => run("x", () => api.download("/reports/portfolio.csv", "ari-portfolio.csv"), "Portfolio report downloaded.")}>Export Report</Button>}

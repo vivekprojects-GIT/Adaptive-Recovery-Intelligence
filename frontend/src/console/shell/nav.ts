@@ -46,7 +46,7 @@ export const NAV: Record<Role, { section?: string; items: NavItem[] }[]> = {
       { to: "/customers", label: "Customers", icon: Users, perm: "view_customer_list" },
       { to: "/campaigns", label: "Live Campaigns", icon: FlaskConical, badge: (b) => b.live_campaigns },
       { to: "/review", label: "Review Queue", icon: ClipboardCheck, perm: "override_decisions", badge: (b) => b.pending_review },
-      { to: "/activity", label: "AI Activity", icon: Activity, perm: "view_ai_decisions" },
+      { to: "/activity", label: "Activity", icon: Activity, perm: "view_ai_decisions" },
     ] },
     { section: "Analyse", items: [
       { to: "/journeys", label: "Journeys", icon: RouteIcon, perm: "view_customer_list" },
@@ -65,7 +65,7 @@ export const NAV: Record<Role, { section?: string; items: NavItem[] }[]> = {
     { section: "Governance", items: [
       { to: "/approvals", label: "Approvals", icon: ListChecks, perm: "approve_strategy", badge: (b) => b.awaiting_approval },
       { to: "/compliance", label: "Compliance", icon: ShieldCheck, perm: "view_compliance", badge: (b) => b.open_violations },
-      { to: "/workbench", label: "AI Workbench", icon: Lightbulb, perm: "use_ai_workbench" },
+      { to: "/workbench", label: "Strategy Workbench", icon: Lightbulb, perm: "use_ai_workbench" },
       { to: "/treatments", label: "Treatment Playbook", icon: Library },
     ] },
     { section: "Performance", items: [

@@ -7,7 +7,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import String, cast, func
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 
@@ -22,7 +22,7 @@ from ..models import (
 )
 from ..platform import audit, cfg, now
 from ..rbac import require
-from .common import _treatments, _user_names
+from .common import _treatments, _user_names, customer_match
 
 router = APIRouter()
 
@@ -51,9 +51,11 @@ def decisions(campaign: str = "", group: str = "", review: str = "", q: str = ""
         query = query.filter(Decision.group == group)
     if review:
         query = query.filter(Decision.review_status == review)
-    if q:
-        query = query.filter(Decision.decision_id.like(f"%{q}%") |
-                             cast(Decision.customer_id, String).like(f"%{q}%"))
+    if q.strip():
+        # A decision id, or anything that finds the customer (name, customer ID, account id).
+        query = query.filter(or_(Decision.decision_id.ilike(f"%{q.strip()}%"),
+                                 Decision.customer_id.in_(select(models.Customer.customer_id)
+                                                          .where(customer_match(q)))))
     total = query.count()
     rows = query.order_by(Decision.decided_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
     names, t = _user_names(db), _treatments(db)

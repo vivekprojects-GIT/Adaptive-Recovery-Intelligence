@@ -20,7 +20,7 @@ export default function MyStrategies() {
   return (
     <>
       <PageHeader title={scope === "mine" ? "My Strategies" : "All Strategies"} subtitle="Every strategy with its lifecycle state and its result against its own control group"
-        role={me?.user.role_label}
+       
         actions={can("create_strategy") && <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => navigate("/builder")}>New Strategy</Button>} />
       <Page>
         <div className="flex flex-wrap items-center justify-between gap-3">

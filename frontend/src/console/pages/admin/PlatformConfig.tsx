@@ -8,7 +8,7 @@ import { Banner, Button, Card, ErrorState, Page, PageHeader, Spinner, Toggle, in
 interface Item { key: string; value: string; default: string; label: string; group: string; kind: string; help: string; updated_by: string | null; updated_at: string | null }
 
 export default function PlatformConfig() {
-  const { me, refresh } = useSession();
+  const { refresh } = useSession();
   const { data, error, loading, reload } = useApi<Item[]>("/admin/config");
   const [vals, setVals] = useState<Record<string, string>>({});
   const { run, busy } = useAction();
@@ -31,7 +31,7 @@ export default function PlatformConfig() {
   };
   return (
     <>
-      <PageHeader title="Platform Config" subtitle="Platform-wide decisioning and contact settings" role={me?.user.role_label}
+      <PageHeader title="Platform Config" subtitle="Platform-wide decisioning and contact settings"
         actions={<>
           {changed.length > 0 && <Button variant="ghost" onClick={() => setVals(Object.fromEntries(data.map((i) => [i.key, i.value])))}>Discard</Button>}
           <Button variant="primary" disabled={!changed.length} loading={busy === "s"}

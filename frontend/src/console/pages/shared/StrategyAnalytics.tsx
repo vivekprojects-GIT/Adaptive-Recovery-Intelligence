@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 
 import type { AnalyticsRow } from "../../lib/api";
 import { money, num, pct, pp } from "../../lib/format";
-import { useApi, useSession } from "../../lib/session";
+import { useApi } from "../../lib/session";
 import { AllocationChart, SERIES, UpliftRow } from "../../ui/charts";
 import { LEARNING_TONE, RESULT_TONE } from "../../ui/domain";
 import {
@@ -108,7 +108,6 @@ function Detail({ row }: { row: AnalyticsRow }) {
 /** Every strategy side by side: its result against its own control group, and
  *  where Thompson sampling stands in it. */
 export default function StrategyAnalytics() {
-  const { me } = useSession();
   const { data, error, loading, reload } = useApi<{ strategies: AnalyticsRow[] }>("/analytics/strategies?include_archived=true");
   const [view, setView] = useState<View>("running");
   const [sort, setSort] = useState<SortKey>("uplift");
@@ -134,7 +133,7 @@ export default function StrategyAnalytics() {
 
   return (
     <>
-      <PageHeader title="Strategy Analytics" role={me?.user.role_label}
+      <PageHeader title="Strategy Analytics"
         subtitle="How every strategy is doing against its own control group, and what Thompson sampling has learned in each" />
       <Page>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">

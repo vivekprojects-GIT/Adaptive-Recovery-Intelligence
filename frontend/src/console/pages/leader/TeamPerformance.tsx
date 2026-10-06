@@ -1,6 +1,6 @@
 import { money, num, pct } from "../../lib/format";
-import { useApi, useSession } from "../../lib/session";
-import { BarList, SERIES } from "../../ui/charts";
+import { useApi } from "../../lib/session";
+import { BarList } from "../../ui/charts";
 import { ResultCell } from "../../ui/domain";
 import { Avatar, Card, ErrorState, Page, PageHeader, Spinner, StatusChip, Table, Td, Th, Tr } from "../../ui/ui";
 
@@ -8,13 +8,12 @@ interface Row { user_id: string; name: string; status: string; strategies: numbe
   recovery_rate: number | null; uplift: number | null; recovered: number; overrides: number; reviews: number; cost_per_recovery: number | null }
 
 export default function TeamPerformance() {
-  const { me } = useSession();
   const { data, error, loading, reload } = useApi<{ team: Row[] }>("/team");
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (loading || !data) return <Spinner />;
   return (
     <>
-      <PageHeader title="Team Performance" subtitle="Strategists, their strategies and what those strategies caused" role={me?.user.role_label} />
+      <PageHeader title="Team Performance" subtitle="Strategists, their strategies and what those strategies caused" />
       <Page>
         <Card flush>
           <Table>
@@ -34,9 +33,9 @@ export default function TeamPerformance() {
           </Table>
         </Card>
         <div className="grid gap-4 lg:grid-cols-2">
-          <Card title="Recovered by strategist"><BarList rows={data.team.map((r, i) => ({ label: r.name, value: r.recovered, color: SERIES[i % 5] }))} format={(v) => money(v ?? 0)} /></Card>
+          <Card title="Recovered by strategist"><BarList rows={data.team.map((r) => ({ label: r.name, value: r.recovered }))} format={(v) => money(v ?? 0)} /></Card>
           <Card title="Uplift over control by strategist" subtitle="Small portfolios swing; read alongside account counts">
-            <BarList rows={data.team.map((r, i) => ({ label: r.name, value: Math.max(0, r.uplift ?? 0), color: SERIES[i % 5], sub: `${num(r.accounts)} accounts` }))} format={(v) => pct(v ?? 0)} />
+            <BarList rows={data.team.map((r) => ({ label: r.name, value: Math.max(0, r.uplift ?? 0), sub: `${num(r.accounts)} accounts` }))} format={(v) => pct(v ?? 0)} />
           </Card>
         </div>
       </Page>

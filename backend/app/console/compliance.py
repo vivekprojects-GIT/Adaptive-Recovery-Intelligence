@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from .models import ComplianceViolation, ContactRecord, Nudge, PlatformConfig
-from .platform import cfg
+from .platform import cfg, customer_ref
 
 UTC = timezone.utc
 
@@ -92,7 +92,7 @@ def scan(db: Session, until: datetime | None = None) -> int:
             camp = (next((n.campaign_id for n in by_customer[r.customer_id] if n.nudge_id == r.nudge_id), None)
                     if r.source == "ARI" else _attribute(by_customer, r.customer_id, at))
             add("FDCPA Hours & Frequency", "Contact outside permitted hours", "High",
-                f"{r.source} {r.channel.lower()} to customer {r.customer_id} at "
+                f"{r.source} {r.channel.lower()} to {customer_ref(r.customer_id)} at "
                 f"{r.local_hour:02d}:00 local time (permitted {start_h:02d}:00-{end_h:02d}:00).",
                 at, camp, r.customer_id, r.nudge_id)
 
@@ -106,7 +106,7 @@ def scan(db: Session, until: datetime | None = None) -> int:
             last = window[-1]
             if len(window) > call_cap and since < last <= until:
                 add("CFPB Contact Rules", "More than 7 call attempts in 7 days", "High",
-                    f"Customer {cust} received {len(window)} call attempts between "
+                    f"{customer_ref(cust)} received {len(window)} call attempts between "
                     f"{t:%d %b} and {last:%d %b} across ARI and the BAU dialler.",
                     last, _attribute(by_customer, cust, last), cust)
                 break
@@ -125,7 +125,7 @@ def scan(db: Session, until: datetime | None = None) -> int:
             if r_at - o_at > sla and since < r_at <= until:
                 lag = r_at - o_at
                 add("Opt-Out / Suppression", "Contact after opt-out", "Critical",
-                    f"{r.source} {r.channel} sent to customer {o.customer_id} "
+                    f"{r.source} {r.channel} sent to {customer_ref(o.customer_id)} "
                     f"{lag.days}d {lag.seconds // 3600}h after they opted out "
                     f"(SLA {int(sla.total_seconds() // 3600)}h).",
                     r_at, _attribute(by_customer, o.customer_id, r_at), o.customer_id, r.nudge_id)
@@ -139,7 +139,7 @@ def scan(db: Session, until: datetime | None = None) -> int:
         text = (n.content or "").lower()
         if "SMS" in n.channel and "stop" not in text:
             add("Disclosure Requirements", "SMS missing opt-out instructions", "Medium",
-                f"{n.nudge_id} to customer {n.customer_id} has no 'Reply STOP' instruction.",
+                f"{n.nudge_id} to {customer_ref(n.customer_id)} has no 'Reply STOP' instruction.",
                 sent, n.campaign_id, n.customer_id, n.nudge_id)
         hit = next((b for b in BANNED if b in text), None)
         if hit:

@@ -204,7 +204,7 @@ function Editor({ target, schema, onClose, onSaved }: {
 }
 
 export default function TreatmentsPage() {
-  const { me, can } = useSession();
+  const { can } = useSession();
   const list = useApi<Treatment[]>("/treatments");
   const schema = useApi<TreatmentSchema>("/treatments/schema").data;
   const [filter, setFilter] = useState<"all" | "Active" | "Retired">("Active");
@@ -227,7 +227,7 @@ export default function TreatmentsPage() {
 
   return (
     <>
-      <PageHeader title="Treatment Playbook" role={me?.user.role_label}
+      <PageHeader title="Treatment Playbook"
         subtitle="The approved actions ARI may take. Strategies choose from these, and Thompson sampling learns which works for whom."
         actions={manage && <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => setEditing("new")}>New treatment</Button>} />
       <Page>

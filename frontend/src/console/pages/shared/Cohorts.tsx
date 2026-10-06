@@ -2,20 +2,20 @@ import { ArrowRight, Database, Inbox } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { api, type Cohort, type HandoffRow, type Treatment } from "../../lib/api";
-import { ago, dateTime, money, num, pct, SEGMENT_LABEL, SEGMENTS } from "../../lib/format";
+import { ago, dateTime, money, num, pct, SEGMENT_COLOR, SEGMENT_LABEL, SEGMENTS } from "../../lib/format";
 import { useApi, useSession } from "../../lib/session";
-import { SEGMENT_TONE, SegmentChip } from "../../ui/domain";
+import { SegmentChip } from "../../ui/domain";
 import { Banner, Button, Card, Chip, ErrorState, Page, PageHeader, Spinner, Table, Td, Th, Tr, useAction } from "../../ui/ui";
 
-const TRIGGER: Record<string, { label: string; tone: "neutral" | "info" | "ai" }> = {
+const TRIGGER: Record<string, { label: string; tone: "neutral" | "info" }> = {
   initial: { label: "Initial load", tone: "neutral" },
   manual: { label: "Requested", tone: "info" },
-  auto: { label: "Automatic", tone: "ai" },
+  auto: { label: "Automatic", tone: "neutral" },
 };
 
 /** The intervention point: what the client hands over, and the playbook ARI can use on it. */
 export default function Cohorts() {
-  const { me, can, refresh } = useSession();
+  const { can, refresh } = useSession();
   const cohorts = useApi<Cohort[]>("/cohorts");
   const treatments = useApi<Treatment[]>("/treatments");
   const handoffs = useApi<{ handoffs: HandoffRow[]; auto: boolean; next_sizes: Record<string, number> }>("/handoffs");
@@ -32,7 +32,7 @@ export default function Cohorts() {
 
   return (
     <>
-      <PageHeader title="Cohorts & Handoffs" role={me?.user.role_label}
+      <PageHeader title="Cohorts & Handoffs"
         subtitle="Where ARI starts: the delinquent accounts the client's collections system hands over, cohort by cohort"
         actions={can("launch_strategy") && <Button icon={<Inbox className="h-4 w-4" />} loading={busy === "handoff"} onClick={receive}>Receive next handoff</Button>} />
       <Page>
@@ -50,14 +50,15 @@ export default function Cohorts() {
                   <span className="num text-2xl font-semibold">{num(c.customers)}</span><span className="text-xs text-fg-3">{money(c.balance, true)} balance</span>
                 </div>
                 <div className="mt-3 flex h-2.5 gap-0.5 overflow-hidden rounded-full">
-                  {SEGMENTS.map((g, i) => c.segments[g] ? (
+                  {SEGMENTS.map((g) => c.segments[g] ? (
                     <div key={g} title={`${SEGMENT_LABEL[g]}: ${c.segments[g]}`} style={{ width: `${(c.segments[g] / total) * 100}%`,
-                      background: ["var(--series-1)", "var(--series-3)", "var(--series-4)", "var(--control)"][i] }} />) : null)}
+                      background: SEGMENT_COLOR[g] }} />) : null)}
                 </div>
                 <ul className="mt-3 space-y-1">
                   {SEGMENTS.map((g) => (
                     <li key={g} className="flex items-center justify-between text-xs">
-                      <SegmentChip segment={g} /><span className="num text-fg-2">{c.segments[g] ?? 0} · {pct((c.segments[g] ?? 0) / total, 0)}</span>
+                      <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: SEGMENT_COLOR[g] }} /><SegmentChip segment={g} /></span>
+                      <span className="num text-fg-2">{c.segments[g] ?? 0} · {pct((c.segments[g] ?? 0) / total, 0)}</span>
                     </li>
                   ))}
                 </ul>
@@ -97,7 +98,7 @@ export default function Cohorts() {
             <thead><tr><Th>Fit group</Th><Th>Quadrant (provisional)</Th><Th>Default handling</Th></tr></thead>
             <tbody>
               {SEGMENTS.map((g) => (
-                <Tr key={g}><Td><Chip tone={SEGMENT_TONE[g]}>{SEGMENT_LABEL[g]}</Chip></Td><Td className="text-fg-2">{g}</Td><Td className="text-fg-2">{action[g]}</Td></Tr>
+                <Tr key={g}><Td className="font-medium">{SEGMENT_LABEL[g]}</Td><Td className="text-fg-2">{g}</Td><Td className="text-fg-2">{action[g]}</Td></Tr>
               ))}
             </tbody>
           </Table>

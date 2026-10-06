@@ -11,7 +11,7 @@ import { Banner, Button, Card, ErrorState, Page, PageHeader, Select, Spinner, Ta
 type S = Strategy & { weekly: WeekPoint[] };
 
 export default function StrategyCompare() {
-  const { me, can } = useSession();
+  const { can } = useSession();
   const all = useApi<Strategy[]>("/strategies?scope=all");
   const [ids, setIds] = useState<string[]>([]);
   const [data, setData] = useState<S[] | null>(null);
@@ -47,14 +47,15 @@ export default function StrategyCompare() {
 
   return (
     <>
-      <PageHeader title="Strategy Comparison" subtitle="Compare up to three strategies on what they caused, not just what they recovered" role={me?.user.role_label}
+      <PageHeader title="Strategy Comparison" subtitle="Compare up to three strategies on what they caused, not just what they recovered"
         actions={can("export_reports") && <Button variant="primary" icon={<Download className="h-3.5 w-3.5" />} loading={busy === "x"}
           onClick={() => run("x", () => api.download("/reports/portfolio.csv", "ari-strategies.csv"), "Downloaded.")}>Export Report</Button>} />
       <Page>
         <div className="flex flex-wrap items-center gap-2">
           {data.map((s, i) => (
-            <span key={s.campaign_id} className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium" style={{ borderColor: SERIES[i], color: SERIES[i] }}>
-              <span className="font-mono">{s.campaign_id}</span><span className="text-fg">{s.name}</span>
+            <span key={s.campaign_id} className="inline-flex h-7 items-center gap-1.5 rounded-md border border-line-strong bg-surface px-2.5 text-xs">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: SERIES[i] }} />
+              <span className="font-mono text-fg-2">{s.campaign_id}</span><span className="text-fg">{s.name}</span>
               <button onClick={() => setIds(ids.filter((x) => x !== s.campaign_id))} className="text-fg-3 hover:text-fg"><X className="h-3 w-3" /></button>
             </span>
           ))}
@@ -74,7 +75,7 @@ export default function StrategyCompare() {
 
         <Card title="Performance metrics" flush>
           <Table>
-            <thead><tr><Th>Metric</Th>{data.map((s, i) => <Th key={s.campaign_id} align="right"><span style={{ color: SERIES[i] }}>{s.campaign_id}</span><span className="block font-normal normal-case tracking-normal text-fg-3">{s.name}</span></Th>)}</tr></thead>
+            <thead><tr><Th>Metric</Th>{data.map((s, i) => <Th key={s.campaign_id} align="right"><span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: SERIES[i] }} />{s.campaign_id}</span><span className="block font-normal normal-case tracking-normal text-fg-3">{s.name}</span></Th>)}</tr></thead>
             <tbody>
               {rows.map((r) => (
                 <Tr key={r.label}><Td className="text-fg-2">{r.label}</Td>

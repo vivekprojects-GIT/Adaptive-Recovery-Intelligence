@@ -7,7 +7,7 @@ import { StrategyActions } from "../../ui/domain";
 import { Banner, Card, Chip, ErrorState, KV, Page, PageHeader, Spinner, StatusChip } from "../../ui/ui";
 
 export default function Approvals() {
-  const { me, refresh } = useSession();
+  const { refresh } = useSession();
   const { data, error, loading, reload } = useApi<Strategy[]>("/strategies?scope=all&status=In review");
   const treatments = useApi<Treatment[]>("/treatments").data;
   const navigate = useNavigate();
@@ -15,7 +15,7 @@ export default function Approvals() {
   if (loading || !data) return <Spinner />;
   return (
     <>
-      <PageHeader title="Approvals" subtitle="Strategies submitted by strategists, waiting for sign-off before they can run" role={me?.user.role_label} />
+      <PageHeader title="Approvals" subtitle="Strategies submitted by strategists, waiting for sign-off before they can run" />
       <Page>
         <Banner tone="info" title="Maker-checker">
           Nobody can approve a strategy they authored. Approving lets the owner launch it; any later change to its audience, treatments, control share or escalation sends it back here.

@@ -1,19 +1,18 @@
 import { RefreshCw } from "lucide-react";
 
 import { dateTime, num, pct } from "../../lib/format";
-import { useApi, useSession } from "../../lib/session";
+import { useApi } from "../../lib/session";
 import { Banner, Button, Card, ErrorState, Kpi, Page, PageHeader, Spinner, StatusChip } from "../../ui/ui";
 import { fmtUptime, type Health } from "./AdminDashboard";
 
 export default function SystemHealth() {
-  const { me } = useSession();
   const { data, error, loading, reload } = useApi<Health>("/admin/health");
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (loading || !data) return <Spinner />;
   const m = data.metrics;
   return (
     <>
-      <PageHeader title="System Health" subtitle={`Measured from live requests since ${dateTime(data.started_at)}`} role={me?.user.role_label}
+      <PageHeader title="System Health" subtitle={`Measured from live requests since ${dateTime(data.started_at)}`}
         actions={<Button icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={reload}>Refresh</Button>} />
       <Page>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

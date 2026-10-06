@@ -5,13 +5,13 @@ import { useSearchParams } from "react-router-dom";
 import { api } from "../../lib/api";
 import { dateTime } from "../../lib/format";
 import { useApi, useSession } from "../../lib/session";
-import { Button, Card, Chip, Empty, ErrorState, Page, PageHeader, Pager, Select, Spinner, Table, Td, Th, Tr, inputCls, useAction } from "../../ui/ui";
+import { Button, Card, Empty, ErrorState, Page, PageHeader, Pager, Select, Spinner, Table, Td, Th, Tr, inputCls, useAction } from "../../ui/ui";
 
 interface Row { audit_id: number; at: string; actor: string; actor_name: string; action: string; entity: string; entity_id: string; summary: string; detail: Record<string, unknown> }
 interface Data { total: number; rows: Row[]; actors: { id: string; name: string }[]; entities: string[] }
 
 export default function AuditLog() {
-  const { me, can } = useSession();
+  const { can } = useSession();
   const [p, setP] = useSearchParams();
   const [q, setQ] = useState(p.get("q") ?? "");
   const [open, setOpen] = useState<number | null>(null);
@@ -23,7 +23,7 @@ export default function AuditLog() {
   if (error) return <ErrorState message={error} onRetry={reload} />;
   return (
     <>
-      <PageHeader title="Audit Log" subtitle="Every user and system action, in order. Read-only." role={me?.user.role_label}
+      <PageHeader title="Audit Log" subtitle="Every user and system action, in order. Read-only."
         actions={can("export_reports") && <Button icon={<Download className="h-3.5 w-3.5" />} loading={busy === "x"} onClick={() => run("x", () => api.download("/reports/audit.csv", "ari-audit.csv"), "Downloaded.")}>Export</Button>} />
       <Page>
         <div className="flex flex-wrap items-end gap-2">
@@ -45,7 +45,7 @@ export default function AuditLog() {
                     <Tr onClick={() => setOpen(open === r.audit_id ? null : r.audit_id)}>
                       <Td className="whitespace-nowrap text-xs text-fg-3">{dateTime(r.at)}</Td>
                       <Td>{r.actor_name}</Td>
-                      <Td><Chip tone={r.action === "CREATE" ? "good" : r.action === "DELETE" ? "bad" : r.action === "APPROVE" ? "info" : r.action === "EXPORT" ? "ai" : "neutral"}>{r.action}</Chip></Td>
+                      <Td mono className={r.action === "DELETE" ? "text-bad" : "text-fg-2"}>{r.action}</Td>
                       <Td mono className="text-fg-2">{r.entity}{r.entity_id ? ` · ${r.entity_id}` : ""}</Td>
                       <Td className="text-[13px]">{r.summary}</Td>
                     </Tr>

@@ -10,3 +10,4 @@ mcp==1.12.4
 starlette==0.41.3
 sse-starlette==3.0.3
 tzdata==2026.4
+psycopg[binary]==3.2.13

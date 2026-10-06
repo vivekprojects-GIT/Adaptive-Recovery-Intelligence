@@ -61,7 +61,7 @@ function RuleResults({ rows }: { rows: Data["evaluations"] }) {
 
 export default function DecisionAudit() {
   const { id = "" } = useParams();
-  const { can, me } = useSession();
+  const { can } = useSession();
   const { data, error, loading, reload } = useApi<Data>(`/decisions/${id}`, [id]);
   const [open, setOpen] = useState(false);
   const [treat, setTreat] = useState("");
@@ -81,8 +81,8 @@ export default function DecisionAudit() {
 
   return (
     <>
-      <PageHeader title="AI Decision Audit" subtitle={`${d.decision_id} · ${d.strategy} · ${d.customer}${d.origin === "mcp" ? " · asked by Nova over MCP" : ""}`}
-        crumbs={[{ label: "Decisions", to: "/decisions" }, { label: d.decision_id }]} role={me?.user.role_label}
+      <PageHeader title="Decision Audit" subtitle={`${d.decision_id} · ${d.strategy} · ${d.customer}${d.origin === "mcp" ? " · asked by Nova over MCP" : ""}`}
+        crumbs={[{ label: "Decisions", to: "/decisions" }, { label: d.decision_id }]}
         actions={<>
           <Link to={`/journeys/${d.customer_id}`}><Button variant="secondary" icon={<ArrowLeft className="h-3.5 w-3.5" />}>Customer</Button></Link>
           {can("override_decisions") && d.group === "Treatment" && (
@@ -151,7 +151,7 @@ export default function DecisionAudit() {
                 { label: "Decision ID", value: <span className="font-mono">{m.decision_id}</span> },
                 { label: "Requested by", value: m.origin === "mcp" ? "Nova agent (MCP)" : "Strategy wave" },
                 { label: "Timestamp", value: dateTime(String(m.timestamp)) },
-                { label: "AI model", value: m.model },
+                { label: "Model", value: m.model },
                 { label: "Strategy", value: <Link className="text-primary-500 hover:underline" to={`/strategies/${m.strategy}`}>{m.strategy} v{m.strategy_version}</Link> },
                 { label: "Segment", value: `${m.risk_band} risk · ${SEGMENT_LABEL[String(m.segment)]}` },
                 { label: "Group", value: <StatusChip status={d.group} /> },

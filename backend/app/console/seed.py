@@ -26,7 +26,7 @@ from .models import (
     AlertRule, Campaign, ContactRecord, Decision, EngagementEvent, FeatureSnapshot, Handoff, Insight, Nudge, Outcome,
     PlatformConfig, RolePermission, User,
 )
-from .platform import CONFIG_DEFAULTS, audit
+from .platform import CONFIG_DEFAULTS, audit, customer_ref
 from .rbac import DEFAULT_GRANTS, PERMISSION_KEYS
 
 UTC = timezone.utc
@@ -312,7 +312,7 @@ def _manual_nudges(db: Session, camps: dict, now: datetime) -> None:
         rng = np.random.default_rng(900 + i)
         engine.execute(db, camps[cid], d, c, at, rng, seq, touch=9, manual_text=message, code="S1")
         audit(db, "u-ravi" if cid == "STR-031" else "u-maya", "CREATE", "nudge", d.decision_id,
-              f"Sent manual nudge to customer {d.customer_id}", at=_iso(at))
+              f"Sent manual nudge to {customer_ref(d.customer_id)}", at=_iso(at))
 
 
 def _insights(db: Session, now: datetime) -> None:

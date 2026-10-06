@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "../../lib/api";
-import { dateTime, pct } from "../../lib/format";
+import { customerRef, dateTime, pct } from "../../lib/format";
 import { useApi, useSession } from "../../lib/session";
 import { BarList, StackedWeekly } from "../../ui/charts";
 import {
@@ -20,7 +20,7 @@ interface Data {
 }
 
 export default function Compliance() {
-  const { me, can, refresh } = useSession();
+  const { can, refresh } = useSession();
   const [filter, setFilter] = useState("all");
   const { data, error, loading, reload } = useApi<Data>("/compliance");
   const [sel, setSel] = useState<V | null>(null);
@@ -36,7 +36,7 @@ export default function Compliance() {
 
   return (
     <>
-      <PageHeader title="Compliance & Governance" subtitle="Policy breaches across everything the customer experienced: ARI's messages and the bank's own systems" role={me?.user.role_label}
+      <PageHeader title="Compliance & Governance" subtitle="Policy breaches across everything the customer experienced: ARI's messages and the bank's own systems"
         actions={<>
           {can("resolve_violations") && <Button icon={<RefreshCw className="h-3.5 w-3.5" />} loading={busy === "scan"}
             onClick={() => run("scan", () => api.post<{ new_violations: number }>("/compliance/scan"), (r) => `Scan complete: ${r.new_violations} new.`).then(reload)}>Scan now</Button>}
@@ -87,7 +87,7 @@ export default function Compliance() {
                   <Td className="text-xs">{v.policy_area}<span className="block text-2xs text-fg-3">{v.rule}</span></Td>
                   <Td className="max-w-md text-xs text-fg-2">{v.description}</Td>
                   <Td className="text-xs">{v.campaign_id ?? <span className="text-fg-3">BAU only</span>}</Td>
-                  <Td>{v.customer_id ? <Link onClick={(e) => e.stopPropagation()} to={`/journeys/${v.customer_id}`} className="text-xs text-primary-500 hover:underline">#{v.customer_id}</Link> : "—"}</Td>
+                  <Td>{v.customer_id ? <Link onClick={(e) => e.stopPropagation()} to={`/journeys/${v.customer_id}`} className="text-xs text-primary-500 hover:underline">{customerRef(v.customer_id)}</Link> : "—"}</Td>
                   <Td className="text-xs text-fg-3">{dateTime(v.detected_at)}</Td><Td><StatusChip status={v.status} /></Td>
                 </Tr>
               ))}

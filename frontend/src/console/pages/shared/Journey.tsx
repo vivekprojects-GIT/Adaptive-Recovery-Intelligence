@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { api } from "../../lib/api";
-import { dateTime, money, num, pct } from "../../lib/format";
+import { customerRef, dateTime, money, num, pct } from "../../lib/format";
 import { useApi, useSession } from "../../lib/session";
 import { BarList } from "../../ui/charts";
 import { SegmentChip } from "../../ui/domain";
@@ -51,7 +51,7 @@ export default function Journey() {
 
   return (
     <>
-      <PageHeader title="Recovery Journey" subtitle={`${c.name} · CUS-${10000 + Number(c.customer_id)}`}
+      <PageHeader title="Recovery Journey" subtitle={`${c.name} · ${customerRef(Number(c.customer_id))}`}
         crumbs={[{ label: "Journeys", to: "/journeys" }, { label: String(c.name) }]}
         meta={<><StatusChip status={data.summary.status} /><SegmentChip segment={String(c.segment)} /><Chip tone="neutral">{String(c.cohort_id)} · {c.days_past_due} DPD</Chip>
           <Chip tone="neutral">Client risk {String(c.client_risk_band)} ({Number(c.client_risk_score).toFixed(0)})</Chip></>} />
@@ -117,14 +117,14 @@ export default function Journey() {
               <KV items={[
                 { label: "Days active", value: data.summary.days_active },
                 { label: "Nudges sent", value: data.summary.nudges_sent },
-                { label: "AI decisions", value: data.summary.decisions },
+                { label: "Decisions", value: data.summary.decisions },
                 { label: "Engagement events", value: data.summary.engagement_events },
                 { label: "Response rate", value: pct(data.summary.response_rate, 0) },
                 { label: "Amount recovered", value: money(data.summary.amount_recovered) },
                 { label: "Status", value: <StatusChip status={data.summary.status} /> },
               ]} />
             </Card>
-            <Card title="Next AI action">
+            <Card title="Next action">
               {data.next_action ? (
                 <div className="rounded-lg border border-line bg-surface-sunken/60 p-3">
                   <p className="text-[13px] font-semibold text-fg">{data.next_action.action}</p>

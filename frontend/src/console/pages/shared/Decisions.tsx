@@ -3,12 +3,11 @@ import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import type { DecisionRow } from "../../lib/api";
-import { dateTime, money, pct } from "../../lib/format";
-import { useApi, useSession } from "../../lib/session";
+import { customerRef, dateTime, money, pct } from "../../lib/format";
+import { useApi } from "../../lib/session";
 import { Card, Chip, Empty, ErrorState, Page, PageHeader, Pager, Pills, Spinner, StatusChip, Table, Td, Th, Tr, inputCls } from "../../ui/ui";
 
 export default function Decisions() {
-  const { me } = useSession();
   const [params, setParams] = useSearchParams();
   const group = params.get("group") ?? "";
   const review = params.get("review") ?? "";
@@ -22,7 +21,7 @@ export default function Decisions() {
   if (error) return <ErrorState message={error} onRetry={reload} />;
   return (
     <>
-      <PageHeader title="Decisions" subtitle="The decision log: every customer the engine decided, why, and what happened" role={me?.user.role_label}
+      <PageHeader title="Decisions" subtitle="The decision log: every customer the engine decided, why, and what happened"
         meta={campaign ? <Chip tone="primary">Strategy {campaign} <button className="ml-1" onClick={() => set("campaign", "")}>×</button></Chip> : undefined} />
       <Page>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -46,7 +45,7 @@ export default function Decisions() {
                     <Td mono className="font-medium text-primary-500">
                       <span className="flex items-center gap-1.5">{d.decision_id}{d.origin === "mcp" && <Chip tone="info" title="Asked for by Nova's agent over MCP">Nova</Chip>}</span>
                     </Td>
-                    <Td>{d.customer}<span className="block text-2xs text-fg-3">#{d.customer_id}</span></Td>
+                    <Td>{d.customer}<span className="block text-2xs text-fg-3">{customerRef(d.customer_id)}</span></Td>
                     <Td className="text-xs">{d.campaign_id}</Td><Td>{d.wave}</Td>
                     <Td><StatusChip status={d.group} /></Td>
                     <Td>{d.treatment ?? <span className="text-fg-3">—</span>}{d.overridden && <Chip tone="warn" className="ml-1">override</Chip>}</Td>

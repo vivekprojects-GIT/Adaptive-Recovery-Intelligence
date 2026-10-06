@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import type { CustomerRow } from "../../lib/api";
-import { ago, money } from "../../lib/format";
-import { useApi, useSession } from "../../lib/session";
+import { ago, customerRef, money } from "../../lib/format";
+import { useApi } from "../../lib/session";
 import { SegmentChip } from "../../ui/domain";
 import { Avatar, Card, Empty, ErrorState, Page, PageHeader, Pager, Pills, Progress, Spinner, StatusChip, Table, Td, Th, Tr, inputCls } from "../../ui/ui";
 
@@ -22,7 +22,6 @@ export function RiskBar({ score }: { score: number }) {
 }
 
 export default function Customers({ journeys }: { journeys?: boolean }) {
-  const { me } = useSession();
   const [params, setParams] = useSearchParams();
   const view = params.get("view") ?? (journeys ? "in_strategy" : "all");
   const page = Number(params.get("page") ?? 1);
@@ -36,7 +35,7 @@ export default function Customers({ journeys }: { journeys?: boolean }) {
   const c = data?.counts ?? {};
   return (
     <>
-      <PageHeader title={journeys ? "Journeys" : "Customers"} role={me?.user.role_label}
+      <PageHeader title={journeys ? "Journeys" : "Customers"}
         subtitle={journeys ? "Every customer a strategy has touched, with where their journey stands" : `${data?.total ?? "…"} accounts handed over by the client's collections system`} />
       <Page>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -48,21 +47,21 @@ export default function Customers({ journeys }: { journeys?: boolean }) {
           ]} />
           <form className="relative w-72" onSubmit={(e) => { e.preventDefault(); set("q", q); }}>
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-fg-3" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or ID" className={`${inputCls} pl-8`} />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name, customer ID or account ID" className={`${inputCls} pl-8`} />
           </form>
         </div>
         <Card flush>
           {loading && !data ? <Spinner /> : (
             <Table>
               <thead><tr><Th>Customer</Th><Th>Ref ID</Th><Th align="right">Balance</Th>
-                <Th>Client risk</Th><Th>Fit group</Th><Th>AI strategy</Th><Th>Status</Th><Th w="110px">Progress</Th><Th>Last contact</Th></tr></thead>
+                <Th>Client risk</Th><Th>Fit group</Th><Th>Strategy</Th><Th>Status</Th><Th w="110px">Progress</Th><Th>Last contact</Th></tr></thead>
               <tbody>
                 {data?.rows.map((r) => (
                   <Tr key={r.customer_id} onClick={() => navigate(`/journeys/${r.customer_id}`)}>
                     <Td><span className="flex items-center gap-2"><Avatar name={r.name} size="sm" />
                       <span className="min-w-0"><span className="block whitespace-nowrap font-medium">{r.name}</span>
                         <span className="block whitespace-nowrap text-2xs text-fg-3">{r.cohort_id} · {r.days_past_due} DPD</span></span></span></Td>
-                    <Td mono className="whitespace-nowrap text-primary-500">CUS-{10000 + r.customer_id}</Td>
+                    <Td mono className="whitespace-nowrap text-primary-500">{customerRef(r.customer_id)}</Td>
                     <Td align="right"><span className="block">{money(r.balance)}</span><span className="block text-2xs text-fg-3">{money(r.arrears)} due</span></Td>
                     <Td><RiskBar score={r.risk_score} /></Td>
                     <Td><SegmentChip segment={r.segment} /></Td>

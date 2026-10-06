@@ -9,9 +9,9 @@ import { initials } from "../lib/format";
 /* ================================================================ layout */
 
 export function PageHeader({
-  title, subtitle, role, actions, crumbs, meta,
+  title, subtitle, actions, crumbs, meta,
 }: {
-  title: ReactNode; subtitle?: ReactNode; role?: string; actions?: ReactNode;
+  title: ReactNode; subtitle?: ReactNode; actions?: ReactNode;
   crumbs?: { label: string; to?: string }[]; meta?: ReactNode;
 }) {
   return (
@@ -29,12 +29,9 @@ export function PageHeader({
       )}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-[20px] font-medium leading-7 tracking-tight text-fg">{title}</h1>
-            {role && <Chip tone="primary">{role}</Chip>}
-          </div>
+          <h1 className="text-[20px] font-medium leading-7 tracking-tight text-fg">{title}</h1>
           {subtitle && <p className="mt-0.5 max-w-3xl text-sm text-fg-2">{subtitle}</p>}
-          {meta && <div className="mt-2 flex flex-wrap items-center gap-1.5">{meta}</div>}
+          {meta && <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">{meta}</div>}
         </div>
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
@@ -71,7 +68,7 @@ export function Card({
 
 /* ================================================================= chips */
 
-export type Tone = "neutral" | "good" | "warn" | "serious" | "bad" | "info" | "primary" | "ai";
+export type Tone = "neutral" | "good" | "warn" | "serious" | "bad" | "info" | "primary";
 
 const TONES: Record<Tone, string> = {
   neutral: "bg-mute-bg text-mute",
@@ -81,27 +78,30 @@ const TONES: Record<Tone, string> = {
   bad: "bg-bad-bg text-bad",
   info: "bg-info-bg text-info",
   primary: "bg-primary-50 text-primary-600",
-  ai: "bg-ai-50 text-ai-600",
 };
+
+/** States that need someone's attention. Only these get a coloured label;
+ *  everything else is ordinary text, so the exceptions stand out. */
+const ATTENTION: Tone[] = ["warn", "serious", "bad"];
 
 export function Chip({ children, tone = "neutral", icon, className, title }: {
   children: ReactNode; tone?: Tone; icon?: ReactNode; className?: string; title?: string;
 }) {
+  if (!ATTENTION.includes(tone)) {
+    return (
+      <span title={title} className={clsx("inline-flex items-center gap-1 whitespace-nowrap text-xs text-fg-2", className)}>
+        {icon}{children}
+      </span>
+    );
+  }
   return (
     <span title={title} className={clsx(
-      "inline-flex items-center gap-1 whitespace-nowrap rounded-md px-1.5 py-0.5 text-2xs font-semibold",
+      "inline-flex items-center gap-1 whitespace-nowrap rounded-[3px] px-1.5 py-px text-2xs font-medium",
       TONES[tone], className)}>
       {icon}{children}
     </span>
   );
 }
-
-export const Dot = ({ tone = "neutral" }: { tone?: Tone }) => (
-  <span className={clsx("inline-block h-1.5 w-1.5 shrink-0 rounded-full", {
-    neutral: "bg-fg-3", good: "bg-good", warn: "bg-warn", serious: "bg-serious", bad: "bg-bad",
-    info: "bg-info", primary: "bg-primary-500", ai: "bg-ai-500",
-  }[tone])} />
-);
 
 const STATUS_TONE: Record<string, Tone> = {
   Live: "good", Active: "good", Approved: "info", "In review": "warn", Draft: "neutral",
@@ -116,17 +116,19 @@ const STATUS_TONE: Record<string, Tone> = {
   Connected: "good", Simulated: "info", "Not connected": "neutral", Operational: "good", Degraded: "warn",
 };
 
-export const StatusChip = ({ status, label }: { status: string | null | undefined; label?: string }) =>
-  status ? (
-    <Chip tone={STATUS_TONE[status] ?? "neutral"}><Dot tone={STATUS_TONE[status] ?? "neutral"} />{label ?? status}</Chip>
-  ) : <span className="text-fg-3">—</span>;
+export const StatusChip = ({ status, label }: { status: string | null | undefined; label?: string }) => {
+  if (!status) return <span className="text-fg-3">—</span>;
+  const tone = STATUS_TONE[status] ?? "neutral";
+  const text = label ?? status;
+  return <Chip tone={tone}>{text.charAt(0).toUpperCase() + text.slice(1)}</Chip>;
+};
 
 /* =============================================================== buttons */
 
 export function Button({
   children, onClick, variant = "secondary", size = "md", disabled, icon, type = "button", title, loading,
 }: {
-  children?: ReactNode; onClick?: () => void; variant?: "primary" | "secondary" | "ghost" | "danger" | "ai";
+  children?: ReactNode; onClick?: () => void; variant?: "primary" | "secondary" | "ghost" | "danger";
   size?: "sm" | "md"; disabled?: boolean; icon?: ReactNode; type?: "button" | "submit"; title?: string;
   loading?: boolean;
 }) {
@@ -141,7 +143,6 @@ export function Button({
           secondary: "border border-line-strong bg-surface text-fg hover:bg-surface-hover",
           ghost: "text-fg-2 hover:bg-surface-hover hover:text-fg",
           danger: "border border-bad/25 bg-surface text-bad hover:bg-bad-bg",
-          ai: "bg-ai-500 text-white shadow-sm hover:bg-ai-600",
         }[variant])}>
       {loading ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" /> : icon}
       {children}
@@ -324,7 +325,7 @@ export function Progress({ value, tone = "primary", className }: { value: number
     <div className={clsx("h-1.5 w-full overflow-hidden rounded-full bg-surface-sunken", className)}>
       <div className={clsx("h-full rounded-full", {
         neutral: "bg-fg-3", good: "bg-good", warn: "bg-warn", serious: "bg-serious", bad: "bg-bad",
-        info: "bg-info", primary: "bg-azure", ai: "bg-ai-500",
+        info: "bg-info", primary: "bg-azure",
       }[tone])} style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
     </div>
   );
@@ -333,14 +334,14 @@ export function Progress({ value, tone = "primary", className }: { value: number
 /* ================================================================ banners */
 
 export function Banner({ tone = "info", title, children, action }: {
-  tone?: "info" | "warn" | "good" | "bad" | "neutral" | "ai"; title?: ReactNode; children?: ReactNode; action?: ReactNode;
+  tone?: "info" | "warn" | "good" | "bad" | "neutral"; title?: ReactNode; children?: ReactNode; action?: ReactNode;
 }) {
   const Icon = tone === "warn" || tone === "bad" ? AlertTriangle : tone === "good" ? CheckCircle2 : Info;
   return (
     <div className={clsx("flex items-start gap-2.5 rounded-lg border px-3.5 py-3 text-[13px]", {
       info: "border-info/15 bg-info-bg text-info", warn: "border-warn/20 bg-warn-bg text-warn",
       good: "border-good/20 bg-good-bg text-good", bad: "border-bad/20 bg-bad-bg text-bad",
-      neutral: "border-line bg-surface-sunken text-fg-2", ai: "border-ai-500/15 bg-ai-50 text-ai-600",
+      neutral: "border-line bg-surface-sunken text-fg-2",
     }[tone])}>
       <Icon className="mt-0.5 h-4 w-4 shrink-0" />
       <div className="min-w-0 flex-1 leading-5">
@@ -433,11 +434,12 @@ export function Pills<T extends string>({ options, value, onChange }: {
   options: { id: T; label: string; count?: number }[]; value: T; onChange: (v: T) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {options.map((o) => (
-        <button key={o.id} onClick={() => onChange(o.id)} className={clsx(
-          "inline-flex h-7 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition",
-          value === o.id ? "border-primary-500 bg-primary-50 text-primary-600" : "border-line-strong bg-surface text-fg-2 hover:bg-surface-hover")}>
+    <div role="group" className="inline-flex max-w-full flex-wrap overflow-hidden rounded-md border border-line-strong bg-surface">
+      {options.map((o, i) => (
+        <button key={o.id} onClick={() => onChange(o.id)} aria-pressed={value === o.id} className={clsx(
+          "inline-flex h-7 items-center gap-1.5 px-3 text-xs transition",
+          i > 0 && "border-l border-line-strong",
+          value === o.id ? "bg-primary-50 font-medium text-primary-600" : "text-fg-2 hover:bg-surface-hover")}>
           {o.label}{o.count !== undefined && <span className="num text-fg-3">{o.count}</span>}
         </button>
       ))}

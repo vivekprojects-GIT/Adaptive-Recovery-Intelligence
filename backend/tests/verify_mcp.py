@@ -23,7 +23,8 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 TMP = tempfile.mkdtemp(prefix="ari-mcp-")
-os.environ["DATABASE_URL"] = f"sqlite:///{os.path.join(TMP, 'mcp.db')}"
+# ARI_TEST_DATABASE_URL runs the suite against another database (an empty Postgres, say).
+os.environ["DATABASE_URL"] = os.environ.get("ARI_TEST_DATABASE_URL") or f"sqlite:///{os.path.join(TMP, 'mcp.db')}"
 os.environ.pop("ARI_MCP_TOKEN", None)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

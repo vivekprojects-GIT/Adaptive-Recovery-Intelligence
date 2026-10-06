@@ -32,7 +32,7 @@ export function ShellBar({ collapsed, onToggle }: { collapsed: boolean; onToggle
       <form className="relative ml-4 hidden max-w-[440px] flex-1 lg:block"
         onSubmit={(e) => { e.preventDefault(); if (q.trim()) navigate(`/customers?q=${encodeURIComponent(q.trim())}`); }}>
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary-200" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search customers by name or ID"
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, CUS- ID or account ID"
           className="h-9 w-full rounded-md border border-white/10 bg-white/[0.08] pl-9 pr-3 text-[13px] text-white placeholder:text-primary-200 focus:border-primary-200/60 focus:bg-white/[0.12] focus:outline-none" />
       </form>
       <div className="ml-auto flex items-center gap-1.5">

@@ -2,18 +2,20 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import timezone
 
 
 from fastapi import HTTPException
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 
 from ... import models
 from .. import analytics, engine
 from ..engine import jl
-from ..models import AlertRule, Campaign, ComplianceViolation, Decision, Insight, TreatmentMeta, User
-from ..platform import METRICS, audit, now
+from ..models import AlertRule, Campaign, ComplianceViolation, Decision, ExternalCustomer, Insight, TreatmentMeta, User
+from ..platform import CUSTOMER_REF_OFFSET, METRICS, audit, now
 
 
 UTC = timezone.utc
@@ -192,3 +194,19 @@ def fired_alerts(db: Session) -> list[dict]:
                                        f"({'below' if r.comparator == 'lt' else 'above'} {_fmt_metric(metric, r.threshold)})"})
     order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}
     return sorted(out, key=lambda a: order.get(a["severity"], 9))
+
+
+def customer_match(q: str):
+    """A filter for the customers matching what a person types into a search box:
+    part of the name, the customer ID as shown on screen (CUS-11342, or just
+    11342), or the account id an upstream system such as Nova uses. Case does
+    not matter."""
+    q = q.strip()
+    conds = [models.Customer.name.ilike(f"%{q}%"),
+             models.Customer.customer_id.in_(select(ExternalCustomer.customer_id)
+                                             .where(ExternalCustomer.external_ref.ilike(f"%{q}%")))]
+    m = re.fullmatch(r"(?:cus-?)?(\d+)", q, re.IGNORECASE)
+    if m:
+        n = int(m.group(1))
+        conds.append(models.Customer.customer_id.in_([n - CUSTOMER_REF_OFFSET, n]))
+    return or_(*conds)
