@@ -104,6 +104,15 @@ def estimate(cohorts: str = "", risk_bands: str = "",
     return engine.population_breakdown(db, tmp)
 
 
+@router.get("/strategies/defaults")
+def strategy_defaults(user: User = Depends(require("create_strategy")), db: Session = Depends(get_db)):
+    """What a new strategy starts with: the platform's experiment defaults and contact hours."""
+    return {"control_pct": float(cfg(db, "default_control_pct")), "wave_size": int(float(cfg(db, "default_wave_size"))),
+            "evaluation_days": int(float(cfg(db, "evaluation_days"))),
+            "contact_hour_start": int(float(cfg(db, "contact_hour_start"))),
+            "contact_hour_end": int(float(cfg(db, "contact_hour_end")))}
+
+
 @router.get("/strategies/recommendations")
 def form_recommendations(cohorts: str = "", editing: str = "", user: User = Depends(require("create_strategy")),
                          db: Session = Depends(get_db)):

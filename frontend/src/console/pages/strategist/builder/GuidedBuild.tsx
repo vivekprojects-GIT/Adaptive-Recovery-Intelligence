@@ -1,11 +1,12 @@
-/** Guided build: the six-step strategy form, its live estimates and recommendations. */
+/** Guided build in three steps: who the strategy is for, what it may send, and
+ *  a review with the settings most strategists leave at the platform defaults. */
 import clsx from "clsx";
-import { ArrowLeft, ArrowRight, Check } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowLeft, ArrowRight, Check, ChevronRight } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { api, type Cohort, type Population, type Strategy, type Treatment } from "../../../lib/api";
-import { money, num, pct, pp } from "../../../lib/format";
+import { money, num, pct } from "../../../lib/format";
 import { useApi, useSession } from "../../../lib/session";
 import {
   Banner,
@@ -21,10 +22,13 @@ import {
   inputCls,
   useAction,
 } from "../../../ui/ui";
+import { DONE_AT, STEPS, stepsDone } from "./steps";
 
 type Form = Omit<Strategy, "campaign_id" | "status" | "version" | "source" | "created_at" | "updated_at" | "submitted_at" |
   "approved_at" | "launched_at" | "waves_run" | "owner_id" | "owner" | "created_by" | "approved_by" | "approver" | "channels" | "treatments" |
   "parent_id" | "has_history" | "editable" | "revisable" | "deletable" | "open_revision" | "pool_remaining" | "created">;
+
+interface Defaults { control_pct: number; wave_size: number; evaluation_days: number; contact_hour_start: number; contact_hour_end: number }
 
 const BLANK: Form = {
   name: "", description: "", steps_completed: 0, target_cohorts: [], risk_bands: [],
@@ -39,7 +43,29 @@ const TONE_PREVIEW: Record<string, string> = {
   Direct: "Priya, $146 on your account is now 30 days overdue. Please pay today: ari.bank/p/3fa1c2. Reply STOP to opt out.",
 };
 
+const SUBTITLE = [
+  "Who this strategy is for. The Propensity Router decides which of these customers a strategy may contact.",
+  "What the strategy may send. Thompson sampling learns which of these works for which customer.",
+  "Check the audience and the experiment, then submit it for approval.",
+];
+
 function numOrNull(v: string) { return v === "" ? null : Number(v); }
+
+/** A section that stays closed until it is needed, with a one-line summary of what is inside. */
+function Optional({ title, summary, open: initial, children }: { title: string; summary: string; open?: boolean; children: ReactNode }) {
+  const [open, setOpen] = useState(!!initial);
+  return (
+    <div className="rounded-lg border border-line">
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-surface-hover">
+        <ChevronRight className={clsx("h-3.5 w-3.5 shrink-0 text-fg-3 transition-transform", open && "rotate-90")} />
+        <span className="text-[13px] font-medium text-fg">{title}</span>
+        {!open && <span className="ml-auto truncate pl-3 text-2xs text-fg-3">{summary}</span>}
+      </button>
+      {open && <div className="space-y-4 border-t border-line px-3 py-3">{children}</div>}
+    </div>
+  );
+}
 
 export default function GuidedBuild({ id }: { id?: string }) {
   const navigate = useNavigate();
@@ -47,6 +73,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
   const { run, busy } = useAction();
   const cohorts = useApi<Cohort[]>("/cohorts").data;
   const treatments = useApi<Treatment[]>("/treatments").data;
+  const defaults = useApi<Defaults>("/strategies/defaults").data;
   const [form, setForm] = useState<Form>(BLANK);
   const [meta, setMeta] = useState<Strategy | null>(null);
   const [step, setStep] = useState(0);
@@ -61,9 +88,19 @@ export default function GuidedBuild({ id }: { id?: string }) {
       Object.keys(BLANK).forEach((k) => { f[k] = (s as unknown as Record<string, unknown>)[k]; });
       setForm(f as unknown as Form);
       setMeta(s);
-      setStep(Math.min(s.steps_completed, 5));
+      setStep(Math.min(stepsDone(s.steps_completed), STEPS.length - 1));
     });
   }, [id]);
+
+  // A new strategy starts from the platform's defaults, not from numbers written into the page.
+  useEffect(() => {
+    if (id || !defaults) return;
+    setForm((f) => f.steps_completed ? f : {
+      ...f, control_pct: defaults.control_pct, wave_size: defaults.wave_size, evaluation_days: defaults.evaluation_days,
+      send_window_start: Math.max(f.send_window_start, defaults.contact_hour_start),
+      send_window_end: Math.min(f.send_window_end, defaults.contact_hour_end),
+    });
+  }, [id, defaults]);
 
   const estimateQuery = useMemo(() => {
     const p = new URLSearchParams({
@@ -75,9 +112,10 @@ export default function GuidedBuild({ id }: { id?: string }) {
   }, [form]);
 
   useEffect(() => {
+    if (!form.target_cohorts.length) { setEst(null); return; }
     const t = setTimeout(() => api.get<Population>(`/strategies/estimate?${estimateQuery}`).then(setEst).catch(() => {}), 250);
     return () => clearTimeout(t);
-  }, [estimateQuery]);
+  }, [estimateQuery, form.target_cohorts.length]);
 
   // Recommendations follow the cohorts on the form, saved or not.
   const recsQuery = useMemo(() => new URLSearchParams({ cohorts: form.target_cohorts.join(","), editing: id ?? "" }).toString(),
@@ -94,8 +132,8 @@ export default function GuidedBuild({ id }: { id?: string }) {
   const toggle = (k: "target_cohorts" | "risk_bands" | "treatment_codes", v: string) =>
     setForm((f) => ({ ...f, [k]: f[k].includes(v) ? f[k].filter((x) => x !== v) : [...f[k], v] }));
 
-  const save = useCallback(async (next: number) => {
-    const body = { ...form, steps_completed: Math.max(form.steps_completed, next) };
+  const save = useCallback(async (stored: number) => {
+    const body = { ...form, steps_completed: Math.max(form.steps_completed, stored) };
     const r = await run("save", () => meta ? api.put<Strategy>(`/strategies/${meta.campaign_id}`, body) : api.post<Strategy>("/strategies", body),
       (s) => s.reapproval_required ? `Saved ${s.campaign_id}. A material change sent it back to Draft (v${s.version}) for re-approval.` : `Saved ${s.campaign_id}.`);
     if (r) {
@@ -113,50 +151,48 @@ export default function GuidedBuild({ id }: { id?: string }) {
     (r) => r.created ? `Opened ${r.campaign_id} as v${r.version} of ${meta.campaign_id}.` : `Continuing ${r.campaign_id}.`)
     .then((r) => r && navigate(`/builder/${r.campaign_id}`));
   const mde = est && est.control > 0 ? (2.8 * Math.sqrt(2 * 0.3 * 0.7 / Math.max(1, Math.min(est.control, est.treatment)))) : null;
+  const done = stepsDone(form.steps_completed);
+  const name = (code: string) => treatments.find((t) => t.code === code)?.name ?? code;
 
-  const steps = ["Segment", "Risk rules", "Channels", "Nudge config", "Escalation", "Review & launch"];
+  const limits = [
+    form.min_balance !== null || form.max_balance !== null
+      ? `balance ${form.min_balance !== null ? money(form.min_balance) : "any"}–${form.max_balance !== null ? money(form.max_balance) : "any"}` : null,
+    form.min_dpd !== null || form.max_dpd !== null ? `${form.min_dpd ?? 0}–${form.max_dpd ?? "any"} days past due` : null,
+    form.risk_bands.length ? `${form.risk_bands.join(", ")} risk` : null,
+  ].filter(Boolean).join(" · ");
+  const rhythm = `Every ${form.cadence_days} days, up to ${form.max_touches} touches, ${form.tone.toLowerCase()} tone, ${form.send_window_start}:00–${form.send_window_end}:00`;
+  const experiment = `${pct(form.control_pct, 0)} control, waves of ${form.wave_size}, ${form.evaluation_days}-day window, target ${pct(form.recovery_target, 0)}`;
+
   return (
     <div className="grid gap-4 lg:grid-cols-[180px_minmax(0,1fr)_280px]">
       {/* step rail */}
       <div className="space-y-1">
         <p className="label px-2 pb-1">Steps</p>
-        {steps.map((s, i) => (
+        {STEPS.map((s, i) => (
           <button key={s} onClick={() => setStep(i)} className={clsx("flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px]",
             step === i ? "bg-primary-50 font-medium text-primary-600" : "text-fg-2 hover:bg-surface-hover")}>
             <span className={clsx("flex h-5 w-5 items-center justify-center rounded-full text-2xs font-semibold",
-              i < form.steps_completed ? "bg-good text-white" : step === i ? "bg-primary-500 text-white" : "bg-surface-sunken text-fg-3 ring-1 ring-line")}>
-              {i < form.steps_completed ? <Check className="h-3 w-3" /> : i + 1}
+              i < done ? "bg-good text-white" : step === i ? "bg-primary-500 text-white" : "bg-surface-sunken text-fg-3 ring-1 ring-line")}>
+              {i < done ? <Check className="h-3 w-3" /> : i + 1}
             </span>{s}
           </button>
         ))}
-        <div className="mt-3 rounded-lg border border-line p-2.5">
-          <p className="label">Progress</p>
-          <div className="mt-1.5 h-1.5 rounded-full bg-surface-sunken"><div className="h-full rounded-full bg-primary-500" style={{ width: `${(form.steps_completed / 6) * 100}%` }} /></div>
-          <p className="mt-1 text-2xs text-fg-3">Step {step + 1} of 6</p>
-        </div>
-        {meta && <div className="mt-2 space-y-1 px-1"><StatusChip status={meta.status} /><p className="font-mono text-2xs text-fg-3">{meta.campaign_id} · v{meta.version}</p></div>}
+        {meta && <div className="mt-3 space-y-1 px-1"><StatusChip status={meta.status} /><p className="font-mono text-2xs text-fg-3">{meta.campaign_id} · v{meta.version}</p></div>}
       </div>
 
       {/* step body */}
-      <Card title={steps[step]} subtitle={[
-        "Define which customers this strategy targets.",
-        "Bound the strategy by the client's risk band and days past due. Risk comes from the client's model, not ARI.",
-        "Choose the treatments the bandit may choose among. Only these can ever be sent.",
-        "How often, how many times and in what voice.",
-        "What happens when nothing works.",
-        "Experiment design, then submit for approval.",
-      ][step]}
+      <Card title={STEPS[step]} subtitle={SUBTITLE[step]}
         footer={<div className="flex items-center justify-between">
           <Button variant="ghost" disabled={step === 0} icon={<ArrowLeft className="h-3.5 w-3.5" />} onClick={() => setStep((s) => s - 1)}>Back</Button>
-          {step < 5 ? (
+          {step < STEPS.length - 1 ? (
             <Button variant="primary" disabled={!editable || !form.name.trim()} loading={busy === "save"}
-              onClick={async () => { if (await save(step + 1)) setStep((s) => s + 1); }}>Save & continue <ArrowRight className="h-3.5 w-3.5" /></Button>
+              onClick={async () => { if (await save(DONE_AT[step])) setStep((s) => s + 1); }}>Save & continue <ArrowRight className="h-3.5 w-3.5" /></Button>
           ) : (
             <div className="flex gap-2">
-              <Button disabled={!editable} loading={busy === "save"} onClick={() => save(6)}>Save draft</Button>
-              <Button variant="primary" disabled={!editable || !meta || meta.status !== "Draft"} loading={busy === "submit"}
+              <Button disabled={!editable || !form.name.trim()} loading={busy === "save"} onClick={() => save(DONE_AT[1])}>Save draft</Button>
+              <Button variant="primary" disabled={!editable || !form.name.trim() || (meta !== null && meta.status !== "Draft")} loading={busy === "submit"}
                 onClick={async () => {
-                  const s = await save(6);
+                  const s = await save(DONE_AT[2]);
                   if (s && (await run("submit", () => api.post(`/strategies/${s.campaign_id}/submit`), `${s.campaign_id} submitted. A strategy leader approves it before launch.`)))
                     navigate(`/strategies/${s.campaign_id}`);
                 }}>Submit for approval</Button>
@@ -191,8 +227,8 @@ export default function GuidedBuild({ id }: { id?: string }) {
 
         {step === 0 && (
           <div className="space-y-4">
-            <Field label="Strategy name" required><input className={inputCls} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Medium-Risk Payment Plan Flow" /></Field>
-            <Field label="Description"><textarea rows={2} className={`${inputCls} h-auto py-2`} value={form.description} onChange={(e) => set("description", e.target.value)} /></Field>
+            <Field label="Strategy name" required><input id="strategy-name" className={inputCls} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Medium-Risk Payment Plan Flow" /></Field>
+            <Field label="Description"><textarea id="strategy-description" rows={2} className={`${inputCls} h-auto py-2`} value={form.description} onChange={(e) => set("description", e.target.value)} /></Field>
             <Field label="Target cohorts" hint="Handed over by the client's collections system. ARI does not re-segment them.">
               <div className="grid gap-2 sm:grid-cols-2">
                 {cohorts.map((c) => (
@@ -201,156 +237,134 @@ export default function GuidedBuild({ id }: { id?: string }) {
                 ))}
               </div>
             </Field>
-            <div className="rounded-lg border border-line bg-surface-sunken/50 px-3 py-2.5">
-              <p className="text-xs font-medium text-fg">Who this strategy reaches</p>
-              <p className="mt-0.5 text-2xs leading-4 text-fg-2">
-                The Propensity Router classifies every customer as they arrive and sends the Likely responsive group to strategies
-                {est ? `: ${num(est.routed - est.validation)} in the cohorts picked` : ""}
-                {est?.validation ? `, plus ${num(est.validation)} from its validation share, which are scored but never learned from` : ""}.
-                Likely self-cure stays on business as usual, Needs support goes to the hardship team, and Do not contact is suppressed.
-              </p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Minimum balance ($)"><input type="number" className={inputCls} value={form.min_balance ?? ""} onChange={(e) => set("min_balance", numOrNull(e.target.value))} placeholder="No floor" /></Field>
-              <Field label="Maximum balance ($)"><input type="number" className={inputCls} value={form.max_balance ?? ""} onChange={(e) => set("max_balance", numOrNull(e.target.value))} placeholder="No ceiling" /></Field>
-            </div>
+            <Optional title="Narrow the audience (optional)" summary={limits || "All balances, days past due and risk bands"} open={!!limits}>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Minimum balance ($)"><input id="min-balance" type="number" className={inputCls} value={form.min_balance ?? ""} onChange={(e) => set("min_balance", numOrNull(e.target.value))} placeholder="No floor" /></Field>
+                <Field label="Maximum balance ($)"><input id="max-balance" type="number" className={inputCls} value={form.max_balance ?? ""} onChange={(e) => set("max_balance", numOrNull(e.target.value))} placeholder="No ceiling" /></Field>
+                <Field label="Minimum days past due"><input id="min-dpd" type="number" className={inputCls} value={form.min_dpd ?? ""} onChange={(e) => set("min_dpd", numOrNull(e.target.value))} placeholder="Any" /></Field>
+                <Field label="Maximum days past due"><input id="max-dpd" type="number" className={inputCls} value={form.max_dpd ?? ""} onChange={(e) => set("max_dpd", numOrNull(e.target.value))} placeholder="Any" /></Field>
+              </div>
+              <Field label="Client risk bands" hint="From the client's risk model. Leave empty to accept every band in the cohorts.">
+                <div className="flex flex-wrap gap-2">
+                  {["Low", "Medium", "High", "Very high"].map((b) => (
+                    <button key={b} type="button" onClick={() => toggle("risk_bands", b)} className={clsx("h-8 rounded-lg border px-3 text-[13px]",
+                      form.risk_bands.includes(b) ? "border-primary-500 bg-primary-50 font-medium text-primary-600" : "border-line-strong text-fg-2 hover:bg-surface-hover")}>{b}</button>
+                  ))}
+                </div>
+              </Field>
+            </Optional>
+            <p className="text-2xs leading-4 text-fg-3">
+              Consent, opt-outs, contact caps and vulnerability are platform rules, checked before any treatment is chosen and again before every send.
+            </p>
           </div>
         )}
 
         {step === 1 && (
           <div className="space-y-4">
-            <Field label="Client risk bands" hint="Leave empty to accept every band in the chosen cohorts.">
-              <div className="flex flex-wrap gap-2">
-                {["Low", "Medium", "High", "Very high"].map((b) => (
-                  <button key={b} onClick={() => toggle("risk_bands", b)} className={clsx("h-8 rounded-lg border px-3 text-[13px]",
-                    form.risk_bands.includes(b) ? "border-primary-500 bg-primary-50 font-medium text-primary-600" : "border-line-strong text-fg-2 hover:bg-surface-hover")}>{b}</button>
-                ))}
-              </div>
-            </Field>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Minimum days past due"><input type="number" className={inputCls} value={form.min_dpd ?? ""} onChange={(e) => set("min_dpd", numOrNull(e.target.value))} placeholder="Any" /></Field>
-              <Field label="Maximum days past due"><input type="number" className={inputCls} value={form.max_dpd ?? ""} onChange={(e) => set("max_dpd", numOrNull(e.target.value))} placeholder="Any" /></Field>
+            <div className="space-y-2">
+              {offered.map((t) => (
+                <CheckCard key={t.code} checked={form.treatment_codes.includes(t.code)} onChange={() => toggle("treatment_codes", t.code)}
+                  title={<span className="flex flex-wrap items-center gap-1.5">{t.name}<Chip tone="info">{t.channel}</Chip>
+                    {t.human_review && <Chip tone="warn">human approval</Chip>}
+                    {t.historical_n === 0 && <Chip tone="info">new</Chip>}
+                    {t.status === "Retired" && <Chip tone="bad">retired: remove before submitting</Chip>}</span>}
+                  sub={<>{t.offer} · Eligible when: {t.eligibility_rule} · {money(t.cost)} per contact · {t.historical_n
+                    ? <>historical raw rate {pct(t.historical_rate, 0)} (includes self-cure)</>
+                    : <>no track record yet, so the bandit explores it from a flat prior</>}</>}
+                  right={est ? <span className="num whitespace-nowrap text-2xs text-fg-3">{num(est.arm_eligibility[t.code] ?? 0)} eligible</span> : undefined} />
+              ))}
             </div>
-            <Banner tone="neutral">Consent, opt-outs and contact caps are checked before a treatment is chosen and again before every send, and a vulnerability flag from Nova stops automated treatment. They are platform rules, not strategy settings, and cannot be switched off here.</Banner>
+            {can("manage_treatments") && (
+              <Link to="/treatments" className="inline-flex items-center gap-1 text-xs font-medium text-primary-500 hover:underline">
+                Add or edit treatments in the playbook <ArrowRight className="h-3 w-3" /></Link>
+            )}
+            <Optional title="If nothing works (optional)" open={!!form.escalate_to}
+              summary={form.escalate_to ? `${name(form.escalate_to)} after ${form.escalate_after_days} days with no payment` : "No escalation"}>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Escalate to">
+                  <Select value={form.escalate_to ?? ""} onChange={(v) => set("escalate_to", v || null)}
+                    options={[{ value: "", label: "No escalation" }, ...treatments.filter((t) => t.status === "Active" || t.code === form.escalate_to)
+                      .map((t) => ({ value: t.code, label: `${t.name} (${t.channel})${t.status === "Retired" ? " - retired" : ""}` }))]} />
+                </Field>
+                <Field label="After (days with no payment)"><input id="escalate-after" type="number" min={1} disabled={!form.escalate_to} className={inputCls} value={form.escalate_after_days} onChange={(e) => set("escalate_after_days", Number(e.target.value))} /></Field>
+              </div>
+              <p className="text-2xs leading-4 text-fg-3">Escalations count toward contact limits and cost. Many digital payers settle in the second week, so escalating early often pays for calls that were not needed.</p>
+            </Optional>
           </div>
         )}
 
         {step === 2 && (
-          <div className="space-y-2">
-            {offered.map((t) => (
-              <CheckCard key={t.code} checked={form.treatment_codes.includes(t.code)} onChange={() => toggle("treatment_codes", t.code)}
-                title={<span className="flex flex-wrap items-center gap-1.5">{t.name}<Chip tone="info">{t.channel}</Chip>
-                  {t.human_review && <Chip tone="warn">human approval</Chip>}
-                  {t.historical_n === 0 && <Chip tone="info">new</Chip>}
-                  {t.status === "Retired" && <Chip tone="bad">retired: remove before submitting</Chip>}</span>}
-                sub={<>{t.offer} · Eligible when: {t.eligibility_rule} · {money(t.cost)} per contact · {t.historical_n
-                  ? <>historical raw rate {pct(t.historical_rate, 0)} (includes self-cure)</>
-                  : <>no track record yet, so the bandit explores it from a flat prior</>}</>}
-                right={est ? <span className="num whitespace-nowrap text-2xs text-fg-3">{num(est.arm_eligibility[t.code] ?? 0)} eligible</span> : undefined} />
-            ))}
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-              <p className="text-2xs text-fg-3">The bandit learns which of the selected treatments works for which customer. Historical rates seed its prior with low weight.</p>
-              {can("manage_treatments") && (
-                <Link to="/treatments" className="inline-flex items-center gap-1 text-xs font-medium text-primary-500 hover:underline">
-                  Add or edit treatments in the playbook <ArrowRight className="h-3 w-3" /></Link>
-              )}
-            </div>
-          </div>
-        )}
-
-        {step === 3 && (
           <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Field label="Cadence (days between touches)"><input type="number" min={1} className={inputCls} value={form.cadence_days} onChange={(e) => set("cadence_days", Number(e.target.value))} /></Field>
-              <Field label="Maximum touches"><input type="number" min={1} max={6} className={inputCls} value={form.max_touches} onChange={(e) => set("max_touches", Number(e.target.value))} /></Field>
-              <Field label="Tone"><Select value={form.tone} onChange={(v) => set("tone", v)} options={["Supportive", "Neutral", "Direct"].map((x) => ({ value: x, label: x }))} /></Field>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Send window start (local hour)" hint="Must sit inside the platform's permitted contact hours."><input type="number" min={0} max={23} className={inputCls} value={form.send_window_start} onChange={(e) => set("send_window_start", Number(e.target.value))} /></Field>
-              <Field label="Send window end (local hour)"><input type="number" min={1} max={24} className={inputCls} value={form.send_window_end} onChange={(e) => set("send_window_end", Number(e.target.value))} /></Field>
-            </div>
-            <div>
-              <p className="label mb-1.5">Message preview (approved template, SMS)</p>
-              <div className="max-w-sm rounded-2xl rounded-bl-sm bg-surface-sunken px-3.5 py-2.5 text-[13px] leading-5 text-fg ring-1 ring-line">{TONE_PREVIEW[form.tone]}</div>
-              <p className="mt-1.5 text-2xs text-fg-3">Content comes from approved templates. Opt-out instructions are always included.</p>
-            </div>
-            {form.max_touches * form.cadence_days > 0 && form.cadence_days < 2 && form.max_touches >= 4 && (
-              <Banner tone="warn">Daily touches with {form.max_touches} messages, plus the bank's own dialler, can reach the 7-in-7 contact limit. The guard will hold messages that would breach it.</Banner>
-            )}
-          </div>
-        )}
-
-        {step === 4 && (
-          <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Escalate to">
-                <Select value={form.escalate_to ?? ""} onChange={(v) => set("escalate_to", v || null)}
-                  options={[{ value: "", label: "No escalation" }, ...treatments.filter((t) => t.status === "Active" || t.code === form.escalate_to)
-                    .map((t) => ({ value: t.code, label: `${t.name} (${t.channel})${t.status === "Retired" ? " - retired" : ""}` }))]} />
-              </Field>
-              <Field label="After (days with no payment)"><input type="number" min={1} disabled={!form.escalate_to} className={inputCls} value={form.escalate_after_days} onChange={(e) => set("escalate_after_days", Number(e.target.value))} /></Field>
-            </div>
-            <Banner tone="neutral">
-              Escalations count toward contact limits and cost. Many digital payers settle in the second week, so escalating early often pays for calls that were not needed.
-            </Banner>
-          </div>
-        )}
-
-        {step === 5 && (
-          <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-4">
-              <Field label="Control share" hint="Fixed for the life of the strategy.">
-                <Select value={String(form.control_pct)} onChange={(v) => set("control_pct", Number(v))}
-                  options={[0.1, 0.15, 0.2, 0.25, 0.3, 0.4].map((x) => ({ value: String(x), label: pct(x, 0) }))} />
-              </Field>
-              <Field label="Wave size (treated)"><input type="number" className={inputCls} value={form.wave_size} onChange={(e) => set("wave_size", Number(e.target.value))} /></Field>
-              <Field label="Evaluation window (days)" hint="Open item: how late payments are credited."><input type="number" className={inputCls} value={form.evaluation_days} onChange={(e) => set("evaluation_days", Number(e.target.value))} /></Field>
-              <Field label="Recovery target"><Select value={String(form.recovery_target)} onChange={(v) => set("recovery_target", Number(v))}
-                options={[0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7].map((x) => ({ value: String(x), label: pct(x, 0) }))} /></Field>
+            <div className="rounded-lg border border-line">
+              <dl className="divide-y divide-line text-[13px]">
+                {[
+                  ["Audience", `${form.target_cohorts.map((c) => cohorts.find((x) => x.cohort_id === c)?.name).join(", ") || "No cohort picked"}${limits ? ` · ${limits}` : ""}`],
+                  ["Who it contacts", "Likely responsive customers, sent by the Propensity Router"],
+                  ["Treatments", form.treatment_codes.map(name).join(", ") || "None picked"],
+                  ["If nothing works", form.escalate_to ? `${name(form.escalate_to)} after ${form.escalate_after_days} days` : "No escalation"],
+                ].map(([k, v]) => <div key={k} className="flex gap-4 px-3 py-2"><dt className="w-32 shrink-0 text-fg-3">{k}</dt><dd className="min-w-0 text-fg">{v}</dd></div>)}
+              </dl>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
-              <Kpi label="Eligible customers" value={num(est?.eligible)} sub={`${num(est?.matching)} match the segment`} />
-              <Kpi label="Control / treated" value={`${num(est?.control)} / ${num(est?.treatment)}`} sub="randomised split" />
-              <Kpi label="Detectable effect" value={mde ? pp(mde) : "—"} tone={mde && mde > 0.12 ? "warn" : "neutral"}
-                sub="smallest lift this audience can prove" />
+              <Kpi label="Customers it reaches" value={num(est?.eligible)} sub={est ? `of ${num(est.matching)} in the cohorts picked` : "Pick a cohort first"} />
+              <Kpi label="Control / treated" value={est ? `${num(est.control)} / ${num(est.treatment)}` : "—"} sub="randomised split" />
+              <Kpi label="Detectable effect" value={mde ? `${(mde * 100).toFixed(1)} pp` : "—"} tone={mde && mde > 0.12 ? "warn" : "neutral"} sub="smallest lift this audience can prove" />
             </div>
             {mde && mde > 0.12 && (
               <Banner tone="warn" title="This audience is too small to prove a typical effect">
                 Collections treatments usually move payment by 4-9 points. Run it as a standing strategy over several months, or widen the audience, before treating the result as a verdict.
               </Banner>
             )}
-            <div className="rounded-lg border border-line">
-              <dl className="divide-y divide-line text-[13px]">
-                {[
-                  ["Audience", `${form.target_cohorts.map((c) => cohorts.find((x) => x.cohort_id === c)?.name).join(", ") || "—"} · Likely responsive (Propensity Router)`],
-                  ["Balance", `${form.min_balance !== null ? money(form.min_balance) : "any"} – ${form.max_balance !== null ? money(form.max_balance) : "any"}`],
-                  ["Risk", `${form.risk_bands.join(", ") || "all bands"} · DPD ${form.min_dpd ?? "any"}–${form.max_dpd ?? "any"}`],
-                  ["Treatments", form.treatment_codes.map((c) => treatments.find((t) => t.code === c)?.name).join(", ") || "—"],
-                  ["Cadence", `every ${form.cadence_days} days, up to ${form.max_touches} touches, ${form.tone.toLowerCase()} tone, ${form.send_window_start}:00–${form.send_window_end}:00`],
-                  ["Escalation", form.escalate_to ? `${treatments.find((t) => t.code === form.escalate_to)?.name} after ${form.escalate_after_days} days` : "none"],
-                ].map(([k, v]) => <div key={k} className="flex gap-4 px-3 py-2"><dt className="w-28 shrink-0 text-fg-3">{k}</dt><dd className="text-fg">{v}</dd></div>)}
-              </dl>
-            </div>
+            <Optional title="Contact rhythm" summary={rhythm}>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Field label="Cadence (days between touches)"><input id="cadence" type="number" min={1} className={inputCls} value={form.cadence_days} onChange={(e) => set("cadence_days", Number(e.target.value))} /></Field>
+                <Field label="Maximum touches"><input id="max-touches" type="number" min={1} max={6} className={inputCls} value={form.max_touches} onChange={(e) => set("max_touches", Number(e.target.value))} /></Field>
+                <Field label="Tone"><Select value={form.tone} onChange={(v) => set("tone", v)} options={["Supportive", "Neutral", "Direct"].map((x) => ({ value: x, label: x }))} /></Field>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Send window start (local hour)" hint="Inside the platform's permitted contact hours."><input id="window-start" type="number" min={0} max={23} className={inputCls} value={form.send_window_start} onChange={(e) => set("send_window_start", Number(e.target.value))} /></Field>
+                <Field label="Send window end (local hour)"><input id="window-end" type="number" min={1} max={24} className={inputCls} value={form.send_window_end} onChange={(e) => set("send_window_end", Number(e.target.value))} /></Field>
+              </div>
+              <div>
+                <p className="label mb-1.5">Message preview (approved template, SMS)</p>
+                <div className="max-w-sm rounded-lg bg-surface-sunken px-3.5 py-2.5 text-[13px] leading-5 text-fg ring-1 ring-line">{TONE_PREVIEW[form.tone]}</div>
+              </div>
+              {form.cadence_days < 2 && form.max_touches >= 4 && (
+                <Banner tone="warn">Daily touches with {form.max_touches} messages, plus the bank's own dialler, can reach the 7-in-7 contact limit. The guard will hold messages that would breach it.</Banner>
+              )}
+            </Optional>
+            <Optional title="Experiment" summary={experiment}>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <Field label="Control share" hint="Fixed for the life of the strategy.">
+                  <Select value={String(form.control_pct)} onChange={(v) => set("control_pct", Number(v))}
+                    options={[0.1, 0.15, 0.2, 0.25, 0.3, 0.4].map((x) => ({ value: String(x), label: pct(x, 0) }))} />
+                </Field>
+                <Field label="Wave size (treated)"><input id="wave-size" type="number" className={inputCls} value={form.wave_size} onChange={(e) => set("wave_size", Number(e.target.value))} /></Field>
+                <Field label="Evaluation window (days)"><input id="evaluation-days" type="number" className={inputCls} value={form.evaluation_days} onChange={(e) => set("evaluation_days", Number(e.target.value))} /></Field>
+                <Field label="Recovery target"><Select value={String(form.recovery_target)} onChange={(v) => set("recovery_target", Number(v))}
+                  options={[0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7].map((x) => ({ value: String(x), label: pct(x, 0) }))} /></Field>
+              </div>
+            </Optional>
           </div>
         )}
       </Card>
 
       {/* assistant rail */}
       <div className="space-y-4">
-        <Card title="Live estimate">
+        <Card title="Live estimate" subtitle="Who this strategy would reach, as you fill it in">
           {est ? (
             <div className="space-y-2.5">
-              <div className="flex items-baseline justify-between"><span className="text-xs text-fg-2">Matching segment</span><span className="num text-[15px] font-semibold">{num(est.matching)}</span></div>
-              <div className="flex items-baseline justify-between"><span className="text-xs text-fg-2">Eligible for a treatment</span><span className="num text-[15px] font-semibold text-primary-500">{num(est.eligible)}</span></div>
-              {est.validation > 0 && <p className="flex justify-between gap-2 text-2xs text-fg-3"><span>of which the router's validation share</span><span className="num">{num(est.validation)}</span></p>}
+              <div className="flex items-baseline justify-between"><span className="text-xs text-fg-2">Customers in the cohorts picked</span><span className="num text-[15px] font-semibold">{num(est.matching)}</span></div>
+              <div className="flex items-baseline justify-between"><span className="text-xs text-fg-2">Sent to strategies by the router</span><span className="num text-[15px] font-semibold text-primary-500">{num(est.eligible)}</span></div>
+              {est.validation > 0 && <p className="flex justify-between gap-2 text-2xs text-fg-3"><span>of which its validation share</span><span className="num">{num(est.validation)}</span></p>}
               {est.exclusions.length > 0 && (
                 <div className="border-t border-line pt-2">
-                  <p className="label mb-1">Excluded</p>
-                  {est.exclusions.map((x) => <p key={x.reason} className="flex justify-between gap-2 text-2xs text-fg-2"><span>{x.reason}</span><span className="num">{x.count}</span></p>)}
+                  <p className="label mb-1">Kept off strategies</p>
+                  {est.exclusions.map((x) => <p key={x.reason} className="flex justify-between gap-2 text-2xs text-fg-2"><span>{x.reason.replace(" (Propensity Router)", "")}</span><span className="num">{x.count}</span></p>)}
                 </div>
               )}
             </div>
-          ) : <p className="text-xs text-fg-3">Pick a cohort to see the audience.</p>}
+          ) : <p className="text-xs text-fg-3">Pick a cohort to see who this strategy would reach.</p>}
         </Card>
         <Card title="Recommendations" subtitle="From live results in the cohorts you picked">
           {!form.target_cohorts.length && <p className="text-xs text-fg-3">Pick a cohort to see recommendations.</p>}

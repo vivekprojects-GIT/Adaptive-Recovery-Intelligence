@@ -10,6 +10,7 @@ import { ResultCell } from "../../ui/domain";
 import {
   Banner, Button, Card, Chip, Empty, ErrorState, Kpi, Page, PageHeader, Spinner, StatusChip, Table, Td, Th, Tr, useAction,
 } from "../../ui/ui";
+import { STEPS, stepsDone } from "./builder/steps";
 
 interface Data {
   kpis: { strategies: number; live: number; accounts: number; recovery_rate: number | null; uplift: number | null;
@@ -17,9 +18,8 @@ interface Data {
   draft: Strategy | null; strategies: Strategy[]; insights: InsightRow[]; weekly: WeekPoint[];
 }
 
-const STEPS = ["Segment", "Risk rules", "Channels", "Nudge config", "Escalation", "Review & launch"];
-
-export function Stepper({ done }: { done: number }) {
+export function Stepper({ stored }: { stored: number }) {
+  const done = stepsDone(stored);
   return (
     <ol className="flex flex-wrap items-center gap-x-1 gap-y-2">
       {STEPS.map((s, i) => (
@@ -103,13 +103,13 @@ export default function MyDashboard() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="text-2xs font-semibold uppercase tracking-wide text-primary-600">
-                      Draft in progress · {data.draft.campaign_id} · step {Math.min(data.draft.steps_completed + 1, 6)} of 6
+                      Draft in progress · {data.draft.campaign_id} · step {Math.min(stepsDone(data.draft.steps_completed) + 1, STEPS.length)} of {STEPS.length}
                     </p>
                     <p className="mt-1 text-[15px] font-semibold text-fg">{data.draft.name}</p>
                   </div>
                   <Button variant="primary" onClick={() => navigate(`/builder/${data.draft!.campaign_id}`)}>Continue <ArrowRight className="h-3.5 w-3.5" /></Button>
                 </div>
-                <div className="mt-3"><Stepper done={data.draft.steps_completed} /></div>
+                <div className="mt-3"><Stepper stored={data.draft.steps_completed} /></div>
               </div>
             )}
 
