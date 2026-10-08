@@ -253,7 +253,7 @@ def draft_from_brief(db: Session, brief: str, risk: str, goal: str) -> tuple[dic
     treat = {s.code: s.name for s in db.query(models.Strategy)}
     why.append(f"Arms {', '.join(treat[a] for a in arms)} for the goal '{goal}'.")
 
-    fields: dict = {"target_cohorts": cohorts, "risk_bands": [], "include_segments": ["Persuadable"],
+    fields: dict = {"target_cohorts": cohorts, "risk_bands": [],
                     "treatment_codes": arms, "tone": "Supportive", "cadence_days": 3, "max_touches": 3,
                     "escalate_after_days": 14, "escalate_to": None}
 
@@ -297,8 +297,8 @@ def draft_from_brief(db: Session, brief: str, risk: str, goal: str) -> tuple[dic
         why.append("Two-day cadence for a quick-recovery goal.")
     if "hardship" in text and "S6" not in arms:
         arms.append("S6")
-        fields["include_segments"] = ["Persuadable", "Lost Cause"]
-        why.append("Added Hardship Review and the Lost Cause segment because the brief mentions hardship.")
+        why.append("Added Hardship Review because the brief mentions hardship. Customers who cannot pay at all "
+                   "go to the hardship team through the Propensity Router.")
 
     live = active_codes(db)
     dropped = [a for a in arms if a not in live]

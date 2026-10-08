@@ -113,7 +113,7 @@ const STATUS_TONE: Record<string, Tone> = {
   Open: "bad", Investigating: "warn", Critical: "bad", High: "serious", Medium: "warn", Low: "neutral",
   New: "primary", Applied: "good", Declined: "neutral", Treatment: "primary", Control: "neutral", Excluded: "warn",
   Paid: "good", "Not paid": "neutral", pending: "warn", approved: "good", rejected: "bad", cancelled: "neutral", Cancelled: "neutral",
-  Connected: "good", Simulated: "info", "Not connected": "neutral", Operational: "good", Degraded: "warn",
+  Connected: "good", "Not connected": "neutral", Operational: "good", Degraded: "warn",
 };
 
 export const StatusChip = ({ status, label }: { status: string | null | undefined; label?: string }) => {

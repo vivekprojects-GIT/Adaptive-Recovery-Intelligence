@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from .. import models
 from ..seed import COHORTS
-from . import compliance, engine, insights, playbook
+from . import compliance, engine, insights, playbook, router
 from .models import (
     AlertRule, Campaign, ContactRecord, Decision, EngagementEvent, FeatureSnapshot, Handoff, Insight, Nudge, Outcome,
     PlatformConfig, RolePermission, User,
@@ -42,45 +42,45 @@ USERS = [
 
 # name, owner, status, launch weeks ago, waves, fields
 CAMPAIGNS = [
-    ("STR-021", "Payment Plan AI Offer", "u-maya", "Live", 5, 5, dict(
+    ("STR-021", "Payment Plan Offer", "u-maya", "Live", 5, 5, dict(
         description="Instalment offers for medium-risk 30 DPD customers who can be helped. "
                     "Plans need a person to approve each offer.",
-        target_cohorts=["C2"], include_segments=["Persuadable"], treatment_codes=["S3", "S1", "S2"],
+        target_cohorts=["C2"], treatment_codes=["S3", "S1", "S2"],
         tone="Supportive", cadence_days=3, max_touches=3, escalate_to=None,
         wave_size=18, recovery_target=0.55)),
     ("STR-014", "Early Engagement Cascade", "u-maya", "Live", 5, 5, dict(
         description="Tiered digital reminders before any escalation. Works across early buckets.",
-        target_cohorts=["C1", "C2"], include_segments=["Persuadable"], treatment_codes=["S1", "S2", "S4"],
+        target_cohorts=["C1", "C2"], treatment_codes=["S1", "S2", "S4"],
         tone="Supportive", cadence_days=3, max_touches=3, escalate_to=None, wave_size=18,
         recovery_target=0.50)),
     ("STR-009", "Low Balance Quick Win", "u-ravi", "Live", 5, 5, dict(
         description="Fast one-touch SMS for balances under $2.5k. High close rate, minimal cost.",
-        target_cohorts=["C1"], include_segments=["Persuadable", "Sure Thing"], max_balance=2500,
+        target_cohorts=["C1"], max_balance=2500,
         treatment_codes=["S1", "S2"], tone="Neutral", cadence_days=2, max_touches=2, escalate_to=None,
         wave_size=24, recovery_target=0.70)),
     ("STR-018", "High-Risk Escalation Path", "u-maya", "Live", 4, 4, dict(
         description="Structured outreach for 60 DPD: plan offer, agent call, or hardship review.",
-        target_cohorts=["C3"], include_segments=["Persuadable", "Lost Cause"],
+        target_cohorts=["C3"],
         treatment_codes=["S3", "S5", "S6"], tone="Neutral", cadence_days=4, max_touches=2,
         escalate_to=None, wave_size=18, recovery_target=0.40)),
     ("STR-031", "Multi-Channel Blitz", "u-ravi", "Live", 3, 3, dict(
         description="Daily touches across SMS, app and calls with early escalation.",
-        target_cohorts=["C2", "C3"], include_segments=["Persuadable"], treatment_codes=["S1", "S5", "S2"],
+        target_cohorts=["C2", "C3"], treatment_codes=["S1", "S5", "S2"],
         tone="Direct", cadence_days=1, max_touches=4, escalate_after_days=5, escalate_to="S5",
         wave_size=20, recovery_target=0.65)),
     ("STR-022", "Settlement Fast-Track", "u-aisha", "Paused", 5, 2, dict(
         description="Deferral or call for very high-risk accounts. Paused pending review.",
-        target_cohorts=["C4"], include_segments=["Persuadable", "Lost Cause"],
+        target_cohorts=["C4"],
         treatment_codes=["S4", "S5", "S6"], tone="Neutral", cadence_days=4, max_touches=2,
         escalate_to=None, wave_size=12, recovery_target=0.35)),
     ("STR-027", "First-Time Delinquent Nurture", "u-ravi", "In review", None, 0, dict(
         description="Empathetic multi-touch sequence for first-time missed payments. Avoids escalation.",
-        target_cohorts=["C1"], include_segments=["Persuadable"], treatment_codes=["S2", "S1"],
+        target_cohorts=["C1"], treatment_codes=["S2", "S1"],
         tone="Supportive", cadence_days=4, max_touches=2, escalate_to=None, wave_size=20,
         recovery_target=0.60, steps_completed=6)),
     ("STR-025", "Low-Risk Nurture Flow", "u-maya", "Draft", None, 0, dict(
         description="Gentle app-first nudges for low-risk early arrears.",
-        target_cohorts=["C1"], include_segments=["Persuadable"], treatment_codes=["S2"],
+        target_cohorts=["C1"], treatment_codes=["S2"],
         tone="Supportive", cadence_days=5, max_touches=2, escalate_to=None, wave_size=20,
         recovery_target=0.55, steps_completed=2)),
 ]
@@ -108,6 +108,9 @@ def ensure_console(db: Session) -> None:
     # Additive only: new nullable columns. New tables (feature_snapshots,
     # eligibility_evals) are created by create_all at startup.
     added_columns = [("campaigns", "parent_id", "VARCHAR(12)"),
+                     ("customers", "route", "VARCHAR(12)"),
+                     ("customers", "route_validation", "BOOLEAN DEFAULT 0"),
+                     ("decisions", "validation", "BOOLEAN DEFAULT 0"),
                      ("decisions", "origin", "VARCHAR(12) DEFAULT 'wave'"),
                      ("decisions", "blocked_arms", "TEXT DEFAULT '[]'"),
                      ("decisions", "contract_version", "VARCHAR(10)"),
@@ -124,6 +127,7 @@ def ensure_console(db: Session) -> None:
     except Exception:  # not SQLite: migrations are handled by the deployment
         db.rollback()
     _backfill_snapshots(db)
+    router.route_unrouted(db)   # customers loaded before the Propensity Router existed
     have = {(r.role, r.permission) for r in db.query(RolePermission)}
     for role, grants in DEFAULT_GRANTS.items():
         for p in PERMISSION_KEYS:
@@ -199,6 +203,8 @@ def seed_console(db: Session, force: bool = False) -> dict:
                    counts=json.dumps({co["cohort_id"]: co["size"] for co in COHORTS}),
                    total=sum(co["size"] for co in COHORTS)))
     db.commit()
+    # Every account goes through the Propensity Router as it arrives.
+    router.route_unrouted(db, at=now - timedelta(weeks=6))
     # Review policy and eligibility rules come from the playbook, so it must be
     # described before the first wave runs.
     playbook.seed_meta(db)
@@ -206,12 +212,12 @@ def seed_console(db: Session, force: bool = False) -> dict:
     # ---- strategies ---------------------------------------------------------
     camps: dict[str, Campaign] = {}
     for i, (cid, name, owner, status, weeks, waves, f) in enumerate(CAMPAIGNS):
+        f = dict(f)   # popped below: keep the module's definitions intact for the next reseed
         created = now - timedelta(weeks=(weeks or 1) + 1, days=rng.randint(0, 3))
         c = Campaign(campaign_id=cid, name=name, owner_id=owner, created_by=owner, status="Draft",
                      source="manual", seed=101 + i, created_at=_iso(created), updated_at=_iso(created),
                      description=f.pop("description"),
                      target_cohorts=json.dumps(f.pop("target_cohorts")),
-                     include_segments=json.dumps(f.pop("include_segments")),
                      treatment_codes=json.dumps(f.pop("treatment_codes")),
                      risk_bands="[]", steps_completed=f.pop("steps_completed", 6), **f)
         db.add(c)

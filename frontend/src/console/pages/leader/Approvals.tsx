@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 
 import type { Strategy, Treatment } from "../../lib/api";
-import { ago, money, num, pct, SEGMENT_LABEL } from "../../lib/format";
+import { ago, money, num, pct } from "../../lib/format";
 import { useApi, useSession } from "../../lib/session";
 import { StrategyActions } from "../../ui/domain";
 import { Banner, Card, Chip, ErrorState, KV, Page, PageHeader, Spinner, StatusChip } from "../../ui/ui";
@@ -29,7 +29,7 @@ export default function Approvals() {
             <p className="mb-3 text-[13px] leading-5 text-fg-2">{s.description}</p>
             <div className="grid gap-4 md:grid-cols-2">
               <KV items={[
-                { label: "Audience", value: `${s.target_cohorts.join(", ")} · ${s.include_segments.map((g) => SEGMENT_LABEL[g]).join(", ")}` },
+                { label: "Audience", value: `${s.target_cohorts.join(", ")} · Likely responsive (Propensity Router)` },
                 { label: "Balance", value: `${s.min_balance !== null ? money(s.min_balance) : "any"} – ${s.max_balance !== null ? money(s.max_balance) : "any"}` },
                 { label: "Treatments", value: s.treatments.map((t) => t.name).join(", ") },
                 { label: "Needs human review", value: s.treatment_codes.filter((c) => treatments?.find((t) => t.code === c)?.human_review).join(", ") || "none" },

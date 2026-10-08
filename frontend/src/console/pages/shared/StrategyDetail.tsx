@@ -3,10 +3,11 @@ import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import type { DecisionRow, StrategyDetail as SD } from "../../lib/api";
-import { dateTime, money, num, pct, pp, SEGMENT_LABEL } from "../../lib/format";
+import { dateTime, money, num, pct, pp } from "../../lib/format";
 import { useApi, useSession } from "../../lib/session";
 import { AllocationChart, BarList, BeliefBars, BeliefTrajectory, RateVsControl, SERIES, UpliftRow } from "../../ui/charts";
-import { LEARNING_TONE, SegmentChip, StrategyActions, WaveButton } from "../../ui/domain";
+import { LEARNING_TONE, StrategyActions, WaveButton } from "../../ui/domain";
+import { StrategyScorecardCard } from "./StrategyScorecard";
 import {
   Banner, Button, Card, Chip, Empty, ErrorState, Kpi, KV, Page, PageHeader, Spinner, StatusChip, Table, Tabs, Td, Th, Tr,
 } from "../../ui/ui";
@@ -98,6 +99,7 @@ export default function StrategyDetail() {
                 The observed uplift ({pp(s.uplift)}) is smaller than this sample can reliably detect ({pp(s.mde)}). Keep the strategy running so the control group grows before drawing a conclusion.
               </Banner>
             ))}
+            <StrategyScorecardCard sc={data.scorecard} />
             <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
               <Card title="Treated vs control, by week" subtitle="The gap between the lines is what this strategy caused">
                 <RateVsControl data={data.weekly} target={data.recovery_target} />
@@ -133,12 +135,9 @@ export default function StrategyDetail() {
               <FlowStep n={1} title="Eligible population">
                 <p className="num text-2xl font-semibold">{num(p.eligible)}</p>
                 <p className="text-xs text-fg-3">of {num(p.matching)} customers in the target cohorts</p>
-                <div className="mt-3 space-y-1.5">
-                  {Object.entries(p.segments).map(([g, n]) => (
-                    <div key={g} className="flex items-center justify-between gap-2 text-xs">
-                      <SegmentChip segment={g} /><span className="num text-fg-2">{n}{data.include_segments.includes(g) ? "" : " · excluded"}</span>
-                    </div>
-                  ))}
+                <div className="mt-3 space-y-1 text-xs">
+                  <p className="flex justify-between gap-2"><span className="text-fg-2">Sent here by the Propensity Router</span><span className="num">{num(p.routed)}</span></p>
+                  {p.validation > 0 && <p className="flex justify-between gap-2"><span className="text-fg-3">of which its validation share</span><span className="num text-fg-3">{num(p.validation)}</span></p>}
                 </div>
                 {p.exclusions.length > 0 && (
                   <div className="mt-3 border-t border-line pt-2">
@@ -257,7 +256,7 @@ export default function StrategyDetail() {
             <Card title="Audience & treatments">
               <KV items={[
                 { label: "Cohorts", value: data.target_cohorts.join(", ") || "—" },
-                { label: "Fit groups", value: data.include_segments.map((g) => SEGMENT_LABEL[g]).join(", ") },
+                { label: "Routing", value: "Likely responsive customers, from the Propensity Router" },
                 { label: "Risk bands", value: data.risk_bands.join(", ") || "all" },
                 { label: "Days past due", value: `${data.min_dpd ?? "any"} – ${data.max_dpd ?? "any"}` },
                 { label: "Balance", value: `${data.min_balance !== null ? money(data.min_balance) : "any"} – ${data.max_balance !== null ? money(data.max_balance) : "any"}` },

@@ -123,7 +123,7 @@ function ResultView({ r, report, busy, onReport }: {
       )}
       {r.contact && (
         <p className="text-2xs leading-4 text-fg-3">
-          {r.contact.channel}: {r.contact.status.toLowerCase()} for {dateTime(r.contact.send_at)}{r.contact.simulated ? " (channel delivery not connected; no message sent)" : ""}. Send-time check: {r.contact.guard}
+          {r.contact.channel}: {r.contact.status.toLowerCase()} for {dateTime(r.contact.send_at)}{!r.contact.delivered ? " (channel delivery not connected; no message sent)" : ""}. Send-time check: {r.contact.guard}
         </p>
       )}
       {r.note && <p className="text-2xs leading-4 text-fg-3">{r.note}</p>}

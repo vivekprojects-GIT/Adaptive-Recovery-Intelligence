@@ -89,6 +89,11 @@ async def main(port: int) -> None:
 
     print("\n1. Access")
     async with httpx.AsyncClient() as h:
+        # No validation share for this suite's accounts, so every route is the one its fit group gets.
+        # verify_router.py covers the validation share.
+        r = await h.put(f"http://127.0.0.1:{port}/console/admin/config", headers={"X-User-Id": "u-priya"},
+                        json={"values": {"router_validation_share": "0"}})
+        assert r.status_code == 200, r.text
         body = {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
         accept = {"Accept": "application/json, text/event-stream"}
         r = await h.post(url, json=body, headers=accept)
@@ -130,12 +135,18 @@ async def main(port: int) -> None:
                   "asking twice returns the same decision - no second contact")
 
             john = result(await s.call_tool("get_recovery_strategy", {"account": JOHN}))
-            check(john["action"] == "no_action" and "self-cure" in john["summary"].lower(),
-                  f"will pay anyway -> {john['action']}: {john['summary'][:80]}")
+            check(john["action"] == "routed_bau" and "self-cure" in john["summary"].lower()
+                  and john["customer"]["routing"]["route"] == "bau",
+                  f"will pay anyway -> the Propensity Router keeps it on business as usual: {john['summary'][:80]}")
+            check(john["decision_id"] is None and john["strategy"] is None, "no strategy decides it, nothing is sent")
             mike = result(await s.call_tool("get_recovery_strategy", {"account": MIKE_C3}))
-            check(mike["strategy"] and mike["strategy"]["strategy_id"] == "STR-018",
-                  f"60 DPD, severe hardship -> {mike['strategy'] and mike['strategy']['strategy_id']}, "
-                  f"{(mike['treatment'] or {}).get('name') or mike['action']}")
+            check(mike["action"] == "routed_hardship" and mike["customer"]["routing"]["fit_group"] == "Lost Cause",
+                  f"60 DPD, severe hardship -> the hardship team ({mike['action']})")
+            rep = result(await s.call_tool("report_payment_outcome", {"account_id": JOHN["account_id"], "paid": True}))
+            check(rep["routing"]["route"] == "bau" and rep["paid"] and not rep["learned"],
+                  "his outcome is recorded against the router, and no strategy learns from it")
+            check(priya["customer"]["routing"]["route"] == "strategy",
+                  f"every reply says how the account was routed ({priya['customer']['routing']['reason'][:60]}...)")
             vul = result(await s.call_tool("get_recovery_strategy",
                                            {"account": {**PRIYA, "account_id": "NOVA-ACC-1004",
                                                         "vulnerability_flag": True}}))
@@ -259,7 +270,7 @@ async def main(port: int) -> None:
             if pending is None:
                 for i in range(30):
                     r = result(await s.call_tool("get_recovery_strategy",
-                                                 {"account": {**MIKE_C3, "account_id": f"NOVA-HARD-{i}"}}))
+                                                 {"account": {**PRIYA, "account_id": f"NOVA-PLAN-{i}"}}))
                     if r["action"] == "awaiting_approval":
                         pending = r
                         break

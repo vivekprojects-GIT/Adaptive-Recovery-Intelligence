@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from ... import models
 from ...core.database import SessionLocal, get_db
 from .. import mcp_server
+from .. import router as propensity_router
 from ..models import (
     AuditEvent, Campaign, ContactRecord, Decision, Handoff, Nudge, Outcome, PlatformConfig, RolePermission, User,
 )
@@ -180,8 +181,9 @@ def put_config(body: ConfigIn, user: User = Depends(require("configure_platform"
         except ValueError:
             raise HTTPException(400, f"Invalid value for {k}: {v}")
         if k == "shadow_mode" and v != "true":
-            raise HTTPException(409, "Shadow mode stays on: no channel gateway is connected, so ARI can only "
-                                     "simulate sends. It can be turned off once a real gateway is integrated.")
+            raise HTTPException(409, "Shadow mode stays on: no channel gateway is connected, so ARI records "
+                                     "contacts but cannot deliver them. It can be turned off once a channel "
+                                     "gateway is integrated.")
         row = db.get(PlatformConfig, k)
         if row and row.value != v:
             changed.append(f"{k}: {row.value} -> {v}")
@@ -194,7 +196,14 @@ def put_config(body: ConfigIn, user: User = Depends(require("configure_platform"
         audit(db, user.user_id, "UPDATE", "config", "platform", f"Changed {len(changed)} settings",
               {"changes": changed})
     db.commit()
-    return {"changed": changed}
+    out: dict = {"changed": changed}
+    if any(c.startswith("router_validation_share:") for c in changed):
+        # A new routing policy applies to everyone no strategy has decided yet.
+        out["rerouted"] = propensity_router.reroute_undecided(db)
+        audit(db, user.user_id, "UPDATE", "routing", "propensity-router",
+              f"Re-routed {out['rerouted']} undecided customers under the new validation share")
+        db.commit()
+    return out
 
 
 @router.get("/admin/integrations")

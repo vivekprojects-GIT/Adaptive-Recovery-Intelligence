@@ -66,6 +66,10 @@ export const weekLabel = (iso: string) => {
 export const initials = (name: string) =>
   name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
 
+/** Where the Propensity Router sends each customer. */
+export const ROUTE_LABEL: Record<string, string> = {
+  strategy: "Strategy", bau: "Business as usual", hardship: "Hardship team", suppress: "Suppressed",
+};
 export const SEGMENTS = ["Persuadable", "Sure Thing", "Lost Cause", "Sleeping Dog"];
 /** The colour that identifies each fit group in charts and their legends. */
 export const SEGMENT_COLOR: Record<string, string> = {

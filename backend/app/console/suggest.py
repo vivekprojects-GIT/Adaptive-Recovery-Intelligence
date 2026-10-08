@@ -31,12 +31,13 @@ from sqlalchemy.orm import Session
 from .. import models
 from ..scoring import eligibility, treatment_kind
 from . import analytics, engine
-from .models import Campaign, Decision, Outcome
+from .models import Campaign, Decision, Outcome, Routing
 from .platform import cfg, cfg_float
 from .playbook import active_codes, human_review_codes
 
-# Fit groups a strategy may target, and why the others are left out.
-TREATABLE = ("Persuadable", "Lost Cause")
+# The fit group the Propensity Router sends to strategies (router.py). Customers in
+# its validation share are scored, never targeted, so they are not counted here.
+TREATABLE = ("Persuadable",)
 FIT_LABEL = {"Persuadable": "likely to respond", "Lost Cause": "needs support", "Sure Thing": "likely to self-cure",
              "Sleeping Dog": "do not contact"}
 MIN_ACCOUNTS = 20       # an audience smaller than this is not worth a strategy
@@ -162,7 +163,8 @@ def _uncovered(db: Session) -> dict[str, list]:
     running = [k for (k,) in db.query(Campaign.campaign_id).filter(Campaign.status.in_(["Live", "Paused"]))]
     decided = {cid for (cid,) in db.query(Decision.customer_id).filter(Decision.campaign_id.in_(running))}
     out: dict[str, list] = defaultdict(list)
-    for c in db.query(models.Customer).filter(models.Customer.segment.in_(TREATABLE)):
+    for c in db.query(models.Customer).filter(models.Customer.route == "strategy",
+                                              models.Customer.route_validation.is_(False)):
         if c.customer_id in decided or any(engine.in_audience(x, c)[0] for x in live):
             continue
         out[c.cohort_id].append(c)
@@ -209,7 +211,7 @@ def _new_suggestions(db: Session, ev: Evidence) -> list[dict]:
             "name": name,
             "description": (f"Suggested by ARI from the decision log: covers {len(audience)} {cohort_id} accounts "
                             f"no live strategy reaches."),
-            "target_cohorts": [cohort_id], "include_segments": segments, "risk_bands": [],
+            "target_cohorts": [cohort_id], "risk_bands": [],
             "min_balance": None, "max_balance": None, "min_dpd": None, "max_dpd": None,
             "treatment_codes": [t["code"] for t in treatments],
             "cadence_days": 4 if "Lost Cause" in segments else 3, "max_touches": 2 if "Lost Cause" in segments else 3,
@@ -246,8 +248,9 @@ def _revision_suggestions(db: Session, ev: Evidence) -> list[dict]:
         if not (behind or no_lift or escalating):
             continue
         cohorts = json.loads(camp.target_cohorts)
-        segments = [x for x in json.loads(camp.include_segments) if x in TREATABLE] or ["Persuadable"]
-        audience = [c for c in engine.target_customers(db, camp) if c.segment in segments]
+        segments = list(TREATABLE)
+        audience = [c for c in engine.target_customers(db, camp)
+                    if c.route == "strategy" and not c.route_validation]
         treatments = _treatments(db, ev, audience, cohorts, segments)
         current = json.loads(camp.treatment_codes)
         proposed = [t["code"] for t in treatments]
@@ -311,12 +314,15 @@ def suggestions(db: Session, limit: int = 3) -> dict:
     new = next((x for x in found if x["kind"] == "new"), None)
     if new is not None and new not in found[:limit]:
         found = found[:limit - 1] + [new] + [x for x in found[limit - 1:] if x is not new]
-    # Fit groups deliberately left out, with the evidence for leaving them out.
+    # Fit groups the Propensity Router keeps off strategies, with how they paid without treatment.
     left_out = []
-    for seg in ("Sure Thing", "Sleeping Dog"):
-        p = sum(v[0] for (co, s), v in ev.ctrl.items() if s == seg)
-        n = sum(v[1] for (co, s), v in ev.ctrl.items() if s == seg)
-        reason = ("pays without help" if seg == "Sure Thing" else "contact is likely to backfire")
+    for seg in ("Sure Thing", "Lost Cause", "Sleeping Dog"):
+        rows = (db.query(Routing.paid).filter(Routing.fit_group == seg, Routing.route != "strategy",
+                                             Routing.paid.isnot(None)).all())
+        p, n = sum(1 for (x,) in rows if x), len(rows)
+        reason = {"Sure Thing": "pays without help: business as usual",
+                  "Lost Cause": "cannot pay: the hardship team takes them",
+                  "Sleeping Dog": "contact is likely to backfire: suppressed"}[seg]
         left_out.append({"segment": seg, "label": FIT_LABEL[seg], "reason": reason,
                          "control": None if not n else {"paid": p, "n": n, "rate": p / n}})
     return {"suggestions": found[:limit], "considered": len(found), "left_out": left_out}

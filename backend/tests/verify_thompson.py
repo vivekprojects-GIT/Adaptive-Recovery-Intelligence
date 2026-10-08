@@ -126,7 +126,12 @@ with TestClient(app) as api:
     r = api.delete("/console/treatments/S1", headers=MAYA)
     check(r.status_code == 409, "a treatment used by strategies cannot be deleted (409) - retire instead")
 
-    base = {"description": "Automated check", "target_cohorts": ["C2", "C3"], "include_segments": ["Persuadable"],
+    # This suite tests Thompson sampling on its own, so no customer is in the Propensity Router's
+    # validation share (treated but never taught). verify_router.py tests the router.
+    r = api.put("/console/admin/config", headers={"X-User-Id": "u-priya"},
+                json={"values": {"router_validation_share": "0"}})
+    check(r.status_code == 200, f"validation share off for this suite ({r.json().get('rerouted')} customers re-routed)")
+    base = {"description": "Automated check", "target_cohorts": ["C2", "C3"],
             "wave_size": 40, "control_pct": 0.2, "cadence_days": 3, "max_touches": 2, "tone": "Supportive",
             "send_window_start": 9, "send_window_end": 19, "evaluation_days": 7, "recovery_target": 0.4}
 

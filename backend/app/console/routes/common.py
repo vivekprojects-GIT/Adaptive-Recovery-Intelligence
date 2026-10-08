@@ -21,12 +21,12 @@ from ..platform import CUSTOMER_REF_OFFSET, METRICS, audit, now
 UTC = timezone.utc
 
 
-MATERIAL = {"target_cohorts", "include_segments", "risk_bands", "min_dpd", "max_dpd", "min_balance",
+MATERIAL = {"target_cohorts", "risk_bands", "min_dpd", "max_dpd", "min_balance",
             "max_balance", "treatment_codes", "control_pct", "escalate_to", "escalate_after_days"}
 
 
 # What a copy (clone or revision) carries over from its source.
-COPY_FIELDS = ("description", "target_cohorts", "include_segments", "risk_bands", "min_balance", "max_balance",
+COPY_FIELDS = ("description", "target_cohorts", "risk_bands", "min_balance", "max_balance",
                "min_dpd", "max_dpd", "treatment_codes", "cadence_days", "max_touches", "tone",
                "send_window_start", "send_window_end", "escalate_after_days", "escalate_to", "control_pct",
                "wave_size", "evaluation_days", "recovery_target")
@@ -71,7 +71,7 @@ def _strategy_out(db: Session, c: Campaign, stats: bool = True) -> dict:
         "approved_at", "launched_at", "waves_run", "owner_id", "created_by", "approved_by", "parent_id")}
     has_history = _has_decisions(db, c.campaign_id)
     revision = _open_revision(db, c.campaign_id) if c.status in ("Live", "Paused") else None
-    out.update(target_cohorts=jl(c.target_cohorts), include_segments=jl(c.include_segments),
+    out.update(target_cohorts=jl(c.target_cohorts),
                risk_bands=jl(c.risk_bands), treatment_codes=jl(c.treatment_codes),
                owner=names.get(c.owner_id), approver=names.get(c.approved_by),
                channels=sorted({t[x].channel for x in jl(c.treatment_codes) if x in t}),

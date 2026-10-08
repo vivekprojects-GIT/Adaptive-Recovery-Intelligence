@@ -26,6 +26,7 @@ from ..scoring import (
 )
 from .models import Campaign, Decision, Handoff, Nudge, TreatmentMeta, User
 from .platform import audit
+from . import router
 
 UTC = timezone.utc
 HUMAN_REVIEW_DEFAULT = {"S3", "S4", "S6"}
@@ -257,6 +258,7 @@ def ingest_handoff(db: Session, actor: str = "system", trigger: str = "manual",
     n_prev = db.query(func.count(Handoff.handoff_id)).scalar() or 0
     rng = random.Random(seed if seed is not None else 7_000 + n_prev)
     counts: dict[str, int] = {}
+    arrived: list = []
     for co in COHORTS:
         n = sizes.get(co["cohort_id"], 0)
         if not n:
@@ -282,8 +284,13 @@ def ingest_handoff(db: Session, actor: str = "system", trigger: str = "manual",
             cand.self_cure_score = self_cure_score(cand)
             cand.segment = segment_for(cand)
             db.add(cand)
+            arrived.append(cand)
             counts[co["cohort_id"]] = counts.get(co["cohort_id"], 0) + 1
     total = sum(counts.values())
+    db.flush()
+    at = datetime.now(timezone.utc)
+    for cand in arrived:   # every account goes through the Propensity Router as it arrives
+        router.record(db, cand, origin="handoff", at=at, simulate=True)
     db.add(Handoff(at=now(), by=actor, counts=json.dumps(counts), total=total, trigger=trigger))
     audit(db, actor, "CREATE", "handoff", str(n_prev + 1),
           f"Received cohort handoff #{n_prev + 1}: {total} new accounts ({trigger})", counts)

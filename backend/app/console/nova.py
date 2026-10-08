@@ -27,8 +27,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from .. import models
-from ..scoring import SEGMENT_ACTION, nudge_score, self_cure_score, segment_for
-from . import analytics, engine, rules
+from ..scoring import nudge_score, self_cure_score, segment_for
+from . import analytics, engine, router, rules
 from .contract import (
     FEATURE_SET_VERSION, Consent, NovaAccount, Received, RecoveryContextV1, guard_context, lineage_only, receive,
 )
@@ -36,7 +36,7 @@ from .contract import (
 # Re-exported: callers use nova.NovaAccount and nova.Consent.
 __all__ = ["Consent", "NovaAccount"]
 from .engine import UNNAMED, iso, jl
-from .models import Campaign, Decision, ExternalCustomer, FeatureSnapshot, Nudge, Outcome, TreatmentMeta
+from .models import Campaign, Decision, ExternalCustomer, FeatureSnapshot, Nudge, Outcome, Routing, TreatmentMeta
 from .platform import audit, cfg, now
 from .playbook import human_review_codes
 
@@ -153,6 +153,7 @@ def upsert(db: Session, rec: NovaAccount) -> tuple[models.Customer, list[str]]:
         else:
             link.customer_id = c.customer_id
     link.last_seen, link.payload = now(), payload
+    router.apply(c, router.validation_share(db))
     return c, assumed
 
 
@@ -163,6 +164,7 @@ def _transient(db: Session, rec: NovaAccount) -> tuple[models.Customer, list[str
     c = models.Customer(is_persona=False)
     assumed = _apply(rec, c)
     c.customer_id = link.customer_id if link else None
+    router.apply(c, router.validation_share(db))
     return c, assumed
 
 
@@ -182,11 +184,10 @@ def _in_journey(db: Session, customer_id: int) -> Decision | None:
 
 
 def _specificity(camp: Campaign) -> tuple:
-    """Most specific audience first: fewer cohorts, fewer fit groups, more
-    filters. Then the earliest launched. A strategy written for exactly this
+    """Most specific audience first: fewer cohorts, more filters. Then the earliest launched. A strategy written for exactly this
     kind of account beats a broad one that also covers it."""
     filters = sum(v is not None for v in (camp.min_dpd, camp.max_dpd, camp.min_balance, camp.max_balance))
-    return (len(jl(camp.target_cohorts)) or 99, len(jl(camp.include_segments)),
+    return (len(jl(camp.target_cohorts)) or 99,
             -(filters + len(jl(camp.risk_bands))), camp.launched_at or "", camp.campaign_id)
 
 
@@ -210,7 +211,8 @@ def _customer_out(rec_id: str, c) -> dict:
     return {"account_id": rec_id, "ari_customer_id": c.customer_id, "cohort": c.cohort_id,
             "days_past_due": c.days_past_due, "risk_band": c.client_risk_band,
             "intervention_fit": FIT_LABEL.get(c.segment, c.segment), "fit_group": c.segment,
-            "nudge_score": c.nudge_score, "self_cure_score": c.self_cure_score}
+            "nudge_score": c.nudge_score, "self_cure_score": c.self_cure_score,
+            "routing": router.routing_out(getattr(c, "_routing", None) or router.decide(c, 0.0))}
 
 
 def _treatment_out(db: Session, code: str | None) -> dict | None:
@@ -290,7 +292,7 @@ def describe(db: Session, dec: Decision, c, camp: Campaign, account_id: str, *, 
         guard_stage = next((s for s in stages if s["stage"] == "Compliance check"), None)
         contact = {"nudge_id": nudge.nudge_id, "channel": nudge.channel, "send_at": nudge.scheduled_at,
                    "status": nudge.status, "guard": guard_stage["detail"] if guard_stage else None,
-                   "simulated": True}
+                   "delivered": False}
 
     if preview:
         next_step = "Call get_recovery_strategy with the same account to record the decision and act on it."
@@ -457,6 +459,25 @@ def recovery_strategy(db: Session, request: NovaAccount | RecoveryContextV1 | Re
             out["summary"] = f"Already in {camp.campaign_id} since {ongoing.decided_at[:10]}. " + out["summary"]
             return _received_out(out, got)
 
+    if not stops:
+        if record:
+            router.record(db, c, origin="mcp", at=at, simulate=False)
+        if c.route != "strategy":
+            if record:
+                db.commit()
+            r = c._routing
+            action = {"bau": "routed_bau", "hardship": "routed_hardship", "suppress": "routed_suppressed"}[c.route]
+            out = _no_action(rec.account_id, c, f"Propensity Router: {r['reason']}. No strategy contacts this "
+                                                f"account.", assumed=assumed, action=action)
+            if record:
+                out["next_step"] = (f"Report the payment outcome after {router.OUTCOME_WINDOW_DAYS} days: "
+                                    f"report_payment_outcome(account_id='{rec.account_id}', paid=true|false). "
+                                    f"It scores the router; it never changes a strategy's treatment scores.")
+            if cancelled:
+                out["cancelled_decisions"] = cancelled
+                out["summary"] += f" Cancelled the offer still waiting for review ({', '.join(cancelled)})."
+            return _received_out(out, got)
+
     camp, checked = route(db, c)
     if camp is None:
         if record:
@@ -468,11 +489,10 @@ def recovery_strategy(db: Session, request: NovaAccount | RecoveryContextV1 | Re
             out = _no_action(rec.account_id, c, _exclusion_summary(action, [{"reasons": stops}], ""),
                              checked=checked, assumed=assumed, action=action)
         else:
-            handling = SEGMENT_ACTION.get(c.segment, "")
             why = ("no live strategy targets this account" if not checked else
                    "no live strategy's audience includes this account")
-            out = _no_action(rec.account_id, c, f"{FIT_LABEL.get(c.segment, c.segment)}: {why}. Default handling: "
-                                                f"{handling[0].lower() + handling[1:] if handling else 'business as usual'}.",
+            out = _no_action(rec.account_id, c, f"{FIT_LABEL.get(c.segment, c.segment)}: the Propensity Router sends "
+                                                f"it to strategies, but {why}. It stays on business as usual.",
                              checked=checked, assumed=assumed)
         if cancelled:
             out["cancelled_decisions"] = cancelled
@@ -577,12 +597,52 @@ def binary_reward(facts: dict) -> float:
     return 1.0 if facts["paid"] and facts["in_window"] else 0.0
 
 
+def _routed_away(db: Session, rep: PaymentReport) -> Routing | None:
+    """The account's latest routing, when the router kept it off strategies
+    after its latest decision (or it never had one)."""
+    if rep.decision_id or not rep.account_id:
+        return None
+    link = _link(db, rep.account_id)
+    if link is None:
+        return None
+    r = router.latest(db, link.customer_id)
+    if r is None or r.route == "strategy":
+        return None
+    last = (db.query(Decision).filter(Decision.customer_id == link.customer_id)
+            .order_by(Decision.decided_at.desc()).first())
+    return r if last is None or last.decided_at < r.routed_at else None
+
+
+def _routing_outcome(db: Session, rep: PaymentReport, r: Routing) -> dict:
+    """Record what happened to an account the router kept off strategies. It
+    scores the router and never changes a strategy's treatment scores."""
+    routed = datetime.fromisoformat(r.routed_at)
+    in_window = rep.payment_date is None or (rep.payment_date - routed.date()).days <= r.window_days
+    paid = rep.paid and rep.payment_status == "Posted" and in_window
+    c = db.get(models.Customer, r.customer_id)
+    r.paid = paid
+    r.amount = (rep.amount if rep.amount is not None else engine.arrears(c)) if paid else 0.0
+    r.observed_at = now()
+    audit(db, ACTOR, "UPDATE", "routing", rep.account_id,
+          f"Outcome for {rep.account_id} ({router.ROUTE_LABEL[r.route].lower()}): "
+          f"{'paid' if paid else 'not paid'}")
+    db.commit()
+    return {"decision_id": None, "account_id": rep.account_id, "routing": router.routing_out(r),
+            "recorded": True, "corrected": False, "paid": paid, "counted_as_success": paid, "learned": False,
+            "note": ("Recorded against the Propensity Router. It scores the router; it never changes a "
+                     "strategy's treatment scores.")
+                    + ("" if in_window else f" Paid after the {r.window_days}-day window, so it counts as not paid.")}
+
+
 def report_outcome(db: Session, rep: PaymentReport) -> dict:
     """Record a payment outcome and learn from it where the rules allow."""
+    routed = _routed_away(db, rep)
+    if routed is not None:
+        return _routing_outcome(db, rep, routed)
     dec = _decision_for(db, rep.decision_id, rep.account_id)
     if dec.origin != "mcp":
-        raise NovaError(f"{dec.decision_id} was decided in a console wave; its outcome comes from the simulator, "
-                        f"not from a report.")
+        raise NovaError(f"{dec.decision_id} was decided in a console wave; ARI tracks its outcome itself, "
+                        f"so it is not reported over MCP.")
     if dec.group == "Excluded":
         raise NovaError(f"{dec.decision_id} was excluded before any treatment: nothing was sent, so there is no "
                         f"outcome to record or learn from.")
@@ -594,7 +654,7 @@ def report_outcome(db: Session, rep: PaymentReport) -> dict:
     first = (db.query(Nudge).filter(Nudge.decision_id == dec.decision_id).order_by(Nudge.scheduled_at).first())
     delivered = first is not None and first.status not in ("Failed", "Held")
     treated = dec.group == "Treatment"
-    learnable = treated and delivered and not dec.overridden and (
+    learnable = treated and delivered and not dec.overridden and not dec.validation and (
         dec.review_policy == "auto" or dec.review_status == "approved")
     code = dec.treatment_code
     before = engine.beliefs(db, camp).get(code) if treated and code else None
@@ -625,6 +685,9 @@ def report_outcome(db: Session, rep: PaymentReport) -> dict:
         note = "Recorded as a control outcome: it is the comparison for uplift, not something to learn from."
     elif dec.overridden:
         note = "Recorded, not learned from: a person overrode this decision."
+    elif dec.validation:
+        note = ("Recorded, not learned from: the account is in the Propensity Router's validation share, so the "
+                "outcome scores the router and is never taught to Thompson sampling.")
     elif not delivered:
         note = ("Recorded, not learned from: the treatment never reached the customer "
                 f"({_not_sent(dec, first)}).")
@@ -663,7 +726,7 @@ def strategies(db: Session) -> list[dict]:
             "strategy_id": camp.campaign_id, "name": camp.name, "version": camp.version,
             "description": camp.description,
             "audience": {"cohorts": [f"{x} {names.get(x, '')}".strip() for x in jl(camp.target_cohorts)],
-                         "fit_groups": [FIT_LABEL.get(g, g) for g in jl(camp.include_segments)],
+                         "fit_groups": ["Likely responsive (sent by the Propensity Router)"],
                          "risk_bands": jl(camp.risk_bands) or "any",
                          "days_past_due": [camp.min_dpd, camp.max_dpd], "balance": [camp.min_balance, camp.max_balance]},
             "treatments": [{"code": t["code"], "name": t["name"], "channel": t["channel"]} for t in treatments if t],

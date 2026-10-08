@@ -7,7 +7,6 @@ import { useNavigate } from "react-router-dom";
 import { api, type Strategy } from "../../../lib/api";
 import { num, pct, pp } from "../../../lib/format";
 import { useApi, useSession } from "../../../lib/session";
-import { SegmentChip } from "../../../ui/domain";
 import { Banner, Button, Chip, Pills, Spinner, inputCls, useAction } from "../../../ui/ui";
 
 export default function Library() {
@@ -63,7 +62,6 @@ export default function Library() {
               </div>
               <div className="mt-3 flex flex-wrap gap-1">
                 {s.channels.map((c) => <Chip key={c} tone="info">{c}</Chip>)}
-                {s.include_segments.map((g) => <SegmentChip key={g} segment={g} />)}
               </div>
               <div className="mt-auto flex items-center justify-between gap-2 pt-3 text-2xs text-fg-3">
                 <span>{s.owner} · {num(st.decisions)} accounts</span>

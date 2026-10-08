@@ -23,6 +23,10 @@ CONFIG_DEFAULTS: list[tuple[str, str, str, str, str, str]] = [
      "How long to wait for a payment before scoring a decision. Delayed-outcome handling is an open design item."),
     ("prior_strength", "10", "Prior strength (pseudo-observations)", "Experiment design", "number",
      "How much weight the playbook's historical success rate gets before live evidence."),
+    ("router_validation_share", "0.05", "Validation share", "Propensity Router", "percent",
+     "Share of the Likely self-cure and Needs support groups sent to strategies against their route, so the "
+     "router can be scored. Never taught to Thompson sampling and kept out of strategy results. Do not contact "
+     "is never included. At most 10%."),
     ("contact_cap_7d", "7", "Max contacts per customer per 7 days", "Contact policy", "number",
      "All channels, ARI and business-as-usual combined. Aligned to Reg F's 7-in-7."),
     ("call_cap_7d", "7", "Max call attempts per 7 days", "Contact policy", "number",

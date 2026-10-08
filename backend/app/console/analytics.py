@@ -15,11 +15,12 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from .. import models
-from .engine import arrears, jl
+from .engine import arrears, current_standing, jl, learning_step
 from .models import (
-    Campaign, ContactRecord, Decision, EngagementEvent, Nudge, Outcome, User,
+    Campaign, ContactRecord, Decision, EngagementEvent, Nudge, Outcome, Routing, User,
 )
 from .platform import cfg_float
+from . import router
 
 UTC = timezone.utc
 
@@ -66,8 +67,11 @@ def _rows(db: Session, campaign_ids: list[str] | None = None, since: str | None 
 
 def stats_from_rows(db: Session, rows, nudges: list[Nudge] | None = None) -> dict:
     costs = treatment_costs(db)
-    treated = [(d, o) for d, o in rows if d.group == "Treatment" and o is not None and o.reward is not None]
-    control = [(d, o) for d, o in rows if d.group == "Control" and o is not None]
+    # The Propensity Router's validation share is outside the groups a strategy is
+    # for: it scores the router, so it is kept out of the strategy's own result.
+    treated = [(d, o) for d, o in rows if d.group == "Treatment" and not d.validation
+               and o is not None and o.reward is not None]
+    control = [(d, o) for d, o in rows if d.group == "Control" and not d.validation and o is not None]
     t_paid = sum(1 for _, o in treated if o.paid)
     c_paid = sum(1 for _, o in control if o.paid)
     t_rate = t_paid / len(treated) if treated else None
@@ -301,6 +305,96 @@ def customer_state(db: Session, customer_ids: list[int] | None = None) -> dict[i
     return out
 
 
+def unrouted_status(c) -> str:
+    """Status for a customer no strategy has decided: where the router sent them."""
+    if c.route and c.route != "strategy":
+        return router.ROUTE_LABEL[c.route]
+    return "Awaiting a strategy" if c.route == "strategy" else "Not routed yet"
+
+
+ENGAGEMENT_LABEL = {"Opened": "Message opened", "Clicked": "Clicked payment link",
+                    "FormCompleted": "Completed payment form", "Answered": "Call answered",
+                    "OptOut": "Opted out of messages"}
+
+
+def _flow(db: Session, c, d: Decision, camp: Campaign | None, treatments: dict[str, str],
+          step: dict | None, standing: dict[str, dict]) -> dict:
+    """One decision from start to finish: what was chosen and why, what was sent,
+    what the customer did, the outcome, and what ARI learned from it."""
+    ranking = jl(d.ranking, [])
+    chosen = next((r for r in ranking if r.get("code") == d.treatment_code), None)
+    runner = next((r for r in ranking if r.get("code") != d.treatment_code), None)
+    nudges = db.query(Nudge).filter(Nudge.decision_id == d.decision_id).order_by(Nudge.scheduled_at).all()
+    sent = [n for n in nudges if n.sent_at]
+    engaged = ({e.event for e in db.query(EngagementEvent)
+                .filter(EngagementEvent.nudge_id.in_([n.nudge_id for n in nudges]))} if nudges else set())
+    o = db.query(Outcome).filter(Outcome.decision_id == d.decision_id).first()
+    window = o.window_days if o else (camp.evaluation_days if camp else 7)
+
+    if d.group == "Excluded" or (d.group == "Treatment" and not d.treatment_code):
+        outcome = {"state": "none"}
+    elif d.review_status == "pending":
+        outcome = {"state": "pending_review"}
+    elif d.review_status in ("cancelled", "rejected"):
+        outcome = {"state": d.review_status}
+    elif o is None:
+        outcome = {"state": "in_window"}
+    elif o.paid:
+        outcome = {"state": "paid", "amount": round(o.amount, 2), "days_to_pay": o.days_to_pay,
+                   "full": o.amount >= arrears(c)}
+    elif o.reward is None:
+        outcome = {"state": "not_delivered"}
+    else:
+        outcome = {"state": "not_paid"}
+    outcome |= {"window_days": window, "observed_at": o.observed_at if o else None,
+                "window_ends": (_dt(d.decided_at) + timedelta(days=window)).isoformat(timespec="seconds")}
+
+    if step and camp:
+        if camp.campaign_id not in standing:
+            standing[camp.campaign_id] = current_standing(db, camp)
+        learning = {"state": "learned", **step, "now": standing[camp.campaign_id].get(step["code"])}
+    elif d.group == "Control":
+        learning = {"state": "control", "reason": "Control customers measure the strategy against business as "
+                                                  "usual. They never change the treatment scores."}
+    elif outcome["state"] == "in_window":
+        learning = {"state": "waiting", "reason": "Counts when the evaluation window closes."}
+    elif outcome["state"] == "pending_review":
+        learning = {"state": "waiting", "reason": "Waits for a person to approve the offer before anything is sent."}
+    elif outcome["state"] == "not_delivered":
+        learning = {"state": "not_learned", "reason": "The message never reached the customer, so the outcome "
+                                                      "says nothing about the treatment."}
+    elif outcome["state"] == "none":
+        learning = {"state": "none", "reason": "No treatment was chosen, so there is nothing to learn from."}
+    else:
+        learning = {"state": "not_learned", "reason": "This outcome was not used for learning."}
+
+    snap = jl(d.snapshot, {})
+    group = snap.get("segment") or c.segment
+    routing = {"fit_group": group, "fit_label": router.GROUP_LABEL.get(group, group),
+               "nudge_score": snap.get("nudge_score", c.nudge_score),
+               "self_cure_score": snap.get("self_cure_score", c.self_cure_score), "validation": bool(d.validation)}
+    if d.validation and learning["state"] == "not_learned":
+        learning["reason"] = ("In the Propensity Router's validation share: the outcome scores the router and is "
+                              "never taught to Thompson sampling.")
+    return {
+        "decision_id": d.decision_id, "campaign_id": d.campaign_id, "routing": routing,
+        "campaign_name": camp.name if camp else "", "version": camp.version if camp else None,
+        "wave": d.wave, "origin": d.origin, "decided_at": d.decided_at, "group": d.group,
+        "treatment_code": d.treatment_code, "treatment": treatments.get(d.treatment_code or ""),
+        "explanation": d.explanation, "exclusion_reason": d.exclusion_reason, "review_status": d.review_status,
+        "why": ({"allowed": len(ranking), "selection_probability": d.selection_probability,
+                 "belief": chosen.get("belief"), "fit": chosen.get("fit"), "score": chosen.get("score"),
+                 "runner_up": runner.get("name") if runner else None,
+                 "runner_up_score": runner.get("score") if runner else None} if chosen else None),
+        "contact": {"sent": len(sent), "held": sum(1 for n in nudges if n.status in ("Held", "Failed")),
+                    "channels": sorted({n.channel for n in sent}),
+                    "first_sent_at": sent[0].sent_at if sent else None},
+        "engagement": [ENGAGEMENT_LABEL.get(e, e) for e in ("Opened", "Clicked", "FormCompleted", "Answered", "OptOut")
+                       if e in engaged],
+        "outcome": outcome, "learning": learning,
+    }
+
+
 def journey(db: Session, customer_id: int) -> dict:
     c = db.get(models.Customer, customer_id)
     if not c:
@@ -316,7 +410,21 @@ def journey(db: Session, customer_id: int) -> dict:
                        "detail": f"{c.days_past_due} days past due · balance ${c.balance:,.0f} · "
                                  f"client risk {c.client_risk_band.lower()} ({c.client_risk_score:.0f})",
                        "tag": "Handoff"})
+    routings = db.query(Routing).filter(Routing.customer_id == customer_id).order_by(Routing.routing_id).all()
+    for r in routings:
+        events.append({"at": r.routed_at, "kind": "routing", "tag": "Validation" if r.validation else
+                       router.ROUTE_LABEL.get(r.route, r.route),
+                       "title": f"Propensity Router: {router.GROUP_LABEL.get(r.fit_group, r.fit_group)} → "
+                                f"{router.ROUTE_LABEL.get(r.route, r.route)}",
+                       "detail": f"{r.reason}. Nudge propensity {r.nudge_score:.0f}, self-cure {r.self_cure_score:.0f}."})
+        if r.route != "strategy" and r.paid is not None and r.observed_at:
+            events.append({"at": r.observed_at, "kind": "payment" if r.paid else "outcome",
+                           "title": (f"Paid ${r.amount or 0:,.2f} without a strategy" if r.paid
+                                     else "Window closed: no payment"),
+                           "detail": f"Within {r.window_days} days of routing. Scores the router; no strategy "
+                                     f"learns from it.", "tag": "Paid" if r.paid else "Not paid"})
     nudge_ids = []
+    steps: dict[str, dict | None] = {}
     for d in decisions:
         k = camps.get(d.campaign_id)
         events.append({"at": d.decided_at, "kind": "decision",
@@ -342,11 +450,23 @@ def journey(db: Session, customer_id: int) -> dict:
                            "detail": f"{o.days_to_pay} days after decision · "
                                      + ("full arrears" if o.amount >= arrears(c) else "partial"),
                            "tag": "Paid"})
+        elif o and d.group != "Excluded" and o.reward is not None:
+            events.append({"at": o.observed_at, "kind": "outcome", "title": "Window closed: no payment",
+                           "detail": f"No payment within {o.window_days} days of the decision.", "tag": "Not paid"})
+        step = learning_step(db, k, o) if (o and k) else None
+        steps[d.decision_id] = step
+        if step:
+            b, a = step["before"], step["after"]
+            at = (_dt(o.observed_at) + timedelta(seconds=1)).isoformat(timespec="seconds")
+            events.append({"at": at, "kind": "learning", "decision_id": d.decision_id, "tag": "Learned",
+                           "title": f"Learning updated: {step['name']} in {d.campaign_id}",
+                           "detail": f"Reward {step['reward']:.0f} ({'paid' if o.paid else 'no payment'} within "
+                                     f"{o.window_days} days). Estimated payment rate {b['mean']:.1%} → "
+                                     f"{a['mean']:.1%}; chance it is the best treatment {b['p_best']:.0%} → "
+                                     f"{a['p_best']:.0%}."})
     if nudge_ids:
         for e in db.query(EngagementEvent).filter(EngagementEvent.nudge_id.in_(nudge_ids)):
-            label = {"Opened": "Message opened", "Clicked": "Clicked payment link",
-                     "FormCompleted": "Completed payment form", "Answered": "Call answered",
-                     "OptOut": "Opted out of messages"}.get(e.event, e.event)
+            label = ENGAGEMENT_LABEL.get(e.event, e.event)
             events.append({"at": e.at, "kind": "engagement", "title": label,
                            "detail": f"via {e.nudge_id}", "tag": e.event, "nudge_id": e.nudge_id})
     for r in db.query(ContactRecord).filter(ContactRecord.customer_id == customer_id,
@@ -370,6 +490,7 @@ def journey(db: Session, customer_id: int) -> dict:
     paid = db.query(Outcome).filter(Outcome.customer_id == customer_id, Outcome.paid.is_(True)).all()
     eng = db.query(EngagementEvent).filter(EngagementEvent.customer_id == customer_id).count()
     days_active = ((datetime.now(UTC) - _dt(first)).days if first else 0)
+    standing: dict[str, dict] = {}   # each strategy's current beliefs, computed once
     return {
         "customer": {k: getattr(c, k) for k in (
             "customer_id", "name", "cohort_id", "balance", "credit_limit", "days_past_due",
@@ -381,8 +502,11 @@ def journey(db: Session, customer_id: int) -> dict:
                     "decisions": len(decisions), "engagement_events": eng,
                     "response_rate": round(eng / max(1, sum(1 for n in nudges if n.sent_at)), 2),
                     "amount_recovered": round(sum(o.amount for o in paid), 2),
-                    "status": state["status"] if state else "Not in a strategy"},
+                    "status": state["status"] if state else unrouted_status(c)},
         "next_action": nxt,
+        "routing": router.routing_out(routings[-1]) if routings else None,
+        "flows": [_flow(db, c, d, camps.get(d.campaign_id), treatments, steps.get(d.decision_id), standing)
+                  for d in reversed(decisions)],
     }
 
 
@@ -423,7 +547,7 @@ def learning_state(camp: Campaign, learning: dict, population: dict, beliefs: di
     people elsewhere - and the verdict says which."""
     arms, waves = learning["arms"], learning["waves"]
     last = waves[-1]
-    in_segment = sum(population["segments"].get(g, 0) for g in jl(camp.include_segments))
+    in_segment = population["routed"]   # customers the Propensity Router sends to strategies
     recent = [w for w in waves if w["wave"] > 0][-RECENT_WAVES:]
     treated = sum(w["treated"] for w in recent)
     per_arm = []

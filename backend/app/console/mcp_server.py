@@ -50,8 +50,8 @@ Send an account's context with get_recovery_strategy. ARI finds the live strateg
 and holds a random share out as a control group. For the rest, consent, opt-outs and contact caps first
 decide which of the business-approved treatments the customer may receive; Thompson sampling, with a
 customer-fit adjustment, then chooses among those. Payment plans, deferrals and hardship offers wait for a
-person to approve them, and the contact rules are checked again when they do. Sends are simulated: no
-channel gateway is connected. The answer says what to do, why, and what happens next.
+person to approve them, and the contact rules are checked again when they do. No channel gateway is
+connected yet, so contacts are recorded but not delivered. The answer says what to do, why, and what happens next.
 
 Two request shapes are accepted. `account` is the original flat payload (contract v0), unchanged.
 `context` is RecoveryContext v1: request_id, as_of_timestamp, party, account, delinquency, arrangement,
@@ -135,8 +135,8 @@ async def get_recovery_strategy(
     ARI routes the account to the live strategy whose audience includes it and splits a random control
     share off. For treated accounts, consent, opt-outs and the 7-in-7 contact cap first remove the
     treatments the customer may not receive; Thompson sampling (with a customer-fit adjustment) then
-    chooses among the rest, and the contact is scheduled. Sends are simulated: no channel gateway is
-    connected. Payment plans, deferrals and hardship offers wait for a person to approve them first.
+    chooses among the rest, and the contact is scheduled. No channel gateway is connected yet, so the
+    contact is recorded but not delivered. Payment plans, deferrals and hardship offers wait for a person to approve them first.
     Calling again for the same account_id returns the existing decision rather than contacting the
     customer twice, and so does repeating a request_id. A hard stop (vulnerability, a restriction) cancels
     an offer still waiting for review. Every rule is evaluated for every candidate treatment and kept.

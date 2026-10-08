@@ -116,7 +116,7 @@ export interface Stats {
 
 export interface Strategy {
   campaign_id: string; name: string; description: string; status: string; version: number;
-  source: string; steps_completed: number; target_cohorts: string[]; include_segments: string[];
+  source: string; steps_completed: number; target_cohorts: string[];
   risk_bands: string[]; min_balance: number | null; max_balance: number | null;
   min_dpd: number | null; max_dpd: number | null; treatment_codes: string[];
   cadence_days: number; max_touches: number; tone: string; send_window_start: number;
@@ -140,6 +140,8 @@ export interface Strategy {
 
 export interface Population {
   matching: number; segments: Record<string, number>;
+  /** Sent to strategies by the Propensity Router, and how many of those are its validation share. */
+  routed: number; validation: number;
   exclusions: { reason: string; count: number }[];
   eligible: number; control: number; treatment: number; arm_eligibility: Record<string, number>;
 }
@@ -208,11 +210,22 @@ export interface AnalyticsRow extends Strategy {
   stats: Stats; learning: Learning; learning_state: LearningState; results_state: ResultsState;
 }
 
+/** What a strategy caused, against its own control group (scorecards.py). */
+export interface StrategyScorecard {
+  treated: number; control: number; uplift: number | null; uplift_ci: [number, number] | null; significant: boolean;
+  incremental_recoveries: number | null; incremental_range: [number, number] | null;
+  recovered_per_treated: number | null; recovered_per_control: number | null; incremental_dollars: number | null;
+  incremental_dollars_range: [number, number] | null; dollars_proven: boolean;
+  contact_cost: number; cost_per_incremental_recovery: number | null; return_on_contact: number | null;
+  treatments: { code: string; name: string; mean: number; p_best: number; learned: number }[];
+  validation_decisions: number;
+}
+
 export interface StrategyDetail extends Strategy {
   stats: Stats; population: Population; beliefs: Belief[]; weekly: WeekPoint[];
   arms: ArmResult[]; waves: ({ wave: number } & Stats)[]; learning: Learning;
   learning_state: LearningState; results_state: ResultsState;
-  pool_remaining: number | null;
+  pool_remaining: number | null; scorecard: StrategyScorecard;
   versions: { campaign_id: string; version: number; status: string; owner: string; created_at: string;
     launched_at: string | null; current: boolean }[];
 }
@@ -259,7 +272,7 @@ export interface InsightRow {
 
 export interface CustomerRow {
   customer_id: number; name: string; cohort_id: string; balance: number; arrears: number;
-  days_past_due: number; risk_score: number; risk_band: string; segment: string;
+  days_past_due: number; risk_score: number; risk_band: string; segment: string; route: string | null; route_validation: boolean;
   status: string; progress: number; strategy: string | null; campaign_id: string | null;
   treatment: string | null; last_contact: string | null;
 }
@@ -301,7 +314,7 @@ export interface AgentDecision {
   cancelled_decisions?: string[];
   explanation?: string; message?: string | null;
   contact?: { nudge_id: string; channel: string; send_at: string; status: string; guard: string | null;
-    simulated: boolean } | null;
+    delivered: boolean } | null;
   review?: { required: boolean; status: string };
   outcome?: { paid: boolean; amount: number; days_to_pay: number | null; learned: boolean } | null;
   decided_at?: string | null; next_step: string | null; note?: string; assumed?: string[];

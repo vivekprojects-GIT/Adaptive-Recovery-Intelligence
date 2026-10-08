@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 
 from ...core.database import get_db
-from .. import analytics, compliance, engine, insights, playbook, suggest
+from .. import analytics, compliance, engine, insights, playbook, suggest, scorecards
 from ..engine import jl
 from ..models import Campaign, Decision, Outcome, User
 from ..platform import audit, cfg, now
@@ -29,7 +29,6 @@ class StrategyIn(BaseModel):
     name: str = Field(min_length=3, max_length=100)
     description: str = ""
     target_cohorts: list[str] = []
-    include_segments: list[str] = ["Persuadable"]
     risk_bands: list[str] = []
     min_balance: float | None = None
     max_balance: float | None = None
@@ -92,18 +91,27 @@ def list_strategies(scope: str = "all", status: str | None = None,
 
 
 @router.get("/strategies/estimate")
-def estimate(cohorts: str = "", segments: str = "Persuadable", risk_bands: str = "",
+def estimate(cohorts: str = "", risk_bands: str = "",
              min_balance: float | None = None, max_balance: float | None = None,
              min_dpd: int | None = None, max_dpd: int | None = None, treatments: str = "",
              user: User = Depends(require("view_kpi_dashboard")), db: Session = Depends(get_db)):
     """Live count for the guided builder: how many customers this definition reaches."""
     tmp = Campaign(campaign_id="STR-TMP", target_cohorts=json.dumps([x for x in cohorts.split(",") if x]),
-                   include_segments=json.dumps([x for x in segments.split(",") if x]),
                    risk_bands=json.dumps([x for x in risk_bands.split(",") if x]),
                    min_balance=min_balance, max_balance=max_balance, min_dpd=min_dpd, max_dpd=max_dpd,
                    treatment_codes=json.dumps([x for x in treatments.split(",") if x] or ["S1"]),
                    control_pct=0.2)
     return engine.population_breakdown(db, tmp)
+
+
+@router.get("/strategies/recommendations")
+def form_recommendations(cohorts: str = "", editing: str = "", user: User = Depends(require("create_strategy")),
+                         db: Session = Depends(get_db)):
+    """Recommendations for the cohorts on the builder form as it stands, saved or
+    not, so they follow every change. `editing` is the strategy being edited."""
+    c = db.get(Campaign, editing) if editing else None
+    return build_recommendations(db, {x for x in cohorts.split(",") if x},
+                                 set(engine.lineage(db, c)) if c else set())
 
 
 # Registered before /strategies/{cid}, which would otherwise take "suggestions" as an id.
@@ -167,6 +175,7 @@ def strategy_detail(cid: str, user: User = Depends(require("view_kpi_dashboard")
     out["learning"] = engine.learning(db, c)
     out["pool_remaining"] = len(engine.undecided_pool(db, c)) if c.status in ("Live", "Paused") else None
     out["weekly"] = analytics.weekly(db, [cid])
+    out["scorecard"] = scorecards.strategy(db, c)
     # Per arm: raw rate and the reweighted (inverse-propensity) rate.
     arms = []
     rows = analytics._rows(db, [cid])
@@ -176,7 +185,7 @@ def strategy_detail(cid: str, user: User = Depends(require("view_kpi_dashboard")
         if code not in t:
             continue
         arm = [(d, o) for d, o in rows if d.treatment_code == code and d.group == "Treatment"
-               and o is not None and o.reward is not None]
+               and not d.validation and o is not None and o.reward is not None]
         n = len(arm)
         paid = sum(o.paid for _, o in arm)
         w = [(o.paid, 1 / max(d.selection_probability or 1e-3, 1e-3)) for d, o in arm]
@@ -298,7 +307,7 @@ def submit(cid: str, user: User = Depends(require("edit_strategy")), db: Session
     c = _get_campaign(db, cid)
     if c.status != "Draft":
         raise HTTPException(409, f"Only a draft can be submitted (this one is {c.status}).")
-    body = StrategyIn(**{k: (jl(getattr(c, k)) if k in ("target_cohorts", "include_segments", "risk_bands",
+    body = StrategyIn(**{k: (jl(getattr(c, k)) if k in ("target_cohorts", "risk_bands",
                                                          "treatment_codes") else getattr(c, k))
                          for k in StrategyIn.model_fields})
     _validate_strategy(db, body, final=True)
@@ -454,16 +463,14 @@ def run_wave(cid: str, count: int = Query(1, ge=1, le=10), user: User = Depends(
             "pool_remaining": len(engine.undecided_pool(db, c))}
 
 
-@router.get("/strategies/{cid}/recommendations")
-def recommendations(cid: str, user: User = Depends(require("create_strategy")),
-                    db: Session = Depends(get_db)):
-    """Guided-build assistance, computed from live results."""
-    c = _get_campaign(db, cid)
-    mine = set(jl(c.target_cohorts))
+def build_recommendations(db: Session, cohorts: set[str], family: set[str]) -> dict:
+    """Guided-build assistance for the cohorts on the form, computed from live
+    results. `family` is the strategy being edited and the versions it replaces,
+    so a revision is not pointed at itself."""
+    mine = cohorts
     out = []
     best = None
-    family = set(engine.lineage(db, c))  # a revision is not pointed at the version it replaces
-    for other in db.query(Campaign).filter(Campaign.campaign_id.notin_(family),
+    for other in db.query(Campaign).filter(Campaign.campaign_id.notin_(family or {""}),
                                            Campaign.status.in_(["Live", "Paused"])):
         if mine and mine & set(jl(other.target_cohorts)):
             s = analytics.campaign_stats(db, other)
@@ -499,6 +506,14 @@ def recommendations(cid: str, user: User = Depends(require("create_strategy")),
                 "rate": analytics.campaign_stats(db, o)["recovery_rate"]}
                for o in db.query(Campaign).filter(Campaign.status.in_(["Live", "Paused"])).limit(4)]
     return {"recommendations": out, "library": library}
+
+
+@router.get("/strategies/{cid}/recommendations")
+def recommendations(cid: str, user: User = Depends(require("create_strategy")),
+                    db: Session = Depends(get_db)):
+    """Recommendations for a saved strategy's own cohorts."""
+    c = _get_campaign(db, cid)
+    return build_recommendations(db, set(jl(c.target_cohorts)), set(engine.lineage(db, c)))
 
 
 class DraftIn(BaseModel):

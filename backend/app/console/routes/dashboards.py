@@ -11,13 +11,19 @@ from sqlalchemy.orm import Session
 
 from ... import models
 from ...core.database import get_db
-from .. import analytics
+from .. import analytics, scorecards
 from ..engine import arrears
 from ..models import Campaign, Decision, Nudge, User
 from ..rbac import require
 from .common import UTC, _get_campaign, _insights_for, _strategy_out, fired_alerts
 
 router = APIRouter()
+
+
+@router.get("/scorecards")
+def model_scorecards(user: User = Depends(require("view_kpi_dashboard")), db: Session = Depends(get_db)):
+    """Is the Propensity Router right, and is Thompson sampling picking well?"""
+    return {"router": scorecards.router_scorecard(db), "engine": scorecards.engine_scorecard(db)}
 
 
 @router.get("/dashboard/strategist")

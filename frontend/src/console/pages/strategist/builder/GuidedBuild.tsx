@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { api, type Cohort, type Population, type Strategy, type Treatment } from "../../../lib/api";
-import { money, num, pct, pp, SEGMENT_LABEL, SEGMENTS } from "../../../lib/format";
+import { money, num, pct, pp } from "../../../lib/format";
 import { useApi, useSession } from "../../../lib/session";
 import {
   Banner,
@@ -27,7 +27,7 @@ type Form = Omit<Strategy, "campaign_id" | "status" | "version" | "source" | "cr
   "parent_id" | "has_history" | "editable" | "revisable" | "deletable" | "open_revision" | "pool_remaining" | "created">;
 
 const BLANK: Form = {
-  name: "", description: "", steps_completed: 0, target_cohorts: [], include_segments: ["Persuadable"], risk_bands: [],
+  name: "", description: "", steps_completed: 0, target_cohorts: [], risk_bands: [],
   min_balance: null, max_balance: null, min_dpd: null, max_dpd: null, treatment_codes: [], cadence_days: 3,
   max_touches: 3, tone: "Supportive", send_window_start: 9, send_window_end: 19, escalate_after_days: 14,
   escalate_to: null, control_pct: 0.2, wave_size: 40, evaluation_days: 7, recovery_target: 0.45,
@@ -63,12 +63,11 @@ export default function GuidedBuild({ id }: { id?: string }) {
       setMeta(s);
       setStep(Math.min(s.steps_completed, 5));
     });
-    api.get<typeof recs>(`/strategies/${id}/recommendations`).then(setRecs).catch(() => setRecs(null));
   }, [id]);
 
   const estimateQuery = useMemo(() => {
     const p = new URLSearchParams({
-      cohorts: form.target_cohorts.join(","), segments: form.include_segments.join(","), risk_bands: form.risk_bands.join(","),
+      cohorts: form.target_cohorts.join(","), risk_bands: form.risk_bands.join(","),
       treatments: form.treatment_codes.join(","),
     });
     (["min_balance", "max_balance", "min_dpd", "max_dpd"] as const).forEach((k) => form[k] !== null && p.set(k, String(form[k])));
@@ -80,8 +79,19 @@ export default function GuidedBuild({ id }: { id?: string }) {
     return () => clearTimeout(t);
   }, [estimateQuery]);
 
+  // Recommendations follow the cohorts on the form, saved or not.
+  const recsQuery = useMemo(() => new URLSearchParams({ cohorts: form.target_cohorts.join(","), editing: id ?? "" }).toString(),
+    [form.target_cohorts, id]);
+  useEffect(() => {
+    if (!form.target_cohorts.length) { setRecs(null); return; }
+    let stale = false;
+    const t = setTimeout(() => api.get<NonNullable<typeof recs>>(`/strategies/recommendations?${recsQuery}`)
+      .then((r) => { if (!stale) setRecs(r); }).catch(() => { if (!stale) setRecs(null); }), 250);
+    return () => { stale = true; clearTimeout(t); };
+  }, [recsQuery, form.target_cohorts.length]);
+
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }));
-  const toggle = (k: "target_cohorts" | "include_segments" | "risk_bands" | "treatment_codes", v: string) =>
+  const toggle = (k: "target_cohorts" | "risk_bands" | "treatment_codes", v: string) =>
     setForm((f) => ({ ...f, [k]: f[k].includes(v) ? f[k].filter((x) => x !== v) : [...f[k], v] }));
 
   const save = useCallback(async (next: number) => {
@@ -191,16 +201,15 @@ export default function GuidedBuild({ id }: { id?: string }) {
                 ))}
               </div>
             </Field>
-            <Field label="Intervention-fit groups to include" hint="Labelled by what the score estimates. Treating likely self-curers wastes contact; contacting the do-not-contact group can backfire.">
-              <div className="grid gap-2 sm:grid-cols-2">
-                {SEGMENTS.map((g) => (
-                  <CheckCard key={g} checked={form.include_segments.includes(g)} onChange={() => toggle("include_segments", g)}
-                    title={SEGMENT_LABEL[g]} sub={{ Persuadable: "Behaviour can be changed by a treatment", "Sure Thing": "Expected to pay without help",
-                      "Lost Cause": "Needs hardship support, not reminders", "Sleeping Dog": "Contact likely to backfire" }[g]}
-                    right={g === "Sleeping Dog" && form.include_segments.includes(g) ? <Chip tone="bad">risk</Chip> : undefined} />
-                ))}
-              </div>
-            </Field>
+            <div className="rounded-lg border border-line bg-surface-sunken/50 px-3 py-2.5">
+              <p className="text-xs font-medium text-fg">Who this strategy reaches</p>
+              <p className="mt-0.5 text-2xs leading-4 text-fg-2">
+                The Propensity Router classifies every customer as they arrive and sends the Likely responsive group to strategies
+                {est ? `: ${num(est.routed - est.validation)} in the cohorts picked` : ""}
+                {est?.validation ? `, plus ${num(est.validation)} from its validation share, which are scored but never learned from` : ""}.
+                Likely self-cure stays on business as usual, Needs support goes to the hardship team, and Do not contact is suppressed.
+              </p>
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Minimum balance ($)"><input type="number" className={inputCls} value={form.min_balance ?? ""} onChange={(e) => set("min_balance", numOrNull(e.target.value))} placeholder="No floor" /></Field>
               <Field label="Maximum balance ($)"><input type="number" className={inputCls} value={form.max_balance ?? ""} onChange={(e) => set("max_balance", numOrNull(e.target.value))} placeholder="No ceiling" /></Field>
@@ -313,7 +322,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
             <div className="rounded-lg border border-line">
               <dl className="divide-y divide-line text-[13px]">
                 {[
-                  ["Audience", `${form.target_cohorts.map((c) => cohorts.find((x) => x.cohort_id === c)?.name).join(", ") || "—"} · ${form.include_segments.map((g) => SEGMENT_LABEL[g]).join(", ")}`],
+                  ["Audience", `${form.target_cohorts.map((c) => cohorts.find((x) => x.cohort_id === c)?.name).join(", ") || "—"} · Likely responsive (Propensity Router)`],
                   ["Balance", `${form.min_balance !== null ? money(form.min_balance) : "any"} – ${form.max_balance !== null ? money(form.max_balance) : "any"}`],
                   ["Risk", `${form.risk_bands.join(", ") || "all bands"} · DPD ${form.min_dpd ?? "any"}–${form.max_dpd ?? "any"}`],
                   ["Treatments", form.treatment_codes.map((c) => treatments.find((t) => t.code === c)?.name).join(", ") || "—"],
@@ -333,6 +342,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
             <div className="space-y-2.5">
               <div className="flex items-baseline justify-between"><span className="text-xs text-fg-2">Matching segment</span><span className="num text-[15px] font-semibold">{num(est.matching)}</span></div>
               <div className="flex items-baseline justify-between"><span className="text-xs text-fg-2">Eligible for a treatment</span><span className="num text-[15px] font-semibold text-primary-500">{num(est.eligible)}</span></div>
+              {est.validation > 0 && <p className="flex justify-between gap-2 text-2xs text-fg-3"><span>of which the router's validation share</span><span className="num">{num(est.validation)}</span></p>}
               {est.exclusions.length > 0 && (
                 <div className="border-t border-line pt-2">
                   <p className="label mb-1">Excluded</p>
@@ -342,8 +352,8 @@ export default function GuidedBuild({ id }: { id?: string }) {
             </div>
           ) : <p className="text-xs text-fg-3">Pick a cohort to see the audience.</p>}
         </Card>
-        <Card title="Recommendations" subtitle="From live results in this cohort">
-          {!meta && <p className="text-xs text-fg-3">Save the first step to get recommendations.</p>}
+        <Card title="Recommendations" subtitle="From live results in the cohorts you picked">
+          {!form.target_cohorts.length && <p className="text-xs text-fg-3">Pick a cohort to see recommendations.</p>}
           <div className="space-y-2.5">
             {recs?.recommendations.map((r) => (
               <div key={r.title} className="rounded-lg border border-line bg-surface-sunken/60 p-2.5">
@@ -356,7 +366,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
                 )}
               </div>
             ))}
-            {meta && recs && !recs.recommendations.length && <p className="text-xs text-fg-3">No matches yet for this audience.</p>}
+            {recs && !recs.recommendations.length && <p className="text-xs text-fg-3">No matches yet for this audience.</p>}
           </div>
           {recs && recs.library.length > 0 && (
             <div className="mt-3 border-t border-line pt-2.5">

@@ -39,6 +39,10 @@ class Customer(Base):
     nudge_score: Mapped[float] = mapped_column(Float, default=0.0)
     self_cure_score: Mapped[float] = mapped_column(Float, default=0.0)
     segment: Mapped[str] = mapped_column(String(40), default="Sure Thing")
+    # Where the Propensity Router sends the customer (console/router.py): strategy | bau | hardship | suppress.
+    route: Mapped[str | None] = mapped_column(String(12), nullable=True, index=True)
+    # Sent to a strategy against its group's route, so the router itself can be scored.
+    route_validation: Mapped[bool] = mapped_column(Boolean, default=False)
     is_persona: Mapped[bool] = mapped_column(Boolean, default=False)
     persona_note: Mapped[str] = mapped_column(Text, default="")
 

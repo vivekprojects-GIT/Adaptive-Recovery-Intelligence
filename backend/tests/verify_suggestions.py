@@ -37,6 +37,13 @@ def check(cond: bool, msg: str) -> None:
 
 
 with TestClient(app) as api:
+    # Every Likely responsive customer in the seed is already in a live strategy's audience. A large
+    # handoff to the 90+ cohort, which only a paused strategy covers, leaves an audience to suggest for.
+    from app.console import playbook  # noqa: E402
+    from app.core.database import SessionLocal  # noqa: E402
+    with SessionLocal() as db:
+        playbook.ingest_handoff(db, actor="u-maya", trigger="manual", sizes={"C4": 300})
+
     print("\n1. What ARI suggests")
     r = api.get("/console/strategies/suggestions", headers=MAYA)
     data = r.json()
@@ -50,12 +57,24 @@ with TestClient(app) as api:
     rev = next((s for s in sg if s["kind"] == "revision"), None)
     check(new is not None, f"an uncovered audience is suggested: {new and new['title']}")
     check(rev is not None, f"a live strategy that is falling short is suggested: {rev and rev['title']}")
-    support = [s for s in data["suggestions"] if "Lost Cause" in (s.get("fields", {}).get("include_segments") or [])]
-    check(all(any(t["name"] == "Hardship Review" for t in s["treatments"]) for s in support),
-          "an audience with customers who need support always keeps the hardship route")
-    check(any(l["segment"] == "Sure Thing" for l in data["left_out"]), "the fit groups left out are named, with why")
+    check(all("include_segments" not in s.get("fields", {}) for s in sg),
+          "suggestions never choose fit groups: the Propensity Router does")
+    check({l["segment"] for l in data["left_out"]} == {"Sure Thing", "Lost Cause", "Sleeping Dog"}
+          and all(l["control"] and l["control"]["n"] > 0 for l in data["left_out"]),
+          "the groups the router keeps off strategies are named, with how they paid untreated")
     r = api.get("/console/strategies/suggestions", headers={"X-User-Id": "u-james"})
     check(r.status_code == 403, "a role without Create Strategy cannot see suggestions (403)")
+
+    print("\n1b. Builder recommendations follow the form, before anything is saved")
+    early = api.get("/console/strategies/recommendations?cohorts=C1", headers=MAYA).json()["recommendations"]
+    late = api.get("/console/strategies/recommendations?cohorts=C4", headers=MAYA).json()["recommendations"]
+    check(bool(early) and early != late, f"C1 and C4 get different recommendations ({len(early)} and {len(late)})")
+    match = next((x for x in early if x["kind"] == "clone"), None)
+    if match:
+        own = api.get(f"/console/strategies/recommendations?cohorts=C1&editing={match['campaign_id']}",
+                      headers=MAYA).json()["recommendations"]
+        check(all(x.get("campaign_id") != match["campaign_id"] for x in own),
+              f"a strategy being edited is not recommended to itself ({match['campaign_id']})")
 
     print("\n2. Choosing a new-strategy suggestion")
     out = api.post(f"/console/strategies/suggestions/{new['key']}/draft", headers=MAYA).json()

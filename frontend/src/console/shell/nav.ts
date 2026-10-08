@@ -21,6 +21,7 @@ import {
   Route as RouteIcon,
   ScrollText,
   Send,
+  Scale,
   ShieldCheck,
   SlidersHorizontal,
   UserCog,
@@ -53,6 +54,7 @@ export const NAV: Record<Role, { section?: string; items: NavItem[] }[]> = {
       { to: "/nudges", label: "Nudges", icon: Send, perm: "view_ai_decisions" },
       { to: "/decisions", label: "Decisions", icon: MessageSquare, perm: "view_ai_decisions" },
       { to: "/cohorts", label: "Cohorts & Handoffs", icon: Layers },
+      { to: "/scorecards", label: "Scorecards", icon: Scale },
     ] },
   ],
   leader: [
@@ -69,6 +71,7 @@ export const NAV: Record<Role, { section?: string; items: NavItem[] }[]> = {
       { to: "/treatments", label: "Treatment Playbook", icon: Library },
     ] },
     { section: "Performance", items: [
+      { to: "/scorecards", label: "Scorecards", icon: Scale },
       { to: "/team", label: "Team Performance", icon: Users },
       { to: "/reports", label: "Reports", icon: FileText, perm: "export_reports" },
     ] },
@@ -92,6 +95,7 @@ export const NAV: Record<Role, { section?: string; items: NavItem[] }[]> = {
     { section: "Monitor", items: [
       { to: "/admin/health", label: "System Health", icon: Gauge, perm: "view_system_health" },
       { to: "/admin/alerts", label: "Alert Rules", icon: Bell, perm: "manage_alert_rules" },
+      { to: "/scorecards", label: "Scorecards", icon: Scale },
     ] },
   ],
   viewer: [
@@ -99,6 +103,7 @@ export const NAV: Record<Role, { section?: string; items: NavItem[] }[]> = {
       { to: "/kpis", label: "KPI Dashboard", icon: LayoutDashboard },
       { to: "/analytics", label: "Strategy Analytics", icon: ChartColumnBig },
       { to: "/portfolio", label: "Portfolio Health", icon: HeartPulse },
+      { to: "/scorecards", label: "Scorecards", icon: Scale },
     ] },
   ],
 };

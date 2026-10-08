@@ -35,6 +35,7 @@ from .models import (
     Outcome,
 )
 from .platform import cfg
+from .router import GROUP_LABEL, ROUTE_LABEL
 from .playbook import human_review_codes
 
 UTC = timezone.utc
@@ -133,24 +134,24 @@ def target_customers(db: Session, camp: Campaign) -> list[models.Customer]:
 def population_breakdown(db: Session, camp: Campaign) -> dict:
     """Step 1 of the experiment: who is in, who is out, and why."""
     customers = target_customers(db, camp)
-    segments = set(jl(camp.include_segments))
     codes = jl(camp.treatment_codes)
     # Reach is counted for the whole playbook, not only the selected arms, so a
     # strategist can see who a treatment would reach before adding it.
     all_codes = sorted((s.code for s in db.query(models.Strategy)), key=lambda k: (len(k), k))
     out: dict = {"matching": len(customers), "segments": {}, "exclusions": {},
-                 "eligible": 0, "control": 0, "treatment": 0,
+                 "routed": 0, "validation": 0, "eligible": 0, "control": 0, "treatment": 0,
                  "arm_eligibility": {c: 0 for c in all_codes}}
     for c in customers:
         out["segments"][c.segment] = out["segments"].get(c.segment, 0) + 1
-        if c.segment not in segments:
-            reason = {
-                "Sure Thing": "Expected to self-cure - left on business as usual",
-                "Lost Cause": "Cannot pay - routed to the hardship team",
-                "Sleeping Dog": "Contact likely to backfire - suppressed",
-            }.get(c.segment, "Outside the target segment")
+        if c.route != "strategy":
+            # The Propensity Router sends this customer somewhere other than a strategy.
+            reason = (f"{GROUP_LABEL.get(c.segment, c.segment)} - "
+                      f"{ROUTE_LABEL.get(c.route or 'bau', 'Business as usual').lower()} (Propensity Router)")
             out["exclusions"][reason] = out["exclusions"].get(reason, 0) + 1
             continue
+        out["routed"] += 1
+        if c.route_validation:
+            out["validation"] += 1
         for code in all_codes:
             if eligibility(code, c)[0]:
                 out["arm_eligibility"][code] += 1
@@ -216,6 +217,55 @@ def beliefs(db: Session, camp: Campaign) -> dict[str, dict]:
     for v in out.values():
         v.update(_summary(v["a"], v["b"]))
     return out
+
+
+def learning_step(db: Session, camp: Campaign, outcome: Outcome) -> dict | None:
+    """How one learned outcome moved this strategy's beliefs: the treatment's
+    estimated payment rate and its chance of being the best treatment, just
+    before and just after this outcome counted. Outcomes count in the order
+    they were recorded. None when the outcome was not used for learning."""
+    dec = db.get(Decision, outcome.decision_id)
+    if not (outcome.learned and outcome.reward is not None and dec and dec.treatment_code):
+        return None
+    state = _priors(db, camp)
+    code = dec.treatment_code
+    if code not in state:
+        return None
+    earlier = (db.query(Decision.treatment_code, Outcome.reward)
+               .join(Outcome, Outcome.decision_id == Decision.decision_id)
+               .filter(Decision.campaign_id == camp.campaign_id, Outcome.learned.is_(True),
+                       Outcome.outcome_id < outcome.outcome_id))
+    for k, r in earlier:
+        if k in state and r is not None:
+            state[k]["a"] += r
+            state[k]["b"] += 1 - r
+            state[k]["learned"] += 1
+    before = {k: (v["a"], v["b"]) for k, v in state.items()}
+    after = dict(before)
+    after[code] = (before[code][0] + outcome.reward, before[code][1] + 1 - outcome.reward)
+    # The same random draws for both sides, so the change is this outcome and not sampling noise.
+    seed = int(hashlib.sha256(outcome.decision_id.encode()).hexdigest()[:8], 16)
+    pb_before = _p_best(before, np.random.default_rng(seed), draws=20000)
+    pb_after = _p_best(after, np.random.default_rng(seed), draws=20000)
+    n = state[code]["learned"]
+
+    def side(ab: tuple[float, float], p_best: float, learned: int) -> dict:
+        s = _summary(*ab)
+        return {"mean": round(s["mean"], 4), "low": round(s["low"], 4), "high": round(s["high"], 4),
+                "p_best": round(p_best, 4), "learned": learned}
+
+    return {"code": code, "name": state[code]["name"], "reward": outcome.reward, "policy": outcome.reward_policy,
+            "prior": state[code]["prior"], "arms": len(state),
+            "before": side(before[code], pb_before[code], n), "after": side(after[code], pb_after[code], n + 1)}
+
+
+def current_standing(db: Session, camp: Campaign) -> dict[str, dict]:
+    """Each treatment's estimated payment rate and chance of being best in this
+    strategy now, with every learned outcome counted."""
+    b = beliefs(db, camp)
+    pb = _p_best({k: (v["a"], v["b"]) for k, v in b.items()}, np.random.default_rng(17), draws=20000)
+    return {k: {"mean": round(v["mean"], 4), "p_best": round(pb.get(k, 0.0), 4), "learned": v["learned"]}
+            for k, v in b.items()}
 
 
 def _p_best(state: dict[str, tuple[float, float]], rng: np.random.Generator, draws: int = 4000) -> dict[str, float]:
@@ -468,16 +518,17 @@ def in_audience(camp: Campaign, c) -> tuple[bool, str]:
         return False, f"needs a balance of at least ${camp.min_balance:,.0f}"
     if camp.max_balance is not None and c.balance > camp.max_balance:
         return False, f"takes balances up to ${camp.max_balance:,.0f}"
-    if c.segment not in jl(camp.include_segments):
-        return False, f"does not include the {c.segment} fit group"
+    if getattr(c, "route", None) != "strategy":
+        return False, (f"the Propensity Router sends {GROUP_LABEL.get(c.segment, c.segment)} customers to "
+                       f"{ROUTE_LABEL.get(getattr(c, 'route', None) or 'bau', 'business as usual').lower()}")
     if not any(eligibility(code, c)[0] for code in jl(camp.treatment_codes)):
         return False, "has no treatment this customer is eligible for"
     return True, "in audience"
 
 
 def undecided_pool(db: Session, camp: Campaign) -> list[models.Customer]:
-    """Customers this strategy could still decide: in target, in an included
-    segment, at least one arm eligible, and not already in a strategy.
+    """Customers this strategy could still decide: in target, routed to a strategy
+    by the Propensity Router, at least one arm eligible, and not already in a strategy.
 
     One customer, one strategy: anyone decided by another live or paused
     strategy is skipped, otherwise two strategies contact the same person and
@@ -486,10 +537,9 @@ def undecided_pool(db: Session, camp: Campaign) -> list[models.Customer]:
     active = [k for (k,) in db.query(Campaign.campaign_id).filter(Campaign.status.in_(["Live", "Paused"]))]
     decided = {cid for (cid,) in db.query(Decision.customer_id)
                .filter(Decision.campaign_id.in_(active + lineage(db, camp)))}
-    segments = set(jl(camp.include_segments))
     codes = jl(camp.treatment_codes)
     pool = [c for c in target_customers(db, camp)
-            if c.customer_id not in decided and c.segment in segments
+            if c.customer_id not in decided and c.route == "strategy"
             and any(eligibility(code, c)[0] for code in codes)]
     # Deterministic but not id-ordered, so a wave is a spread of the population.
     pool.sort(key=lambda c: _bucket(f"order-{camp.campaign_id}", c.customer_id))
@@ -502,7 +552,7 @@ def console_context(c) -> dict:
     return {"contract_version": "console", "request_id": None, "account_ref": None, "party_ref": None,
             "as_of": None, "raw": None, "guard": CONSOLE_GUARD, "snapshot_extra": {}, "assumed": [],
             "ignored": [], "aliases": [], "lineage_only": [],
-            "source_lineage": {"source": "Collections handoff (synthetic console data)", "customer_id": c.customer_id}}
+            "source_lineage": {"source": "Collections handoff", "customer_id": c.customer_id}}
 
 
 def decide_one(db: Session, camp: Campaign, c, *, decision_id: str, wave: int, decided_at: datetime,
@@ -523,7 +573,8 @@ def decide_one(db: Session, camp: Campaign, c, *, decision_id: str, wave: int, d
     g = ctx["guard"]
     s = snapshot(c)
     snap = {**vars(s), "client_risk_band": c.client_risk_band, "client_risk_score": c.client_risk_score,
-            "self_cure_score": c.self_cure_score, "arrears": arrears(c), **ctx["snapshot_extra"],
+            "self_cure_score": c.self_cure_score, "arrears": arrears(c), "route": getattr(c, "route", None),
+            "route_validation": bool(getattr(c, "route_validation", False)), **ctx["snapshot_extra"],
             "contract_version": ctx["contract_version"], "guard": g}
     codes = [k for k in jl(camp.treatment_codes) if k in arms_state]
     eligible = [code for code in codes if eligibility(code, c)[0]]
@@ -534,7 +585,8 @@ def decide_one(db: Session, camp: Campaign, c, *, decision_id: str, wave: int, d
     dec = Decision(decision_id=decision_id, campaign_id=camp.campaign_id, customer_id=c.customer_id,
                    wave=wave, origin=origin, eligible_arms=json.dumps(eligible), snapshot=json.dumps(snap),
                    blocked_arms=json.dumps(blocked), decided_at=iso(decided_at),
-                   contract_version=ctx["contract_version"], request_id=ctx["request_id"], context_as_of=ctx["as_of"])
+                   contract_version=ctx["contract_version"], request_id=ctx["request_id"], context_as_of=ctx["as_of"],
+                   validation=bool(getattr(c, "route_validation", False)))
     evaluated_at = iso(decided_at)
     dec._evals = [EligibilityEval(decision_id=decision_id, arm_id=x["arm_id"], arm_version=x["arm_version"],
                                   stage=x["stage"], rule_id=x["rule_id"], rule_version=x["rule_version"],
@@ -771,7 +823,7 @@ def execute(db: Session, camp: Campaign, dec, c, at: datetime,
     n.status = "Failed" if failed else "Delivered"
     n.sent_at = iso(send_at)
     if failed:
-        n.failure_reason = "Number unreachable (simulated)"
+        n.failure_reason = "Number unreachable"
     n.pipeline = json.dumps(stages)
     db.add(n)
     db.flush()  # written now: engagement events and follow-ups refer to it by foreign key
@@ -850,8 +902,10 @@ def _observe(db: Session, camp: Campaign, dec: Decision, c, code: str | None, at
             escalated = esc.status != "Held"
 
     is_treated = dec.group == "Treatment"
-    learned = is_treated and delivered and (dec.review_policy == "auto"
-                                            or dec.review_status == "approved")
+    # The router's validation share is scored, never taught: those customers are
+    # outside the groups the strategy is meant for.
+    learned = is_treated and delivered and not dec.validation and (dec.review_policy == "auto"
+                                                                   or dec.review_status == "approved")
     reward = 1.0 if paid else 0.0
     # Control outcomes always count (they are the comparison). Treated outcomes
     # only count if the treatment actually reached the customer.

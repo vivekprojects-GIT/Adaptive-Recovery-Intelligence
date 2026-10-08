@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import {
-  Ban, CheckCircle2, CircleDollarSign, Clock, Hand, Inbox, MousePointerClick, Pause, Phone, Send, SkipForward, Split,
+  Ban, CheckCircle2, CircleDollarSign, CircleSlash, Clock, Hand, Inbox, MousePointerClick, Pause, Phone, Send, SkipForward,
+  Signpost, Split, TrendingUp,
 } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -10,6 +11,7 @@ import { customerRef, dateTime, money, num, pct } from "../../lib/format";
 import { useApi, useSession } from "../../lib/session";
 import { BarList } from "../../ui/charts";
 import { SegmentChip } from "../../ui/domain";
+import { StrategyFlow, type Flow } from "./StrategyFlow";
 import {
   Banner, Button, Card, Chip, Drawer, ErrorState, Field, KV, Page, PageHeader, Spinner, StatusChip, inputCls, useAction,
 } from "../../ui/ui";
@@ -20,16 +22,20 @@ interface Data {
   events: Event[];
   summary: { days_active: number; nudges_sent: number; decisions: number; engagement_events: number; response_rate: number; amount_recovered: number; status: string };
   next_action: { action: string; when: string; reason: string } | null;
+  routing: { fit_label: string; route: string; route_label: string; validation: boolean; reason: string } | null;
   nudge_profile: { score: number; contributions: { factor: string; points: number; max_points: number }[]; severity_penalty: number; self_cure_score: number; segment: string };
   eligibility: { code: string; name: string; eligible: boolean; reason: string; fit_reasons: string[] }[];
+  flows: Flow[];
 }
 
 const ICON: Record<string, typeof Send> = {
   system: Inbox, decision: Split, nudge: Send, engagement: MousePointerClick, payment: CircleDollarSign, bau: Phone,
+  outcome: CircleSlash, learning: TrendingUp, routing: Signpost,
 };
 const COLOR: Record<string, string> = {
   system: "bg-surface-sunken text-fg-3", decision: "bg-info-bg text-info", nudge: "bg-primary-50 text-primary-600",
   engagement: "bg-info-bg text-info", payment: "bg-good-bg text-good", bau: "bg-surface-sunken text-fg-3",
+  outcome: "bg-surface-sunken text-fg-3", learning: "bg-surface-sunken text-fg-2", routing: "bg-surface-sunken text-fg-2",
 };
 
 export default function Journey() {
@@ -53,9 +59,10 @@ export default function Journey() {
     <>
       <PageHeader title="Recovery Journey" subtitle={`${c.name} · ${customerRef(Number(c.customer_id))}`}
         crumbs={[{ label: "Journeys", to: "/journeys" }, { label: String(c.name) }]}
-        meta={<><StatusChip status={data.summary.status} /><SegmentChip segment={String(c.segment)} /><Chip tone="neutral">{String(c.cohort_id)} · {c.days_past_due} DPD</Chip>
+        meta={<><StatusChip status={data.summary.status} /><SegmentChip segment={String(c.segment)} />{data.routing && data.routing.route_label !== data.summary.status && <span className="text-xs text-fg-2" title={data.routing.reason}>→ {data.routing.validation ? "Strategy (validation share)" : data.routing.route_label}</span>}<Chip tone="neutral">{String(c.cohort_id)} · {c.days_past_due} DPD</Chip>
           <Chip tone="neutral">Client risk {String(c.client_risk_band)} ({Number(c.client_risk_score).toFixed(0)})</Chip></>} />
       <Page>
+        <StrategyFlow flows={data.flows} />
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className="min-w-0 space-y-4">
             <Card title="Recovery timeline" subtitle="Newest first. Everything ARI decided and sent, what the customer did, and the bank's own contacts."

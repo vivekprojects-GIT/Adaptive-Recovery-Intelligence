@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import type { CustomerRow } from "../../lib/api";
-import { ago, customerRef, money } from "../../lib/format";
+import { ROUTE_LABEL, ago, customerRef, money } from "../../lib/format";
 import { useApi } from "../../lib/session";
 import { SegmentChip } from "../../ui/domain";
 import { Avatar, Card, Empty, ErrorState, Page, PageHeader, Pager, Pills, Progress, Spinner, StatusChip, Table, Td, Th, Tr, inputCls } from "../../ui/ui";
@@ -64,7 +64,7 @@ export default function Customers({ journeys }: { journeys?: boolean }) {
                     <Td mono className="whitespace-nowrap text-primary-500">{customerRef(r.customer_id)}</Td>
                     <Td align="right"><span className="block">{money(r.balance)}</span><span className="block text-2xs text-fg-3">{money(r.arrears)} due</span></Td>
                     <Td><RiskBar score={r.risk_score} /></Td>
-                    <Td><SegmentChip segment={r.segment} /></Td>
+                    <Td><SegmentChip segment={r.segment} /><span className="block text-2xs text-fg-3">→ {r.route_validation ? "Strategy (validation)" : ROUTE_LABEL[r.route ?? ""] ?? "Not routed"}</span></Td>
                     <Td className="text-xs">{r.treatment ?? <span className="text-fg-3">—</span>}{r.campaign_id && <span className="block font-mono text-2xs text-fg-3">{r.campaign_id}</span>}</Td>
                     <Td className="whitespace-nowrap"><StatusChip status={r.status} /></Td>
                     <Td><span className="flex items-center gap-2"><Progress value={r.progress} tone={r.progress >= 100 ? "good" : "primary"} /><span className="num w-8 text-2xs text-fg-3">{r.progress}%</span></span></Td>

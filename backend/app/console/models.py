@@ -58,6 +58,8 @@ class Campaign(Base):
 
     # 1. Segment
     target_cohorts: Mapped[str] = mapped_column(Text, default="[]")         # json list of cohort ids
+    # Legacy: which fit groups a strategy took. Routing is the Propensity Router's
+    # now (console/router.py); this column is no longer read or written.
     include_segments: Mapped[str] = mapped_column(Text, default='["Persuadable"]')
     min_balance: Mapped[float | None] = mapped_column(Float, nullable=True)
     max_balance: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -172,6 +174,9 @@ class Decision(Base):
     override_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     original_treatment: Mapped[str | None] = mapped_column(String(10), nullable=True)
     snapshot: Mapped[str] = mapped_column(Text, default="{}")   # customer context at decision time
+    # In the Propensity Router's validation share: recorded and scored, never taught
+    # to Thompson sampling and kept out of the strategy's results.
+    validation: Mapped[bool] = mapped_column(Boolean, default=False)
     decided_at: Mapped[str] = mapped_column(String(32), index=True)
     latency_ms: Mapped[float] = mapped_column(Float, default=0.0)
     # RecoveryContext lineage (P1). Null on decisions made before it existed.
@@ -381,3 +386,28 @@ class AuditEvent(Base):
     entity_id: Mapped[str] = mapped_column(String(64), default="")   # long enough for a Nova account id
     summary: Mapped[str] = mapped_column(Text)
     detail: Mapped[str] = mapped_column(Text, default="{}")
+
+
+class Routing(Base):
+    """One pass through the Propensity Router: the customer's fit group and
+    scores, where they were sent and why. Customers sent away from strategies
+    (business as usual, hardship team, suppressed) also get their outcome here,
+    which is what lets the router be scored."""
+    __tablename__ = "routings"
+
+    routing_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    customer_id: Mapped[int] = mapped_column(Integer, index=True)
+    origin: Mapped[str] = mapped_column(String(12))                # handoff | mcp
+    policy: Mapped[str] = mapped_column(String(30))
+    fit_group: Mapped[str] = mapped_column(String(20))
+    nudge_score: Mapped[float] = mapped_column(Float)
+    self_cure_score: Mapped[float] = mapped_column(Float)
+    route: Mapped[str] = mapped_column(String(12))                 # strategy | bau | hardship | suppress
+    validation: Mapped[bool] = mapped_column(Boolean, default=False)
+    reason: Mapped[str] = mapped_column(Text)
+    routed_at: Mapped[str] = mapped_column(String(32), index=True)
+    # Outcome for customers kept off strategies. Simulated for test handoffs; reported by Nova for its accounts.
+    paid: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    window_days: Mapped[int] = mapped_column(Integer, default=7)
+    observed_at: Mapped[str | None] = mapped_column(String(32), nullable=True)

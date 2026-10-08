@@ -17,6 +17,7 @@ import Compliance from "./pages/leader/Compliance";
 import KpiDashboard from "./pages/leader/KpiDashboard";
 import PortfolioHealth from "./pages/leader/PortfolioHealth";
 import Reports from "./pages/leader/Reports";
+import Scorecards from "./pages/leader/Scorecards";
 import StrategyCompare from "./pages/leader/StrategyCompare";
 import TeamPerformance from "./pages/leader/TeamPerformance";
 import Workbench from "./pages/leader/Workbench";
@@ -82,6 +83,7 @@ export const ROUTES: { path: string; el: ReactNode; perm?: string }[] = [
   { path: "/compliance", el: <Compliance />, perm: "view_compliance" },
   { path: "/workbench", el: <Workbench />, perm: "use_ai_workbench" },
   { path: "/team", el: <TeamPerformance />, perm: "view_kpi_dashboard" },
+  { path: "/scorecards", el: <Scorecards />, perm: "view_kpi_dashboard" },
   { path: "/reports", el: <Reports />, perm: "export_reports" },
   { path: "/admin", el: <AdminDashboard />, perm: "manage_users" },
   { path: "/admin/users", el: <UserManagement />, perm: "manage_users" },
