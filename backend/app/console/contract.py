@@ -36,8 +36,13 @@ RESTRICTION_FLAGS = ("cease_communication", "bankruptcy", "attorney_represented"
 
 # Accepted and stored with the decision, but not used to decide. Listed back
 # so nobody assumes ARI acted on them.
-LINEAGE_ONLY = ("customer_id", "risk_score", "product", "account_status", "source_system", "party_segment",
+LINEAGE_ONLY = ("customer_id", "risk_score", "account_status", "source_system", "party_segment",
                 "delinquency_bucket", "preferred_channel", "last_contact_at")
+
+
+PRODUCT_HELP = ("Credit card, Corporate card, Personal loan, Auto loan or Small-business loan. Used: it sets how "
+                "arrears are counted when no amount_past_due is sent (a corporate card is due in full) and which "
+                "collection agencies may take the account.")
 
 
 def _tz(v: str | None) -> str | None:
@@ -166,7 +171,8 @@ class NovaAccount(_Input):
     as_of_timestamp: datetime | None = Field(None, description="When the data was true in Nova.")
     source_system: str | None = Field(None, max_length=40, description="Nova's source system (lineage).")
     # v1 additions - optional in v0.
-    product: str | None = Field(None, max_length=40, validation_alias=AliasChoices("product", "product_type"))
+    product: str | None = Field(None, max_length=40, validation_alias=AliasChoices("product", "product_type"),
+                                description=PRODUCT_HELP)
     account_status: str | None = Field(None, max_length=30, description="Stored, not used to decide.")
     cycles_delinquent: int | None = Field(None, ge=0, le=24)
     party_segment: str | None = Field(None, max_length=40, validation_alias=AliasChoices("party_segment",
@@ -196,7 +202,8 @@ class PartyV1(_Input):
 
 class AccountV1(_Input):
     account_id: str = Field(min_length=1, max_length=64)
-    product: str | None = Field(None, max_length=40, validation_alias=AliasChoices("product", "product_type"))
+    product: str | None = Field(None, max_length=40, validation_alias=AliasChoices("product", "product_type"),
+                                description=PRODUCT_HELP)
     status: str | None = Field(None, max_length=30, description="Stored, not used to decide.")
     current_balance: float = Field(ge=0, validation_alias=AliasChoices("current_balance", "balance"))
     credit_limit: float | None = Field(None, gt=0)
@@ -307,6 +314,7 @@ class Received(BaseModel):
     ignored_fields: list[str]
     aliases_used: list[str]
     protected_dropped: list[str] = []   # protected attributes removed on arrival (console/fairness.py)
+    sensitive_dropped: list[str] = []   # card numbers, SSNs, government IDs and the like, removed on arrival
 
 
 def _inspect(model: BaseModel, raw: Any, path: str, ignored: list[str], aliases: list[str]) -> None:
@@ -330,15 +338,16 @@ def _inspect(model: BaseModel, raw: Any, path: str, ignored: list[str], aliases:
 
 
 def receive(model: NovaAccount | RecoveryContextV1) -> Received:
-    from .fairness import scrub   # late: fairness reads the models, which import this module's neighbours
+    from .fairness import scrub_all   # late: fairness reads the models, which import this module's neighbours
     raw = model._raw if model._raw is not None else model.model_dump(mode="json", exclude_none=True)
-    raw, dropped = scrub(raw)   # protected attributes are never stored, even in the raw record
+    # Protected attributes and sensitive identifiers are never stored, even in the raw record.
+    raw, dropped, sensitive = scrub_all(raw)
     ignored: list[str] = []
     aliases: list[str] = []
     _inspect(model, raw, "", ignored, aliases)
     account = model.to_account() if isinstance(model, RecoveryContextV1) else model
     return Received(account=account, raw=raw, ignored_fields=ignored, aliases_used=aliases,
-                    protected_dropped=dropped)
+                    protected_dropped=dropped, sensitive_dropped=sensitive)
 
 
 def lineage_only(acc: NovaAccount) -> list[str]:

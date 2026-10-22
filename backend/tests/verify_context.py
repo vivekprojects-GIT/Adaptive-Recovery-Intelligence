@@ -174,8 +174,9 @@ async def main(port: int) -> None:
                   f"source lineage: {lineage['source']} / {lineage['source_system']}")
             check(all(v["status"] == "fresh" for v in stale.values()), "staleness flags: "
                   + ", ".join(f"{k} {v['status']}" for k, v in stale.items()))
-            check({"risk_score", "product", "account_status"} <= set(json.loads(fs.lineage_only)),
-                  "fields stored but not used to decide are listed as lineage-only")
+            check({"risk_score", "account_status"} <= set(json.loads(fs.lineage_only))
+                  and "product" not in json.loads(fs.lineage_only),
+                  "fields stored but not used to decide are listed as lineage-only; product, which is used, is not")
             again = await ask(context=ctx)
             check(again["decision_id"] == did and again["existing"], "the same request_id returns the same decision")
 

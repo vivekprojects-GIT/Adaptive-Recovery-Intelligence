@@ -424,6 +424,8 @@ def _received_out(out: dict, got: Received) -> dict:
     out.setdefault("aliases_used", got.aliases_used)
     if got.protected_dropped:
         out.setdefault("protected_fields_dropped", got.protected_dropped)
+    if got.sensitive_dropped:
+        out.setdefault("sensitive_fields_dropped", got.sensitive_dropped)
     return out
 
 
@@ -535,7 +537,8 @@ def recovery_strategy(db: Session, request: NovaAccount | RecoveryContextV1 | Re
         "source_lineage": {"source": "Nova (MCP)", "source_system": rec.source_system, "request_id": rec.request_id,
                            "as_of_timestamp": rec.as_of_timestamp.isoformat() if rec.as_of_timestamp else None,
                            "contract_version": rec.contract_version, "feature_set_version": FEATURE_SET_VERSION,
-                           "protected_dropped": got.protected_dropped},
+                           "protected_dropped": got.protected_dropped,
+                           "sensitive_dropped": got.sensitive_dropped},
         "snapshot_extra": {"source": "Nova (MCP)", "account_id": rec.account_id,
                            "amount_past_due": rec.amount_past_due, "arrears": rec.amount_past_due,
                            "reported_contacts_7d": rec.contacts_last_7d or 0,

@@ -22,7 +22,8 @@ interface Data {
     by_action: { action: string; count: number }[]; by_entity: { entity: string; count: number }[] };
   fairness: { policy: string; excluded: string[]; features_used: { field: string; label: string; used_for: string }[];
     guardrail_only: { field: string; label: string }[];
-    dropped: { requests: number; by_attribute: { attribute: string; count: number }[] } };
+    dropped: { requests: number; by_attribute: { attribute: string; count: number }[] };
+    sensitive: string[]; sensitive_dropped: { requests: number; by_identifier: { identifier: string; count: number }[] } };
 }
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
@@ -101,6 +102,14 @@ export default function Governance() {
               <div>
                 <p className="label mb-2">Never used, and dropped on arrival</p>
                 <p className="text-xs leading-6 text-fg">{fair.excluded.join(" · ")}</p>
+              </div>
+              <div>
+                <p className="label mb-2">Never kept: sensitive identifiers</p>
+                <p className="text-xs leading-6 text-fg">{fair.sensitive.join(" · ")}</p>
+                <p className="mt-1 text-2xs leading-4 text-fg-3">Also removed from any text field that contains a card number or a Social Security number.</p>
+                <p className="mt-1.5 text-xs text-fg-2">{fair.sensitive_dropped.requests
+                  ? `${num(fair.sensitive_dropped.requests)} requests contained them: ${fair.sensitive_dropped.by_identifier.map((d) => `${d.identifier} (${num(d.count)})`).join(", ")}.`
+                  : "None received so far."}</p>
               </div>
               <div>
                 <p className="label mb-1.5">Dropped from inbound requests</p>

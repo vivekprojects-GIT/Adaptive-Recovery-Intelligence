@@ -4,6 +4,7 @@ import { ago } from "../../lib/format";
 import { useApi } from "../../lib/session";
 import { Banner, Card, ErrorState, Page, PageHeader, Spinner, StatusChip } from "../../ui/ui";
 import { AgentAccess } from "./AgentAccess";
+import { NovaCallbacks } from "./NovaCallbacks";
 
 interface I { id: string; name: string; kind: string; status: string; mode: string; detail: string; last_sync: string | null }
 
@@ -38,6 +39,7 @@ export default function Integrations() {
         )}
         <p className="label">Agents</p>
         <AgentAccess />
+        <NovaCallbacks />
         <p className="label pt-2">Inbound data</p>
         <Grid items={data.feeds} icon={<ArrowDownToLine className="h-4 w-4" />} />
         <p className="label pt-2">Outbound channels</p>

@@ -71,12 +71,16 @@ CONFIG_DEFAULTS: list[tuple[str, str, str, str, str, str]] = [
     ("recovery_rate_target", "0.40", "Portfolio recovery-rate target", "Targets", "percent", ""),
     ("cost_per_recovery_target", "8.00", "Cost-per-recovery target ($)", "Targets", "number", ""),
     ("escalation_rate_target", "0.08", "Escalation-rate ceiling", "Targets", "percent", ""),
-    ("shadow_mode", "true", "Pilot mode (channel delivery off)", "Operations", "bool",
+    ("shadow_mode", "true", "Channel delivery off", "Operations", "bool",
      "Locked on until a channel gateway is connected. Decisions, approvals and compliance checks are recorded; "
      "no message is sent to a customer."),
     ("auto_handoff", "true", "Receive next handoff automatically", "Operations", "bool",
      "When a strategy's audience is too small for a full wave, pull the next cohort handoff from the "
      "collections system before the wave runs."),
+    ("nova_callback_url", "", "Nova callback URL", "Integrations", "text",
+     "Where ARI posts a signed event when a person approves, rejects, cancels or overrides a decision Nova "
+     "asked for. HTTPS only (http is allowed for localhost). Empty: Nova reads the same events with the MCP "
+     "tool get_decision_updates."),
     ("model_version", "ARI-v4.2.1", "Decision model version", "Operations", "text",
      "Shown with each decision. Not yet stored per decision; that comes with policy versioning."),
 ]

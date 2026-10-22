@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from ... import models
 from ...core.database import get_db
 from ...scoring import eligibility, fit_reasons, nudge_explanation
-from .. import engine
+from .. import callbacks, engine
 from ..engine import as_of_decision, jl
 from ..models import (
     Campaign, ComplianceViolation, Decision, EligibilityEval, EngagementEvent, FeatureSnapshot, Nudge, Outcome,
@@ -217,6 +217,9 @@ def review_decision(did: str, body: ReviewDecisionIn, user: User = Depends(requi
         raise HTTPException(400, "Give a reason for rejecting the offer.")
     with engine.ENGINE_LOCK:
         out = engine.approve_and_execute(db, d, user.user_id, body.approve)
+    callbacks.record(db, d, "decision.cancelled" if out.get("cancelled") else
+                     "decision.approved" if body.approve else "decision.rejected", user.user_id,
+                     out.get("cancelled") or body.note)
     if out.get("cancelled"):
         summary = f"Cancelled {did} ({d.treatment_code}) at approval: {out['cancelled']}"
     elif body.approve:
@@ -227,6 +230,7 @@ def review_decision(did: str, body: ReviewDecisionIn, user: User = Depends(requi
     audit(db, user.user_id, "APPROVE" if body.approve else "UPDATE", "decision", did,
           summary + (f": {body.note}" if body.note else ""))
     db.commit()
+    callbacks.dispatch()
     return out
 
 
@@ -257,7 +261,9 @@ def override_decision(did: str, body: OverrideIn, user: User = Depends(require("
     audit(db, user.user_id, "UPDATE", "decision", did,
           f"Overrode {did}: {d.original_treatment} -> {body.treatment_code or 'no treatment'}",
           {"reason": body.reason})
+    callbacks.record(db, d, "decision.overridden", user.user_id, body.reason)
     db.commit()
+    callbacks.dispatch()
     return {"ok": True}
 
 

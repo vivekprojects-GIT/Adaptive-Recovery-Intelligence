@@ -101,8 +101,8 @@ async def main(port: int) -> None:
         r = await h.post(url, json=body, headers={**accept, "Authorization": "Bearer wrong"})
         check(r.status_code == 401, "wrong token: 401")
         r = await h.post(url, json=body, headers={**accept, "Authorization": f"Bearer {token}"})
-        check(r.status_code == 200 and len(r.json()["result"]["tools"]) == 7,
-              "right token: 200, 7 tools (plain JSON-RPC over HTTP, no SDK needed)")
+        check(r.status_code == 200 and len(r.json()["result"]["tools"]) == 8,
+              "right token: 200, 8 tools (plain JSON-RPC over HTTP, no SDK needed)")
 
     async with streamablehttp_client(url, headers={"Authorization": f"Bearer {token}"}) as (read, write, _):
         async with ClientSession(read, write) as s:

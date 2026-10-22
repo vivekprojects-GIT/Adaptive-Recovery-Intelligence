@@ -34,7 +34,7 @@ from starlette.responses import JSONResponse
 
 from ..core.config import settings
 from ..core.database import SessionLocal
-from . import nova
+from . import callbacks, nova
 from .contract import NovaAccount, RecoveryContextV1
 from .engine import ENGINE_LOCK
 from .models import AuditEvent, Decision, ExternalCustomer, Outcome, PlatformConfig
@@ -252,6 +252,18 @@ async def get_decision(
     reasons, and the outcome if one was reported."""
     return await _call("get_decision", lambda db: nova.get_decision(db, decision_id, account_id),
                        lambda r: f"Read {r['decision_id']} ({r['action'].replace('_', ' ')})")
+
+
+@_tool("get_decision_updates", "Read decisions a person changed", read_only=True)
+async def get_decision_updates(
+        after: Annotated[int, Field(ge=0, description="The next_cursor from the previous call; 0 the first time.")] = 0,
+        limit: Annotated[int, Field(ge=1, le=500, description="Most events to return.")] = 100,
+) -> dict[str, Any]:
+    """Decisions a person approved, rejected, cancelled at approval or overrode, oldest first, after a
+    cursor. Each event carries the decision as get_decision would return it, so Nova knows whether to
+    carry out or stop the treatment. The same events are pushed to Nova's callback URL when one is set."""
+    return await _call("get_decision_updates", lambda db: callbacks.updates(db, after, limit),
+                       lambda r: f"Read {len(r['events'])} decision updates after {after}")
 
 
 @_tool("list_live_strategies", "List the live recovery strategies", read_only=True)

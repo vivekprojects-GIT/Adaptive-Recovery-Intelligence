@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from ... import models
 from ...core.database import SessionLocal, get_db
-from .. import mcp_server
+from .. import callbacks, mcp_server
 from .. import router as propensity_router
 from ..models import (
     AuditEvent, Campaign, ContactRecord, Decision, Handoff, Nudge, Outcome, PlatformConfig, RolePermission, User,
@@ -180,6 +180,11 @@ def put_config(body: ConfigIn, user: User = Depends(require("configure_platform"
                 raise ValueError
         except ValueError:
             raise HTTPException(400, f"Invalid value for {k}: {v}")
+        if k == "nova_callback_url" and v.strip():
+            u = v.strip().lower()
+            local = u.startswith(("http://localhost", "http://127.0.0.1"))
+            if not (u.startswith("https://") or local):
+                raise HTTPException(400, "The Nova callback URL must start with https:// (http:// only for localhost).")
         if k == "shadow_mode" and v != "true":
             raise HTTPException(409, "Shadow mode stays on: no channel gateway is connected, so ARI records "
                                      "contacts but cannot deliver them. It can be turned off once a channel "
@@ -242,6 +247,37 @@ def integrations(user: User = Depends(require("manage_integrations")), db: Sessi
                                    + (f" ({failed.get(ch, 0) / total:.1%})" if total else ""),
                          "last_sync": last_nudge})
     return {"feeds": feeds, "channels": channels, "shadow_mode": shadow}
+
+
+@router.get("/admin/callbacks")
+def callback_status(user: User = Depends(require("manage_integrations")), db: Session = Depends(get_db)):
+    """Callbacks to Nova: where they go, how many were delivered, the latest few."""
+    return callbacks.status(db)
+
+
+@router.post("/admin/callbacks/retry")
+def callback_retry(user: User = Depends(require("manage_integrations")), db: Session = Depends(get_db)):
+    out = callbacks.deliver_pending(db)
+    audit(db, user.user_id, "UPDATE", "integration", "callbacks",
+          f"Retried callbacks to Nova: {out['delivered']} delivered, {out['failed']} failed")
+    db.commit()
+    return out
+
+
+@router.post("/admin/callbacks/secret")
+def callback_reveal_secret(user: User = Depends(require("manage_integrations")), db: Session = Depends(get_db)):
+    key, source = callbacks.secret(db)
+    audit(db, user.user_id, "READ", "integration", "callbacks", "Revealed the callback signing secret")
+    db.commit()
+    return {"secret": key, "source": source}
+
+
+@router.post("/admin/callbacks/secret/rotate")
+def callback_rotate_secret(user: User = Depends(require("manage_integrations")), db: Session = Depends(get_db)):
+    try:
+        return {"secret": callbacks.rotate_secret(db, user.user_id)}
+    except ValueError as e:
+        raise HTTPException(409, str(e))
 
 
 @router.get("/admin/mcp")

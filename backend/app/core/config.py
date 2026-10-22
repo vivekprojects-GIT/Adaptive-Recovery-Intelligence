@@ -24,6 +24,9 @@ class Settings:
     # Bearer token for the MCP endpoint. Empty: ARI generates one and keeps it
     # in platform configuration, where an admin can reveal or rotate it.
     mcp_token: str
+    # Signs callbacks to Nova (console/callbacks.py). Empty: ARI generates one
+    # and keeps it in platform configuration.
+    callback_secret: str
 
 
 def load() -> Settings:
@@ -32,6 +35,7 @@ def load() -> Settings:
         static_dir=os.getenv("STATIC_DIR", os.path.join(REPO_DIR, "frontend", "dist")),
         cors_origins=_list(os.getenv("ARI_CORS_ORIGINS", "")),
         mcp_token=os.getenv("ARI_MCP_TOKEN", "").strip(),
+        callback_secret=os.getenv("ARI_CALLBACK_SECRET", "").strip(),
     )
 
 

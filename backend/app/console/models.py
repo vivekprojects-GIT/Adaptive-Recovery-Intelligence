@@ -497,3 +497,22 @@ class KgEdge(Base):
     src: Mapped[str] = mapped_column(String(64), index=True)
     rel: Mapped[str] = mapped_column(String(30), index=True)
     dst: Mapped[str] = mapped_column(String(64), index=True)
+
+
+class DecisionEvent(Base):
+    """Outbox of changes a person made to a decision Nova asked for (console/callbacks.py).
+    Pushed to Nova's callback URL and readable with the MCP tool get_decision_updates."""
+    __tablename__ = "decision_events"
+
+    event_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    decision_id: Mapped[str] = mapped_column(String(12), index=True)
+    account_ref: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)   # Nova account_id
+    event: Mapped[str] = mapped_column(String(30))        # decision.approved | rejected | cancelled | overridden
+    actor: Mapped[str] = mapped_column(String(20))
+    payload: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[str] = mapped_column(String(32), index=True)
+    status: Mapped[str] = mapped_column(String(16), default="pending")   # pending | delivered | failed | not_configured
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    last_attempt_at: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    delivered_at: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
