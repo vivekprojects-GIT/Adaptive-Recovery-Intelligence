@@ -23,6 +23,9 @@ CONFIG_DEFAULTS: list[tuple[str, str, str, str, str, str]] = [
      "How long to wait for a payment before scoring a decision. Delayed-outcome handling is an open design item."),
     ("prior_strength", "10", "Prior strength (pseudo-observations)", "Experiment design", "number",
      "How much weight the playbook's historical success rate gets before live evidence."),
+    ("human_review_balance_threshold", "10000", "Human review threshold (balance, $)", "Review policy", "number",
+     "Accounts with a balance at or above this wait for a person before anything is sent. Below it, treatments "
+     "run automatically, except payment plans, deferrals and hardship reviews, which always need a person."),
     ("router_validation_share", "0.05", "Validation share", "Propensity Router", "percent",
      "Share of the Likely self-cure and Needs support groups sent to strategies against their route, so the "
      "router can be scored. Never taught to Thompson sampling and kept out of strategy results. Do not contact "

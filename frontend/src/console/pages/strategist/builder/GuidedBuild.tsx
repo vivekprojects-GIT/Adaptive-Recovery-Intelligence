@@ -161,7 +161,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
     form.risk_bands.length ? `${form.risk_bands.join(", ")} risk` : null,
   ].filter(Boolean).join(" · ");
   const rhythm = `Every ${form.cadence_days} days, up to ${form.max_touches} touches, ${form.tone.toLowerCase()} tone, ${form.send_window_start}:00–${form.send_window_end}:00`;
-  const experiment = `${pct(form.control_pct, 0)} control, waves of ${form.wave_size}, ${form.evaluation_days}-day window, target ${pct(form.recovery_target, 0)}`;
+  const experiment = `${pct(form.control_pct, 0)} control group, ${form.wave_size} per wave, ${form.evaluation_days}-day performance window, target ${pct(form.recovery_target, 0)}`;
 
   return (
     <div className="grid gap-4 lg:grid-cols-[180px_minmax(0,1fr)_280px]">
@@ -229,7 +229,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
           <div className="space-y-4">
             <Field label="Strategy name" required><input id="strategy-name" className={inputCls} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Medium-Risk Payment Plan Flow" /></Field>
             <Field label="Description"><textarea id="strategy-description" rows={2} className={`${inputCls} h-auto py-2`} value={form.description} onChange={(e) => set("description", e.target.value)} /></Field>
-            <Field label="Target cohorts" hint="Handed over by the client's collections system. ARI does not re-segment them.">
+            <Field label="Delinquency buckets" hint="The cohorts Meridian Vale Bank's collections system hands over. ARI does not re-segment them.">
               <div className="grid gap-2 sm:grid-cols-2">
                 {cohorts.map((c) => (
                   <CheckCard key={c.cohort_id} checked={form.target_cohorts.includes(c.cohort_id)} onChange={() => toggle("target_cohorts", c.cohort_id)}
@@ -244,7 +244,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
                 <Field label="Minimum days past due"><input id="min-dpd" type="number" className={inputCls} value={form.min_dpd ?? ""} onChange={(e) => set("min_dpd", numOrNull(e.target.value))} placeholder="Any" /></Field>
                 <Field label="Maximum days past due"><input id="max-dpd" type="number" className={inputCls} value={form.max_dpd ?? ""} onChange={(e) => set("max_dpd", numOrNull(e.target.value))} placeholder="Any" /></Field>
               </div>
-              <Field label="Client risk bands" hint="From the client's risk model. Leave empty to accept every band in the cohorts.">
+              <Field label="Client risk bands" hint="From Meridian Vale Bank's risk model. Leave empty to accept every band in the cohorts.">
                 <div className="flex flex-wrap gap-2">
                   {["Low", "Medium", "High", "Very high"].map((b) => (
                     <button key={b} type="button" onClick={() => toggle("risk_bands", b)} className={clsx("h-8 rounded-lg border px-3 text-[13px]",
@@ -261,6 +261,10 @@ export default function GuidedBuild({ id }: { id?: string }) {
 
         {step === 1 && (
           <div className="space-y-4">
+            <p className="text-xs leading-5 text-fg-2">
+              Pick the treatments this strategy may use. A treatment is one approved action from the playbook; the strategy
+              decides which customers are in it, and ARI learns which of these treatments works best for each of them.
+            </p>
             <div className="space-y-2">
               {offered.map((t) => (
                 <CheckCard key={t.code} checked={form.treatment_codes.includes(t.code)} onChange={() => toggle("treatment_codes", t.code)}
@@ -278,7 +282,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
               <Link to="/treatments" className="inline-flex items-center gap-1 text-xs font-medium text-primary-500 hover:underline">
                 Add or edit treatments in the playbook <ArrowRight className="h-3 w-3" /></Link>
             )}
-            <Optional title="If nothing works (optional)" open={!!form.escalate_to}
+            <Optional title="Escalation path (optional)" open={!!form.escalate_to}
               summary={form.escalate_to ? `${name(form.escalate_to)} after ${form.escalate_after_days} days with no payment` : "No escalation"}>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Escalate to">
@@ -301,21 +305,21 @@ export default function GuidedBuild({ id }: { id?: string }) {
                   ["Audience", `${form.target_cohorts.map((c) => cohorts.find((x) => x.cohort_id === c)?.name).join(", ") || "No cohort picked"}${limits ? ` · ${limits}` : ""}`],
                   ["Who it contacts", "Likely responsive customers, sent by the Propensity Router"],
                   ["Treatments", form.treatment_codes.map(name).join(", ") || "None picked"],
-                  ["If nothing works", form.escalate_to ? `${name(form.escalate_to)} after ${form.escalate_after_days} days` : "No escalation"],
+                  ["Escalation path", form.escalate_to ? `${name(form.escalate_to)} after ${form.escalate_after_days} days` : "No escalation"],
                 ].map(([k, v]) => <div key={k} className="flex gap-4 px-3 py-2"><dt className="w-32 shrink-0 text-fg-3">{k}</dt><dd className="min-w-0 text-fg">{v}</dd></div>)}
               </dl>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               <Kpi label="Customers it reaches" value={num(est?.eligible)} sub={est ? `of ${num(est.matching)} in the cohorts picked` : "Pick a cohort first"} />
-              <Kpi label="Control / treated" value={est ? `${num(est.control)} / ${num(est.treatment)}` : "—"} sub="randomised split" />
-              <Kpi label="Detectable effect" value={mde ? `${(mde * 100).toFixed(1)} pp` : "—"} tone={mde && mde > 0.12 ? "warn" : "neutral"} sub="smallest lift this audience can prove" />
+              <Kpi label="Control / experiment" metric="control_group" value={est ? `${num(est.control)} / ${num(est.treatment)}` : "—"} sub="randomised split" />
+              <Kpi label="Smallest detectable lift" metric="mde" value={mde ? `${(mde * 100).toFixed(1)} pp` : "—"} tone={mde && mde > 0.12 ? "warn" : "neutral"} sub="smallest lift this audience can prove" />
             </div>
             {mde && mde > 0.12 && (
               <Banner tone="warn" title="This audience is too small to prove a typical effect">
                 Collections treatments usually move payment by 4-9 points. Run it as a standing strategy over several months, or widen the audience, before treating the result as a verdict.
               </Banner>
             )}
-            <Optional title="Contact rhythm" summary={rhythm}>
+            <Optional title="Contact cadence" summary={rhythm}>
               <div className="grid gap-3 sm:grid-cols-3">
                 <Field label="Cadence (days between touches)"><input id="cadence" type="number" min={1} className={inputCls} value={form.cadence_days} onChange={(e) => set("cadence_days", Number(e.target.value))} /></Field>
                 <Field label="Maximum touches"><input id="max-touches" type="number" min={1} max={6} className={inputCls} value={form.max_touches} onChange={(e) => set("max_touches", Number(e.target.value))} /></Field>
@@ -333,15 +337,15 @@ export default function GuidedBuild({ id }: { id?: string }) {
                 <Banner tone="warn">Daily touches with {form.max_touches} messages, plus the bank's own dialler, can reach the 7-in-7 contact limit. The guard will hold messages that would breach it.</Banner>
               )}
             </Optional>
-            <Optional title="Experiment" summary={experiment}>
+            <Optional title="Experiment design" summary={experiment}>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <Field label="Control share" hint="Fixed for the life of the strategy.">
+                <Field label="Control group size" hint="Kept on business as usual. Fixed for the life of the strategy.">
                   <Select value={String(form.control_pct)} onChange={(v) => set("control_pct", Number(v))}
                     options={[0.1, 0.15, 0.2, 0.25, 0.3, 0.4].map((x) => ({ value: String(x), label: pct(x, 0) }))} />
                 </Field>
-                <Field label="Wave size (treated)"><input id="wave-size" type="number" className={inputCls} value={form.wave_size} onChange={(e) => set("wave_size", Number(e.target.value))} /></Field>
-                <Field label="Evaluation window (days)"><input id="evaluation-days" type="number" className={inputCls} value={form.evaluation_days} onChange={(e) => set("evaluation_days", Number(e.target.value))} /></Field>
-                <Field label="Recovery target"><Select value={String(form.recovery_target)} onChange={(v) => set("recovery_target", Number(v))}
+                <Field label="Accounts treated per wave"><input id="wave-size" type="number" className={inputCls} value={form.wave_size} onChange={(e) => set("wave_size", Number(e.target.value))} /></Field>
+                <Field label="Performance window (days)"><input id="evaluation-days" type="number" className={inputCls} value={form.evaluation_days} onChange={(e) => set("evaluation_days", Number(e.target.value))} /></Field>
+                <Field label="Target payment rate"><Select value={String(form.recovery_target)} onChange={(v) => set("recovery_target", Number(v))}
                   options={[0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7].map((x) => ({ value: String(x), label: pct(x, 0) }))} /></Field>
               </div>
             </Optional>

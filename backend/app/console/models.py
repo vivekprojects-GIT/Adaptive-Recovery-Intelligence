@@ -21,6 +21,7 @@ from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text, Unique
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
+from ..core.pii import EncryptedText
 
 
 class User(Base):
@@ -142,7 +143,7 @@ class ExternalCustomer(Base):
     customer_id: Mapped[int] = mapped_column(Integer, index=True)
     first_seen: Mapped[str] = mapped_column(String(32))
     last_seen: Mapped[str] = mapped_column(String(32))
-    payload: Mapped[str] = mapped_column(Text, default="{}")      # last record received, for lineage
+    payload: Mapped[str] = mapped_column(EncryptedText, default="{}")   # last record received, encrypted at rest
 
 
 class Decision(Base):
@@ -202,7 +203,7 @@ class FeatureSnapshot(Base):
     as_of_ts: Mapped[str | None] = mapped_column(String(32), nullable=True)   # when the data was true in Nova
     received_at: Mapped[str] = mapped_column(String(32))
     feature_set_version: Mapped[str] = mapped_column(String(30))
-    raw_payload: Mapped[str] = mapped_column(Text, default="{}")    # as received, verbatim
+    raw_payload: Mapped[str] = mapped_column(EncryptedText, default="{}")   # as received, encrypted at rest
     features: Mapped[str] = mapped_column(Text, default="{}")       # the normalised values the rules and model used
     guard_context: Mapped[str] = mapped_column(Text, default="{}")  # consent, contacts, restrictions, as-of times
     assumed: Mapped[str] = mapped_column(Text, default="[]")        # values ARI had to default
@@ -292,6 +293,26 @@ class Outcome(Base):
     learned: Mapped[bool] = mapped_column(Boolean, default=False)
     observed_at: Mapped[str] = mapped_column(String(32))
 
+
+
+class PaymentRecord(Base):
+    """One payment as Nova reported it. A decision's Outcome is the total of its
+    posted payments inside the evaluation window, so two partial payments count
+    as both, and the same payment_id reported twice counts once. A report with
+    no payment_id replaces the previous one (the behaviour before payment ids)."""
+    __tablename__ = "payment_records"
+    __table_args__ = (UniqueConstraint("subject", "payment_id"),)
+
+    record_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    subject: Mapped[str] = mapped_column(String(40), index=True)     # decision_id, or routing:<id>
+    payment_id: Mapped[str] = mapped_column(String(64))              # Nova's payment id; _report when none was sent
+    customer_id: Mapped[int] = mapped_column(Integer, index=True)
+    paid: Mapped[bool] = mapped_column(Boolean, default=False)
+    amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    payment_date: Mapped[str | None] = mapped_column(String(10), nullable=True)   # YYYY-MM-DD
+    status: Mapped[str] = mapped_column(String(10), default="Posted")             # Posted | Reversed
+    first_reported_at: Mapped[str] = mapped_column(String(32))
+    reported_at: Mapped[str] = mapped_column(String(32))
 
 class ContactRecord(Base):
     """Every outbound contact the customer received - ARI's own nudges AND the
@@ -411,3 +432,65 @@ class Routing(Base):
     amount: Mapped[float | None] = mapped_column(Float, nullable=True)
     window_days: Mapped[int] = mapped_column(Integer, default=7)
     observed_at: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+
+class Agency(Base):
+    """An external collection agency on the bank's panel. Paid a contingency
+    fee: a share of what it recovers, nothing if it recovers nothing."""
+    __tablename__ = "agencies"
+
+    agency_id: Mapped[str] = mapped_column(String(12), primary_key=True)    # AGY-01
+    name: Mapped[str] = mapped_column(String(80))
+    fee_rate: Mapped[float] = mapped_column(Float)                          # share of recoveries, 0-1
+    products: Mapped[str] = mapped_column(Text, default="[]")               # json list it is contracted for
+    min_dpd: Mapped[int] = mapped_column(Integer, default=90)
+    capacity: Mapped[int] = mapped_column(Integer, default=100)             # open placements at once
+    placement_days: Mapped[int] = mapped_column(Integer, default=90)        # returned to the bank after this
+    status: Mapped[str] = mapped_column(String(10), default="Active")       # Active | Suspended
+    contract_ref: Mapped[str] = mapped_column(String(30), default="")
+    audited_at: Mapped[str | None] = mapped_column(String(32), nullable=True)   # last compliance audit
+
+
+class Placement(Base):
+    """An account sent to an agency. Proposed by ARI or a person; nothing is
+    placed until a person approves it."""
+    __tablename__ = "placements"
+
+    placement_id: Mapped[str] = mapped_column(String(12), primary_key=True)   # PLC-0001
+    customer_id: Mapped[int] = mapped_column(Integer, index=True)
+    agency_id: Mapped[str] = mapped_column(ForeignKey("agencies.agency_id"), index=True)
+    # Proposed -> Placed -> Recovered | Returned | Recalled ; Proposed -> Declined
+    status: Mapped[str] = mapped_column(String(10), index=True)
+    reason: Mapped[str] = mapped_column(Text, default="")
+    amount: Mapped[float] = mapped_column(Float)            # balance placed
+    recovered: Mapped[float] = mapped_column(Float, default=0.0)
+    fee: Mapped[float] = mapped_column(Float, default=0.0)
+    proposed_by: Mapped[str] = mapped_column(String(20))
+    proposed_at: Mapped[str] = mapped_column(String(32))
+    reviewed_by: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    reviewed_at: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    review_note: Mapped[str] = mapped_column(Text, default="")
+    placed_at: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    closed_at: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    first_payment_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+class KgNode(Base):
+    """A node of the recovery knowledge graph (console/graph.py). Rebuilt from
+    the tables above whenever they change; never edited directly."""
+    __tablename__ = "kg_nodes"
+
+    node_id: Mapped[str] = mapped_column(String(64), primary_key=True)   # customer:517, treatment:S3
+    cls: Mapped[str] = mapped_column(String(40), index=True)             # its class in the taxonomy
+    label: Mapped[str] = mapped_column(String(160))
+    props: Mapped[str] = mapped_column(Text, default="{}")
+
+
+class KgEdge(Base):
+    """A typed relationship between two graph nodes, e.g. customer HOLDS product."""
+    __tablename__ = "kg_edges"
+
+    edge_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    src: Mapped[str] = mapped_column(String(64), index=True)
+    rel: Mapped[str] = mapped_column(String(30), index=True)
+    dst: Mapped[str] = mapped_column(String(64), index=True)

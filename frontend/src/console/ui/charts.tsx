@@ -44,11 +44,11 @@ export function RateVsControl({ data, height = 220, target }: {
         <YAxis tick={AXIS} tickLine={false} axisLine={false} tickFormatter={(v) => `${Math.round(v * 100)}%`} domain={[0, "auto"]} width={44} />
         <Tooltip content={({ active, payload, label }) => active && payload?.length ? (
           <Tip label={`Week of ${weekLabel(String(label))}`} rows={[
-            { name: "Treated", value: pct(payload[0].payload.recovery_rate), color: SERIES[0] },
+            { name: "Experiment", value: pct(payload[0].payload.recovery_rate), color: SERIES[0] },
             { name: "Control", value: pct(payload[0].payload.control_rate), color: "var(--control)" },
-            { name: "Uplift", value: pp((payload[0].payload.recovery_rate ?? 0) - (payload[0].payload.control_rate ?? 0)) },
+            { name: "Lift", value: pp((payload[0].payload.recovery_rate ?? 0) - (payload[0].payload.control_rate ?? 0)) },
           ]} />) : null} />
-        <Line type="monotone" dataKey="recovery_rate" name="Treated" stroke={SERIES[0]} strokeWidth={2}
+        <Line type="monotone" dataKey="recovery_rate" name="Experiment" stroke={SERIES[0]} strokeWidth={2}
           dot={{ r: 3.5, strokeWidth: 0, fill: SERIES[0] }} connectNulls />
         <Line type="monotone" dataKey="control_rate" name="Control" stroke="var(--control)" strokeWidth={2}
           strokeDasharray="4 3" dot={{ r: 3.5, strokeWidth: 0, fill: "var(--control)" }} connectNulls />
@@ -290,3 +290,31 @@ export function EmptyChart({ height }: { height: number }) {
 
 export const fmtMoney: Fmt = (v) => money(v ?? 0, true);
 export const fmtPct: Fmt = (v) => pct(v, 0);
+
+const periodLabel = (p: string) => (p.length === 7
+  ? new Date(`${p}-01T00:00:00`).toLocaleDateString("en-US", { month: "short", year: "numeric" })
+  : weekLabel(p));
+
+/** Experiment against control for one measure, period by period. */
+export function ExperimentBars({ data, experimentKey, controlKey, format, height = 220 }: {
+  data: Record<string, unknown>[]; experimentKey: string; controlKey: string; format: Fmt; height?: number;
+}) {
+  if (!data.length) return <EmptyChart height={height} />;
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={data} margin={{ top: 10, right: 8, left: -6, bottom: 0 }} barGap={2}>
+        <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
+        <XAxis dataKey="period" tickFormatter={periodLabel} tick={AXIS} tickLine={false} axisLine={{ stroke: "var(--chart-grid)" }} />
+        <YAxis tick={AXIS} tickLine={false} axisLine={false} tickFormatter={(v) => format(v)} width={56} />
+        <Tooltip cursor={{ fill: "var(--chart-grid)", opacity: 0.4 }} content={({ active, payload, label }) => active && payload?.length ? (
+          <Tip label={String(label).length === 7 ? periodLabel(String(label)) : `Week of ${weekLabel(String(label))}`} rows={[
+            { name: "Experiment", value: format(Number(payload[0].payload[experimentKey])), color: SERIES[0] },
+            { name: "Control", value: format(Number(payload[0].payload[controlKey])), color: "var(--control)" },
+          ]} />) : null} />
+        <Legend iconType="square" wrapperStyle={{ fontSize: 11, paddingTop: 6 }} formatter={legendText} />
+        <Bar dataKey={experimentKey} name="Experiment" fill={SERIES[0]} radius={[3, 3, 0, 0]} maxBarSize={22} />
+        <Bar dataKey={controlKey} name="Control" fill="var(--control)" radius={[3, 3, 0, 0]} maxBarSize={22} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}

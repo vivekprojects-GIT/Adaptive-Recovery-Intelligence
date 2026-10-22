@@ -7,6 +7,7 @@ import { dateTime, money, num, pct, pp } from "../../lib/format";
 import { useApi, useSession } from "../../lib/session";
 import { AllocationChart, BarList, BeliefBars, BeliefTrajectory, RateVsControl, SERIES, UpliftRow } from "../../ui/charts";
 import { LEARNING_TONE, StrategyActions, WaveButton } from "../../ui/domain";
+import { PerformancePanel } from "./Performance";
 import { StrategyScorecardCard } from "./StrategyScorecard";
 import {
   Banner, Button, Card, Chip, Empty, ErrorState, Kpi, KV, Page, PageHeader, Spinner, StatusChip, Table, Tabs, Td, Th, Tr,
@@ -74,21 +75,21 @@ export default function StrategyDetail() {
       )}
       <div className="bg-surface px-6"><Tabs<Tab> active={tab} onChange={setTab} tabs={[
         { id: "overview", label: "Overview" }, { id: "experiment", label: "Experiment" },
-        { id: "learning", label: "Arms & learning" }, { id: "decisions", label: "Decisions", count: decisions.data?.total },
+        { id: "learning", label: "Arms & learning" }, { id: "decisions", label: "Customers", count: decisions.data?.total },
         { id: "config", label: "Configuration" },
       ]} /></div>
       <Page>
         {tab === "overview" && (
           <>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <Kpi label="Recovery rate (treated)" value={pct(s.recovery_rate)} sub={`${num(s.treated_paid)} of ${num(s.treated)} paid`}
+              <Kpi label="Payment rate (experiment)" metric="payment_rate" value={pct(s.recovery_rate)} sub={`${num(s.treated_paid)} of ${num(s.treated)} paid`}
                 target={pct(data.recovery_target, 0)} progress={s.recovery_rate !== null ? s.recovery_rate / data.recovery_target : null}
                 tone={s.recovery_rate !== null && s.recovery_rate < data.recovery_target - 0.05 ? "warn" : "neutral"} />
-              <Kpi label="Control rate" value={pct(s.control_rate)} sub={`${num(s.control_paid)} of ${num(s.control)} on business as usual`} />
-              <Kpi label="Uplift over control" value={pp(s.uplift)} tone={s.significant ? (s.uplift! > 0 ? "good" : "bad") : "neutral"}
+              <Kpi label="Payment rate (control)" metric="control_group" value={pct(s.control_rate)} sub={`${num(s.control_paid)} of ${num(s.control)} on business as usual`} />
+              <Kpi label="Lift over control" metric="lift" value={pp(s.uplift)} tone={s.significant ? (s.uplift! > 0 ? "good" : "bad") : "neutral"}
                 delta={hasData ? (s.significant ? "significant" : "not significant") : null} deltaGood={hasData ? (s.significant ? true : null) : null}
                 sub={s.mde ? `detectable at this size: ${pp(s.mde)}` : undefined} />
-              <Kpi label="Recovered" value={money(s.recovered)} sub={`${money(s.cost_per_recovery)} contact cost per payer`} />
+              <Kpi label="Recovered" metric="recovered" value={money(s.recovered)} sub={`${money(s.cost_per_recovery)} contact cost per payer`} />
             </div>
             {hasData && s.underpowered && (s.significant ? (
               <Banner tone="info" title="Significant, on a small sample">
@@ -100,6 +101,7 @@ export default function StrategyDetail() {
               </Banner>
             ))}
             <StrategyScorecardCard sc={data.scorecard} />
+            <PerformancePanel campaignId={data.campaign_id} />
             <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
               <Card title="Treated vs control, by week" subtitle="The gap between the lines is what this strategy caused">
                 <RateVsControl data={data.weekly} target={data.recovery_target} />
@@ -232,16 +234,17 @@ export default function StrategyDetail() {
         )}
 
         {tab === "decisions" && (
-          <Card flush title="Recent decisions" actions={<Link to={`/decisions?campaign=${id}`} className="text-xs font-medium text-primary-500 hover:underline">All decisions <ArrowRight className="inline h-3 w-3" /></Link>}>
+          <Card flush title="Customers in this strategy" subtitle="Every account this strategy has decided, newest first, with what it recommended" actions={<Link to={`/decisions?campaign=${id}`} className="text-xs font-medium text-primary-500 hover:underline">All decisions <ArrowRight className="inline h-3 w-3" /></Link>}>
             <Table>
-              <thead><tr><Th>Decision</Th><Th>Customer</Th><Th>Wave</Th><Th>Group</Th><Th>Treatment</Th><Th align="right">P(select)</Th><Th>Review</Th><Th>Outcome</Th></tr></thead>
+              <thead><tr><Th>Customer</Th><Th align="right">Balance</Th><Th>Decision</Th><Th>Wave</Th><Th>Group</Th><Th>Recommended treatment</Th><Th>Review</Th><Th>Outcome</Th></tr></thead>
               <tbody>
                 {decisions.data?.rows.map((d) => (
                   <Tr key={d.decision_id}>
+                    <Td><Link to={`/journeys/${d.customer_id}`} className="font-medium hover:text-primary-500">{d.customer}</Link><span className="block text-2xs text-fg-3">{d.product}</span></Td>
+                    <Td align="right">{d.balance !== null ? money(d.balance) : "—"}</Td>
                     <Td><Link className="font-mono text-xs text-primary-500 hover:underline" to={`/decisions/${d.decision_id}`}>{d.decision_id}</Link></Td>
-                    <Td><Link to={`/journeys/${d.customer_id}`} className="hover:text-primary-500">{d.customer}</Link></Td>
-                    <Td>{d.wave}</Td><Td><StatusChip status={d.group} /></Td><Td>{d.treatment ?? "—"}</Td>
-                    <Td align="right">{pct(d.selection_probability, 0)}</Td>
+                    <Td>{d.wave}</Td><Td><StatusChip status={d.group} /></Td>
+                    <Td>{d.treatment ?? "—"}{d.selection_probability !== null && <span className="block text-2xs text-fg-3">picked {pct(d.selection_probability, 0)} of the time</span>}</Td>
                     <Td>{d.review_policy === "auto" ? <span className="text-xs text-fg-3">auto</span> : <StatusChip status={d.review_status} />}</Td>
                     <Td><StatusChip status={d.outcome ?? "In window"} /></Td>
                   </Tr>

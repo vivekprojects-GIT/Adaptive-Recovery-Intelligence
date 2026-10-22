@@ -3,12 +3,13 @@ import { useSession } from "../lib/session";
 import { num } from "../lib/format";
 import { Drawer, KV } from "../ui/ui";
 import { ServiceStatus } from "./ServiceStatus";
+import { PRODUCT_NAME } from "../ui/brand";
 
 export function AboutDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { me } = useSession();
   if (!me) return null;
   return (
-    <Drawer open={open} onClose={onClose} title="About this environment" subtitle="ARI Console · Capgemini" width="max-w-md">
+    <Drawer open={open} onClose={onClose} title="About this environment" subtitle={`${PRODUCT_NAME} · Capgemini`} width="max-w-md">
       <div className="space-y-5 text-[13px] leading-5 text-fg-2">
         <KV items={[
           { label: "Environment", value: me.agent.shadow_mode ? "Pilot" : "Production" },

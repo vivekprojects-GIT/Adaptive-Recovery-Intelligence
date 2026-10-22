@@ -20,15 +20,23 @@ from ..models import (
     Campaign, ComplianceViolation, Decision, EligibilityEval, EngagementEvent, FeatureSnapshot, Nudge, Outcome,
     User,
 )
-from ..platform import audit, cfg, now
+from ..platform import audit, cfg, cfg_float, now
 from ..rbac import require
 from .common import _treatments, _user_names, customer_match
 
 router = APIRouter()
 
 
-def _decision_row(d: Decision, o: Outcome | None, names: dict, camps: dict, t: dict, cust: dict) -> dict:
-    return {"decision_id": d.decision_id, "campaign_id": d.campaign_id, "strategy": camps.get(d.campaign_id),
+def _decision_row(d: Decision, o: Outcome | None, names: dict, camps: dict, t: dict, cust: dict,
+                  threshold: float = 10000.0) -> dict:
+    snap = json.loads(d.snapshot or "{}")
+    balance = snap.get("balance")
+    review_reason = None
+    if d.review_policy == "human_review":
+        review_reason = (f"Balance at or above ${threshold:,.0f}" if balance is not None and balance >= threshold
+                         else "Payment plan, deferral or hardship offer")
+    return {"balance": balance, "product": snap.get("product") or "Retail card", "review_reason": review_reason,
+            "decision_id": d.decision_id, "campaign_id": d.campaign_id, "strategy": camps.get(d.campaign_id),
             "customer_id": d.customer_id, "customer": cust.get(d.customer_id), "wave": d.wave,
             "group": d.group, "treatment_code": d.treatment_code,
             "treatment": t[d.treatment_code].name if d.treatment_code in t else None,
@@ -63,7 +71,8 @@ def decisions(campaign: str = "", group: str = "", review: str = "", q: str = ""
     cust = {c.customer_id: c.name for c in db.query(models.Customer).filter(
         models.Customer.customer_id.in_([d.customer_id for d, _ in rows]))}
     return {"total": total, "page": page, "page_size": page_size,
-            "rows": [_decision_row(d, o, names, camps, t, cust) for d, o in rows]}
+            "rows": [_decision_row(d, o, names, camps, t, cust, cfg_float(db, "human_review_balance_threshold"))
+                     for d, o in rows]}
 
 
 @router.get("/decisions/{did}")
@@ -149,7 +158,20 @@ def decision_audit(did: str, user: User = Depends(require("view_ai_decisions")),
                                 (" Learned from (reward {:.0f}).".format(o.reward) if o.learned else
                                  (" Comparison only - control outcomes are not learned from."
                                   if d.group == "Control" else " Not learned from - treatment not delivered."))))})
+    # Every recommendation made for this customer, newest first, so a reader sees what came before.
+    names = {k.campaign_id: k.name for k in db.query(Campaign)}
+    history = []
+    for x in (db.query(Decision).filter(Decision.customer_id == d.customer_id)
+              .order_by(Decision.decided_at.desc()).all()):
+        xo = db.query(Outcome).filter(Outcome.decision_id == x.decision_id).first()
+        history.append({"decision_id": x.decision_id, "decided_at": x.decided_at, "campaign_id": x.campaign_id,
+                        "strategy": names.get(x.campaign_id), "group": x.group,
+                        "treatment": t[x.treatment_code].name if x.treatment_code in t else None,
+                        "review_status": x.review_status, "current": x.decision_id == d.decision_id,
+                        "outcome": None if xo is None else ("Paid" if xo.paid else "Not paid"),
+                        "amount": xo.amount if xo and xo.paid else None})
     return {
+        "history": history,
         "decision": _decision_row(d, o, _user_names(db), {camp.campaign_id: camp.name}, t,
                                   {c.customer_id: c.name}),
         "explanation": d.explanation, "exclusion_reason": d.exclusion_reason,

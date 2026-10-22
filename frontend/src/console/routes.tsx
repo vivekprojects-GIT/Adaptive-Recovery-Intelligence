@@ -8,12 +8,14 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import AlertRules from "./pages/admin/AlertRules";
 import AuditLog from "./pages/admin/AuditLog";
 import Integrations from "./pages/admin/Integrations";
+import Observability from "./pages/admin/Observability";
 import PlatformConfig from "./pages/admin/PlatformConfig";
 import RolesPermissions from "./pages/admin/RolesPermissions";
 import SystemHealth from "./pages/admin/SystemHealth";
 import UserManagement from "./pages/admin/UserManagement";
 import Approvals from "./pages/leader/Approvals";
 import Compliance from "./pages/leader/Compliance";
+import Governance from "./pages/leader/Governance";
 import KpiDashboard from "./pages/leader/KpiDashboard";
 import PortfolioHealth from "./pages/leader/PortfolioHealth";
 import Reports from "./pages/leader/Reports";
@@ -22,10 +24,12 @@ import StrategyCompare from "./pages/leader/StrategyCompare";
 import TeamPerformance from "./pages/leader/TeamPerformance";
 import Workbench from "./pages/leader/Workbench";
 import Activity_ from "./pages/shared/Activity";
+import Agencies from "./pages/shared/Agencies";
 import Cohorts from "./pages/shared/Cohorts";
 import Customers from "./pages/shared/Customers";
 import DecisionAudit from "./pages/shared/DecisionAudit";
 import Decisions from "./pages/shared/Decisions";
+import Executive from "./pages/shared/Executive";
 import Journey from "./pages/shared/Journey";
 import Journeys from "./pages/shared/Journeys";
 import NudgeDetail from "./pages/shared/NudgeDetail";
@@ -58,6 +62,9 @@ export function RequirePerm({ perm, children }: { perm?: string; children: React
 }
 
 export const ROUTES: { path: string; el: ReactNode; perm?: string }[] = [
+  { path: "/executive", el: <Executive />, perm: "view_kpi_dashboard" },
+  { path: "/agencies", el: <Agencies />, perm: "view_kpi_dashboard" },
+  { path: "/governance", el: <Governance />, perm: "view_compliance" },
   { path: "/dashboard", el: <MyDashboard /> },
   { path: "/builder", el: <StrategyBuilder />, perm: "create_strategy" },
   { path: "/builder/:id", el: <StrategyBuilder />, perm: "edit_strategy" },
@@ -92,5 +99,6 @@ export const ROUTES: { path: string; el: ReactNode; perm?: string }[] = [
   { path: "/admin/integrations", el: <Integrations />, perm: "manage_integrations" },
   { path: "/admin/audit", el: <AuditLog />, perm: "view_audit_log" },
   { path: "/admin/health", el: <SystemHealth />, perm: "view_system_health" },
+  { path: "/admin/observability", el: <Observability />, perm: "view_system_health" },
   { path: "/admin/alerts", el: <AlertRules />, perm: "manage_alert_rules" },
 ];

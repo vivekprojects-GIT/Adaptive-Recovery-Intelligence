@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 
 import type { Role } from "../lib/api";
 import { useSession } from "../lib/session";
-import { BrandMark } from "../ui/brand";
+import { BrandMark, CLIENT_BANK, PRODUCT_NAME } from "../ui/brand";
 import { Avatar } from "../ui/ui";
 
 const HOME: Record<Role, string> = { strategist: "/dashboard", leader: "/kpis", admin: "/admin", viewer: "/kpis" };
@@ -19,8 +19,9 @@ const WHAT: Record<Role, string> = {
 export default function SignIn() {
   const { users, switchUser, error } = useSession();
   const navigate = useNavigate();
-  const order: Role[] = ["strategist", "leader", "admin", "viewer"];
-  // Active accounts first, then by role, so the usable personas lead the list.
+  // Every session starts with the platform administrator, then the business roles.
+  const order: Role[] = ["admin", "leader", "strategist", "viewer"];
+  // Active accounts first, then by role.
   const people = [...users].sort((a, b) =>
     Number(a.status !== "Active") - Number(b.status !== "Active")
     || order.indexOf(a.role) - order.indexOf(b.role) || a.name.localeCompare(b.name));
@@ -31,7 +32,7 @@ export default function SignIn() {
       <section className="brand-gradient relative hidden w-[46%] max-w-[640px] flex-col justify-between overflow-hidden p-10 text-white lg:flex">
         <BrandMark onDark size="lg" />
         <div className="relative">
-          <p className="text-sm font-medium uppercase tracking-[0.14em] text-primary-200">ARI Console</p>
+          <p className="text-sm font-medium text-primary-200">{CLIENT_BANK}</p>
           <h1 className="mt-3 text-[40px] font-light leading-[1.1] tracking-tight">Adaptive Recovery<br />Intelligence</h1>
           <p className="mt-4 max-w-md text-[15px] leading-6 text-primary-100">
             Decide which collections treatment works for which customer, and prove it against a randomised control group.
@@ -62,7 +63,7 @@ export default function SignIn() {
         </div>
         <div className="mx-auto flex w-full max-w-[460px] flex-1 flex-col justify-center px-8 pb-12">
           <h2 className="text-[26px] font-medium tracking-tight text-fg">Sign in</h2>
-          <p className="mt-1.5 text-sm text-fg-2">to ARI Console</p>
+          <p className="mt-1.5 text-sm text-fg-2">to {PRODUCT_NAME} · {CLIENT_BANK}</p>
 
           <button disabled title="Connects to the organisation's identity provider in production"
             className="mt-7 flex h-11 w-full cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-line-strong bg-surface-sunken text-sm font-medium text-fg-3">
@@ -70,7 +71,7 @@ export default function SignIn() {
           </button>
           <p className="mt-1.5 text-center text-2xs text-fg-3">Available when connected to the bank's identity provider.</p>
 
-          <div className="my-6 flex items-center gap-3 text-2xs font-medium uppercase tracking-[0.1em] text-fg-3">
+          <div className="my-6 flex items-center gap-3 text-2xs font-medium text-fg-3">
             <span className="h-px flex-1 bg-line" />Accounts in this environment<span className="h-px flex-1 bg-line" />
           </div>
 

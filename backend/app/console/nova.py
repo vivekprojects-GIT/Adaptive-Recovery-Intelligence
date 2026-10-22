@@ -19,7 +19,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
+from types import SimpleNamespace
 from typing import Literal
 
 import numpy as np
@@ -29,6 +30,7 @@ from sqlalchemy.orm import Session
 from .. import models
 from ..scoring import nudge_score, self_cure_score, segment_for
 from . import analytics, engine, router, rules
+from ..core import telemetry as otel
 from .contract import (
     FEATURE_SET_VERSION, Consent, NovaAccount, Received, RecoveryContextV1, guard_context, lineage_only, receive,
 )
@@ -36,7 +38,9 @@ from .contract import (
 # Re-exported: callers use nova.NovaAccount and nova.Consent.
 __all__ = ["Consent", "NovaAccount"]
 from .engine import UNNAMED, iso, jl
-from .models import Campaign, Decision, ExternalCustomer, FeatureSnapshot, Nudge, Outcome, Routing, TreatmentMeta
+from .models import (
+    Campaign, Decision, ExternalCustomer, FeatureSnapshot, Nudge, Outcome, PaymentRecord, Routing, TreatmentMeta,
+)
 from .platform import audit, cfg, now
 from .playbook import human_review_codes
 
@@ -69,6 +73,8 @@ class PaymentReport(BaseModel):
     payment_status: Literal["Posted", "Reversed"] = Field(
         "Posted", description="A reversed payment counts as not paid - a reversal we never hear about would "
                               "teach the model a false success.")
+    payment_id: str | None = Field(None, max_length=64, description="Nova's id for this payment. Each id counts "
+                                   "once; a second id adds to the total. Without one, a report replaces the last.")
 
 
 # ---------------------------------------------------------------------------
@@ -122,12 +128,27 @@ def _apply(rec: NovaAccount, c: models.Customer) -> list[str]:
     c.client_risk_score = rec.risk_score if rec.risk_score is not None else RISK_MIDPOINT[c.client_risk_band]
     if rec.risk_score is None:
         assumed.append(f"risk score: {c.client_risk_score:g} (band midpoint)")
+    c.product = product_name(rec.product)
     c.name = (rec.customer_name or f"{UNNAMED}{rec.account_id}")[:60]
     c.persona_note = f"Handed over by Nova as {rec.account_id}" + (f" from {rec.source_system}" if rec.source_system else "")
     c.nudge_score = nudge_score(c)
     c.self_cure_score = self_cure_score(c)
     c.segment = segment_for(c)
     return assumed
+
+
+def product_name(raw: str | None) -> str:
+    """Nova's product code, read into ARI's product names."""
+    t = (raw or "").lower()
+    if "corp" in t:
+        return "Corporate card"
+    if "auto" in t or "vehicle" in t:
+        return "Auto loan"
+    if "business" in t or "sme" in t or "commercial" in t:
+        return "Small-business loan"
+    if "loan" in t or "personal" in t:
+        return "Personal loan"
+    return "Retail card"
 
 
 def _link(db: Session, account_id: str) -> ExternalCustomer | None:
@@ -399,6 +420,8 @@ def _received_out(out: dict, got: Received) -> dict:
     out.setdefault("request_id", got.account.request_id)
     out.setdefault("ignored_fields", got.ignored_fields)
     out.setdefault("aliases_used", got.aliases_used)
+    if got.protected_dropped:
+        out.setdefault("protected_fields_dropped", got.protected_dropped)
     return out
 
 
@@ -509,7 +532,8 @@ def recovery_strategy(db: Session, request: NovaAccount | RecoveryContextV1 | Re
         "lineage_only": lineage_only(rec), "received_at": iso(at),
         "source_lineage": {"source": "Nova (MCP)", "source_system": rec.source_system, "request_id": rec.request_id,
                            "as_of_timestamp": rec.as_of_timestamp.isoformat() if rec.as_of_timestamp else None,
-                           "contract_version": rec.contract_version, "feature_set_version": FEATURE_SET_VERSION},
+                           "contract_version": rec.contract_version, "feature_set_version": FEATURE_SET_VERSION,
+                           "protected_dropped": got.protected_dropped},
         "snapshot_extra": {"source": "Nova (MCP)", "account_id": rec.account_id,
                            "amount_past_due": rec.amount_past_due, "arrears": rec.amount_past_due,
                            "reported_contacts_7d": rec.contacts_last_7d or 0,
@@ -597,6 +621,67 @@ def binary_reward(facts: dict) -> float:
     return 1.0 if facts["paid"] and facts["in_window"] else 0.0
 
 
+UNIDENTIFIED = "_report"   # the payment record for reports sent without a payment_id
+
+
+def _record_payment(db: Session, subject: str, customer_id: int, rep: PaymentReport,
+                    default_amount: float) -> tuple[PaymentRecord, bool]:
+    """Store one reported payment. Returns the record and whether it repeats one already held exactly."""
+    pid = (rep.payment_id or "").strip() or UNIDENTIFIED
+    amount = rep.amount if rep.amount is not None else (default_amount if rep.paid else None)
+    vals = {"paid": rep.paid, "amount": None if amount is None else round(amount, 2),
+            "payment_date": rep.payment_date.isoformat() if rep.payment_date else None, "status": rep.payment_status}
+    row = db.query(PaymentRecord).filter_by(subject=subject, payment_id=pid).first()
+    if row is not None and all(getattr(row, k) == v for k, v in vals.items()):
+        return row, True
+    if row is None:
+        row = PaymentRecord(subject=subject, payment_id=pid, customer_id=customer_id, first_reported_at=now())
+        db.add(row)
+    for k, v in vals.items():
+        setattr(row, k, v)
+    row.reported_at = now()
+    db.flush()
+    return row, False
+
+
+def _keep_legacy(db: Session, subject: str, customer_id: int, o, start: date) -> None:
+    """An outcome reported before payment ids existed becomes its unidentified
+    payment record, so a later payment adds to it instead of erasing it."""
+    if o is None or db.query(PaymentRecord).filter_by(subject=subject).count():
+        return
+    paid_on = (start + timedelta(days=o.days_to_pay)).isoformat() if o.paid and o.days_to_pay is not None else None
+    db.add(PaymentRecord(subject=subject, payment_id=UNIDENTIFIED, customer_id=customer_id, paid=bool(o.paid),
+                         amount=round(o.amount or 0.0, 2) if o.paid else None, payment_date=paid_on, status="Posted",
+                         first_reported_at=o.observed_at or now(), reported_at=o.observed_at or now()))
+    db.flush()
+
+
+def payment_tally(db: Session, subject: str, start: date, window: int) -> dict:
+    """The outcome from every payment held: paid if any posted payment fell in
+    the window, the amount is their total, days to pay is the first of them."""
+    rows = db.query(PaymentRecord).filter_by(subject=subject).order_by(PaymentRecord.record_id).all()
+    posted = [r for r in rows if r.paid and r.status == "Posted"]
+    inside, late = [], []
+    for r in posted:
+        days = (date.fromisoformat(r.payment_date) - start).days if r.payment_date else None
+        (inside if days is None or days <= window else late).append((r, days))
+    days_in = [d for _, d in inside if d is not None]
+    return {"paid": bool(inside), "amount": round(sum(r.amount or 0.0 for r, _ in inside), 2),
+            "days": min(days_in) if days_in else None, "payments": len(posted), "in_window": len(inside),
+            "late": len(late), "reversed": sum(1 for r in rows if r.paid and r.status == "Reversed")}
+
+
+def _tally_note(t: dict, dup: bool, pid: str | None) -> str:
+    out = ""
+    if dup:
+        out += (f" Payment {pid} was already recorded exactly as sent, so it is not counted again." if pid else
+                " This report repeats the last one exactly; nothing changed.")
+    if t["payments"] > 1 or t["reversed"]:
+        out += (f" Payments held: {t['payments']} posted ({t['in_window']} inside the window, ${t['amount']:,.2f} "
+                f"in all)" + (f", {t['reversed']} reversed" if t["reversed"] else "") + ".")
+    return out
+
+
 def _routed_away(db: Session, rep: PaymentReport) -> Routing | None:
     """The account's latest routing, when the router kept it off strategies
     after its latest decision (or it never had one)."""
@@ -618,20 +703,28 @@ def _routing_outcome(db: Session, rep: PaymentReport, r: Routing) -> dict:
     scores the router and never changes a strategy's treatment scores."""
     routed = datetime.fromisoformat(r.routed_at)
     in_window = rep.payment_date is None or (rep.payment_date - routed.date()).days <= r.window_days
-    paid = rep.paid and rep.payment_status == "Posted" and in_window
     c = db.get(models.Customer, r.customer_id)
+    subject = f"routing:{r.routing_id}"
+    _keep_legacy(db, subject, r.customer_id, SimpleNamespace(paid=r.paid, amount=r.amount, days_to_pay=None,
+                                                             observed_at=r.observed_at) if r.paid is not None else None,
+                 routed.date())
+    _, dup = _record_payment(db, subject, r.customer_id, rep, engine.arrears(c))
+    t = payment_tally(db, subject, routed.date(), r.window_days)
+    paid = t["paid"]
     r.paid = paid
-    r.amount = (rep.amount if rep.amount is not None else engine.arrears(c)) if paid else 0.0
+    r.amount = t["amount"] if paid else 0.0
     r.observed_at = now()
     audit(db, ACTOR, "UPDATE", "routing", rep.account_id,
           f"Outcome for {rep.account_id} ({router.ROUTE_LABEL[r.route].lower()}): "
           f"{'paid' if paid else 'not paid'}")
     db.commit()
     return {"decision_id": None, "account_id": rep.account_id, "routing": router.routing_out(r),
-            "recorded": True, "corrected": False, "paid": paid, "counted_as_success": paid, "learned": False,
+            "recorded": True, "corrected": False, "duplicate": dup, "payment_id": rep.payment_id, "paid": paid,
+            "counted_as_success": paid, "learned": False, "payments": t,
             "note": ("Recorded against the Propensity Router. It scores the router; it never changes a "
                      "strategy's treatment scores.")
-                    + ("" if in_window else f" Paid after the {r.window_days}-day window, so it counts as not paid.")}
+                    + ("" if in_window or paid else f" Paid after the {r.window_days}-day window, so it counts as not paid.")
+                    + _tally_note(t, dup, rep.payment_id)}
 
 
 def report_outcome(db: Session, rep: PaymentReport) -> dict:
@@ -647,9 +740,8 @@ def report_outcome(db: Session, rep: PaymentReport) -> dict:
         raise NovaError(f"{dec.decision_id} was excluded before any treatment: nothing was sent, so there is no "
                         f"outcome to record or learn from.")
     camp = db.get(Campaign, dec.campaign_id)
-    facts = payment_facts(rep, dec, camp)
-    paid, days, in_window = facts["paid"], facts["days"], facts["in_window"]
-    success = binary_reward(facts) == 1.0
+    facts = payment_facts(rep, dec, camp)   # this payment on its own; also checks the date
+    decided_on = datetime.fromisoformat(dec.decided_at).date()
 
     first = (db.query(Nudge).filter(Nudge.decision_id == dec.decision_id).order_by(Nudge.scheduled_at).first())
     delivered = first is not None and first.status not in ("Failed", "Held")
@@ -661,22 +753,31 @@ def report_outcome(db: Session, rep: PaymentReport) -> dict:
 
     o = db.query(Outcome).filter(Outcome.decision_id == dec.decision_id).first()
     corrected = o is not None
+    _keep_legacy(db, dec.decision_id, dec.customer_id, o, decided_on)
+    # No amount reported: fall back to the amount past due Nova sent with the
+    # account - never to an estimate. 0 when Nova sent neither.
+    sent_due = jl(dec.snapshot, {}).get("amount_past_due")
+    _, duplicate = _record_payment(db, dec.decision_id, dec.customer_id, rep, sent_due or 0.0)
+    t = payment_tally(db, dec.decision_id, decided_on, camp.evaluation_days)
+    paid = t["paid"]
+    success = binary_reward({"paid": paid, "in_window": True}) == 1.0
     if o is None:
         o = Outcome(decision_id=dec.decision_id, campaign_id=dec.campaign_id, customer_id=dec.customer_id)
         db.add(o)
     o.paid = paid
-    # No amount reported: fall back to the amount past due Nova sent with the
-    # account - never to an estimate. 0 when Nova sent neither.
-    sent_due = jl(dec.snapshot, {}).get("amount_past_due")
-    o.amount = round(rep.amount if rep.amount is not None else (sent_due or 0.0), 2) if paid else 0.0
-    o.days_to_pay = days if paid else None
+    o.amount = t["amount"] if paid else 0.0
+    o.days_to_pay = t["days"] if paid else None
     o.escalated = False
     o.window_days = camp.evaluation_days
     # Control outcomes always count - they are the comparison. A treatment that
     # never reached the customer says nothing about the treatment.
-    o.reward = binary_reward(facts) if (not treated or delivered) else None
+    o.reward = (1.0 if success else 0.0) if (not treated or delivered) else None
     o.reward_policy = REWARD_POLICY
     o.learned = learnable
+    if not duplicate:
+        otel.outcomes.add(1, {"group": dec.group, "paid": paid, "learned": learnable})
+        otel.log.info("Outcome reported for %s: %s, %s", dec.decision_id, "paid" if paid else "not paid",
+                      "learned" if learnable else "not learned")
     o.observed_at = iso(datetime.now(UTC))
     db.flush()
     after = engine.beliefs(db, camp).get(code) if treated and code else None
@@ -696,16 +797,19 @@ def report_outcome(db: Session, rep: PaymentReport) -> dict:
     else:
         note = (f"Learned: {before['name']}'s estimated payment rate in {camp.campaign_id} moved from "
                 f"{before['mean']:.1%} to {after['mean']:.1%} ({after['learned']} outcomes).")
-    if paid and not in_window:
-        note += (f" Paid {days} days after the decision, outside the {camp.evaluation_days}-day window: counted "
-                 f"as not paid for learning (late payments are an open design item).")
+    if facts["paid"] and not facts["in_window"]:
+        note += (f" This payment arrived {facts['days']} days after the decision, outside the "
+                 f"{camp.evaluation_days}-day window: it is not counted for learning (late payments are an open "
+                 f"design item).")
     if rep.paid and rep.payment_status == "Reversed":
-        note += " The payment was reversed, so it counts as not paid."
+        note += " The payment was reversed, so it no longer counts."
+    note += _tally_note(t, duplicate, rep.payment_id)
 
     db.commit()
     return {
-        "decision_id": dec.decision_id, "recorded": True, "corrected": corrected,
-        "paid": paid, "counted_as_success": success, "learned": learnable, "note": note,
+        "decision_id": dec.decision_id, "recorded": True, "corrected": corrected and not duplicate,
+        "duplicate": duplicate, "payment_id": rep.payment_id, "paid": paid, "amount": o.amount,
+        "counted_as_success": success, "learned": learnable, "note": note, "payments": t,
         "learning": None if before is None else {
             "treatment": {"code": code, "name": before["name"]},
             "belief_before": round(before["mean"], 4), "belief_after": round(after["mean"], 4),

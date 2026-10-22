@@ -19,8 +19,9 @@ export function Notifications() {
   const b = me.badges;
   const items: { label: string; count: number; to: string; perm?: string }[] = [
     { label: "New insights from your strategy leader", count: me.user.role === "strategist" ? b.new_insights : 0, to: "/dashboard" },
-    { label: "Forbearance offers waiting for review", count: b.pending_review, to: "/review", perm: "override_decisions" },
+    { label: "Decisions waiting for review", count: b.pending_review, to: "/review", perm: "override_decisions" },
     { label: "Strategies waiting for approval", count: b.awaiting_approval, to: "/approvals", perm: "approve_strategy" },
+    { label: "Agency placements waiting for approval", count: b.pending_placements, to: "/agencies", perm: "approve_placements" },
     { label: "Open high and critical violations", count: b.open_violations, to: "/compliance", perm: "view_compliance" },
   ].filter((i) => i.count > 0 && (!i.perm || can(i.perm)));
   const total = items.reduce((s, i) => s + i.count, 0);

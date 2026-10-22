@@ -138,11 +138,11 @@ export default function StrategyAnalytics() {
       <Page>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <Kpi label="Strategies running" value={live} sub={`${running.length - live} paused`} />
-          <Kpi label="Proven better than control" value={proven} tone={proven ? "good" : "neutral"}
+          <Kpi label="Proven better than control" metric="lift" value={proven} tone={proven ? "good" : "neutral"}
             sub={worse ? `${worse} proven worse` : "the 95% range clears zero"} />
           <Kpi label="Thompson sampling settled" value={settled} sub="confident in one treatment" />
           <Kpi label="Still learning" value={learning} sub="testing more than one treatment" />
-          <Kpi label="Recovered" value={money(running.reduce((t, r) => t + r.stats.recovered, 0), true)}
+          <Kpi label="Recovered" metric="recovered" value={money(running.reduce((t, r) => t + r.stats.recovered, 0), true)}
             sub="across running strategies" />
         </div>
 

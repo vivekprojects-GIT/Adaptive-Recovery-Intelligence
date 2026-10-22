@@ -36,6 +36,7 @@ PERMISSIONS: list[tuple[str, str, str, str]] = [
     ("view_customer_list", "View Customer List", "Browse all accounts in the pipeline", "Customer Data"),
     ("view_ai_decisions", "View AI Decisions", "Inspect AI decision reasoning logs", "Customer Data"),
     ("override_decisions", "Override Decisions", "Replace or hold an AI decision, with a reason", "Customer Data"),
+    ("approve_placements", "Approve Agency Placements", "Approve, decline or recall placements with collection agencies", "Customer Data"),
     ("view_compliance", "View Compliance", "See policy violations and compliance scores", "Governance"),
     ("resolve_violations", "Resolve Violations", "Investigate and close compliance violations", "Governance"),
     ("use_ai_workbench", "Use AI Workbench", "Analyse performance and draft improvement ideas", "Governance"),
@@ -56,7 +57,7 @@ DEFAULT_GRANTS: dict[str, set[str]] = {
         "view_ai_decisions", "override_decisions",
     },
     "leader": {
-        "approve_strategy", "pause_archive_strategy", "view_kpi_dashboard", "export_reports",
+        "approve_strategy", "approve_placements", "pause_archive_strategy", "view_kpi_dashboard", "export_reports",
         "compare_strategies", "view_customer_list", "view_ai_decisions", "view_compliance",
         "resolve_violations", "use_ai_workbench",
     },

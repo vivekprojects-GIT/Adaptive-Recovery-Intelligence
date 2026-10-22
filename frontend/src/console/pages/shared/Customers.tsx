@@ -36,7 +36,7 @@ export default function Customers({ journeys }: { journeys?: boolean }) {
   return (
     <>
       <PageHeader title={journeys ? "Journeys" : "Customers"}
-        subtitle={journeys ? "Every customer a strategy has touched, with where their journey stands" : `${data?.total ?? "…"} accounts handed over by the client's collections system`} />
+        subtitle={journeys ? "Every customer a strategy has touched, with where their journey stands" : `${data?.total ?? "…"} accounts handed over by Meridian Vale Bank's collections system`} />
       <Page>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Pills value={view} onChange={(v) => set("view", v)} options={[
@@ -60,7 +60,7 @@ export default function Customers({ journeys }: { journeys?: boolean }) {
                   <Tr key={r.customer_id} onClick={() => navigate(`/journeys/${r.customer_id}`)}>
                     <Td><span className="flex items-center gap-2"><Avatar name={r.name} size="sm" />
                       <span className="min-w-0"><span className="block whitespace-nowrap font-medium">{r.name}</span>
-                        <span className="block whitespace-nowrap text-2xs text-fg-3">{r.cohort_id} · {r.days_past_due} DPD</span></span></span></Td>
+                        <span className="block whitespace-nowrap text-2xs text-fg-3">{r.product} · {r.cohort_id} · {r.days_past_due} DPD</span></span></span></Td>
                     <Td mono className="whitespace-nowrap text-primary-500">{customerRef(r.customer_id)}</Td>
                     <Td align="right"><span className="block">{money(r.balance)}</span><span className="block text-2xs text-fg-3">{money(r.arrears)} due</span></Td>
                     <Td><RiskBar score={r.risk_score} /></Td>

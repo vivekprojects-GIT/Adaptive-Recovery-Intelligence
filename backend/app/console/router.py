@@ -33,6 +33,7 @@ from ..scoring import nudge_score, segment_for, self_cure_score
 from ..simulation import true_pay_probability
 from .models import Decision, ExternalCustomer, Routing
 from .platform import cfg_float
+from ..core import pii, telemetry as otel
 
 UTC = timezone.utc
 POLICY = "propensity-router/1"
@@ -99,7 +100,15 @@ def apply(c, share: float) -> dict:
 def record(db: Session, c, *, origin: str, at: datetime, simulate: bool) -> Routing:
     """Route a stored customer and log it. For test handoffs, a customer kept off
     strategies gets a simulated outcome after the window; Nova reports its own."""
-    r = apply(c, validation_share(db))
+    with otel.tracer.start_as_current_span("ari.router.route") as span:
+        r = apply(c, validation_share(db))
+        span.set_attribute("ari.customer", pii.token(c.customer_id or 0, "customer"))
+        span.set_attribute("ari.fit_group", r["fit_group"])
+        span.set_attribute("ari.route", r["route"])
+        span.set_attribute("ari.validation", r["validation"])
+        span.set_attribute("ari.nudge_score", float(r["nudge_score"]))
+        span.set_attribute("ari.self_cure_score", float(r["self_cure_score"]))
+    otel.routes.add(1, {"fit_group": r["fit_group"], "route": r["route"], "validation": r["validation"]})
     row = Routing(customer_id=c.customer_id, origin=origin, policy=POLICY, fit_group=r["fit_group"],
                   nudge_score=r["nudge_score"], self_cure_score=r["self_cure_score"], route=r["route"],
                   validation=r["validation"], reason=r["reason"],

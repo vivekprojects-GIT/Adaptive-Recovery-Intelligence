@@ -65,6 +65,23 @@ STRATEGIES = [
 ]
 
 
+# The consumer and small-business lending book handed over for collections.
+# Balances sit in the retail range ($500-$15,000). Corporate cards arrive separately.
+PRODUCT_MIX = [("Retail card", 0.55), ("Personal loan", 0.20), ("Auto loan", 0.15), ("Small-business loan", 0.10)]
+PRODUCTS = [p for p, _ in PRODUCT_MIX] + ["Corporate card"]
+
+
+def draw_product(rng: random.Random) -> str:
+    """A product for a generated account. Drawn from its own generator so the
+    behavioural profiles stay exactly as they were."""
+    x, acc = rng.random(), 0.0
+    for product, share in PRODUCT_MIX:
+        acc += share
+        if x < acc:
+            return product
+    return PRODUCT_MIX[0][0]
+
+
 def _draw(target: str, rng: random.Random) -> dict:
     """Behavioural profile shaped toward a target intervention-fit group."""
     if target == "Persuadable":
@@ -155,6 +172,10 @@ def seed(reset: bool = True) -> dict:
                         break
                 rows.append(cand)
 
+        prng = random.Random(1_042)
+        for c in rows:
+            if not c.is_persona:
+                c.product = draw_product(prng)
         for c in rows:
             c.nudge_score = nudge_score(c)
             c.self_cure_score = self_cure_score(c)

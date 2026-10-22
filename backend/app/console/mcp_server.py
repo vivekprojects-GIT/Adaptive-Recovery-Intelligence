@@ -19,6 +19,7 @@ signatures at registration and needs real types, not strings.
 """
 import hmac
 import secrets
+from ..core import telemetry as otel
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from typing import Annotated, Any, Literal
@@ -86,11 +87,15 @@ async def _call(tool: str, work, summarize, action: str = "READ") -> Any:
     def run():
         db = SessionLocal()
         try:
-            with ENGINE_LOCK:
+            with ENGINE_LOCK, otel.tracer.start_as_current_span(f"mcp.tool {tool}") as span:
+                span.set_attribute("mcp.tool", tool)
+                span.set_attribute("ari.caller", nova.ACTOR)
                 try:
                     result = work(db)
                 except (nova.NovaError, ValueError) as e:
                     db.rollback()
+                    span.add_event("mcp.refused", {"ari.reason": str(e)[:200]})
+                    otel.log.warning("MCP %s refused: %s", tool, e)
                     audit(db, nova.ACTOR, action, "mcp", tool, f"{tool} refused: {e}")
                     db.commit()
                     raise
@@ -215,15 +220,19 @@ async def report_payment_outcome(
                                                               "inside the evaluation window.")] = None,
         payment_status: Annotated[Literal["Posted", "Reversed"], Field(
             description="Reversed counts as not paid.")] = "Posted",
+        payment_id: Annotated[str | None, Field(
+            max_length=64, description="Nova's id for this payment. Partial payments each send their own id and "
+                                       "are added up; the same id sent again counts once; Reversed with an id "
+                                       "removes that payment. Without an id, a report replaces the last one.")] = None,
 ) -> dict[str, Any]:
     """Tell ARI how a decision turned out. This is how the model learns.
 
     A treated outcome updates the belief in that treatment for the strategy - the answer shows the belief
-    before and after. A control outcome is kept as the comparison that measures uplift. Reporting again
-    for the same decision corrects the earlier report (a reversal, for example).
+    before and after. A control outcome is kept as the comparison that measures uplift. Send each payment
+    with its payment_id: the outcome is the total of the posted payments inside the evaluation window.
     """
     rep = nova.PaymentReport(decision_id=decision_id, account_id=account_id, paid=paid, amount=amount,
-                             payment_date=payment_date, payment_status=payment_status)
+                             payment_date=payment_date, payment_status=payment_status, payment_id=payment_id)
     return await _call("report_payment_outcome", lambda db: nova.report_outcome(db, rep),
                        lambda r: f"{r['decision_id']}: {'paid' if r['paid'] else 'not paid'}"
                                  + (", learned" if r["learned"] else "") + (" (correction)" if r["corrected"] else ""),

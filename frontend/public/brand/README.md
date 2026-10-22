@@ -1,14 +1,15 @@
 # Brand assets
 
-Put the official Capgemini logo files here, from the Capgemini brand portal:
-
 | File | Used on |
 |---|---|
-| `capgemini-logo-white.svg` | Dark shell bar and the sign-in brand panel |
 | `capgemini-logo.svg` | Light backgrounds |
+| `capgemini-logo-white.svg` | Dark shell bar and the sign-in brand panel |
 
-The console picks them up automatically (no rebuild needed in dev). Until they are
-present it shows a typographic "Capgemini" wordmark in Ubuntu.
+`capgemini-logo.svg` is Capgemini's logo as published on Wikimedia Commons
+(File:Capgemini_201x_logo.svg, https://commons.wikimedia.org/wiki/File:Capgemini_201x_logo.svg).
+`capgemini-logo-white.svg` is the same file with the wordmark set to white and the
+spade kept in Capgemini blue (#12ABDB), for dark backgrounds.
 
-Logo artwork is deliberately not redrawn or copied from the website: use the
-approved files and follow the brand portal's clear-space and minimum-size rules.
+Before any external release, replace both with the approved files from the Capgemini
+brand portal and follow its clear-space and minimum-size rules. The console picks the
+files up automatically; if they are missing it shows a typographic wordmark.

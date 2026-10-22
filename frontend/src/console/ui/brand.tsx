@@ -27,17 +27,21 @@ export function BrandMark({ onDark, size = "md" }: { onDark?: boolean; size?: "s
   );
 }
 
-/** Product lock-up: Capgemini | ARI Console. */
+/** The product's name on screen. One place to change it once the final name is chosen. */
+export const PRODUCT_NAME = "Adaptive Recovery Intelligence";
+
+/** Product lock-up: Capgemini | product name. */
 export function ProductLockup({ onDark, compact }: { onDark?: boolean; compact?: boolean }) {
   return (
     <div className="flex items-center gap-3">
       <BrandMark onDark={onDark} />
       <span className={clsx("h-5 w-px", onDark ? "bg-white/25" : "bg-line-strong")} />
-      <div className="leading-tight">
-        <p className={clsx("text-[14px] font-medium", onDark ? "text-white" : "text-fg")}>ARI Console</p>
-        {!compact && <p className={clsx("text-2xs", onDark ? "text-primary-200" : "text-fg-3")}>Adaptive Recovery Intelligence</p>}
-      </div>
+      <p className={clsx("whitespace-nowrap font-medium leading-tight", compact ? "text-[13px]" : "text-[14px]",
+        onDark ? "text-white" : "text-fg")}>{PRODUCT_NAME}</p>
     </div>
   );
 }
 
+
+/** The bank this ARI deployment serves. A fictional name in the demo environment. */
+export const CLIENT_BANK = "Meridian Vale Bank";

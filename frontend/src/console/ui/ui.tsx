@@ -1,10 +1,17 @@
 import clsx from "clsx";
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Info, Lock, MoreHorizontal, X, XCircle } from "lucide-react";
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 
+import { Badge } from "@/components/ui/badge";
+import { Button as UiButton } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tabs as UiTabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { initials } from "../lib/format";
+import { METRICS } from "../lib/metrics";
 
 /* ================================================================ layout */
 
@@ -70,16 +77,6 @@ export function Card({
 
 export type Tone = "neutral" | "good" | "warn" | "serious" | "bad" | "info" | "primary";
 
-const TONES: Record<Tone, string> = {
-  neutral: "bg-mute-bg text-mute",
-  good: "bg-good-bg text-good",
-  warn: "bg-warn-bg text-warn",
-  serious: "bg-serious-bg text-serious",
-  bad: "bg-bad-bg text-bad",
-  info: "bg-info-bg text-info",
-  primary: "bg-primary-50 text-primary-600",
-};
-
 /** States that need someone's attention. Only these get a coloured label;
  *  everything else is ordinary text, so the exceptions stand out. */
 const ATTENTION: Tone[] = ["warn", "serious", "bad"];
@@ -94,13 +91,8 @@ export function Chip({ children, tone = "neutral", icon, className, title }: {
       </span>
     );
   }
-  return (
-    <span title={title} className={clsx(
-      "inline-flex items-center gap-1 whitespace-nowrap rounded-[3px] px-1.5 py-px text-2xs font-medium",
-      TONES[tone], className)}>
-      {icon}{children}
-    </span>
-  );
+  const variant = ({ warn: "warning", serious: "serious", bad: "destructive" } as const)[tone as "warn" | "serious" | "bad"];
+  return <Badge variant={variant} title={title} className={className}>{icon}{children}</Badge>;
 }
 
 const STATUS_TONE: Record<string, Tone> = {
@@ -132,21 +124,12 @@ export function Button({
   size?: "sm" | "md"; disabled?: boolean; icon?: ReactNode; type?: "button" | "submit"; title?: string;
   loading?: boolean;
 }) {
+  const v = ({ primary: "default", secondary: "outline", ghost: "ghost", danger: "destructive" } as const)[variant];
   return (
-    <button type={type} title={title} onClick={onClick} disabled={disabled || loading}
-      className={clsx(
-        "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md font-medium transition",
-        "focus:outline-none focus-visible:shadow-ring disabled:cursor-not-allowed disabled:opacity-50",
-        size === "sm" ? "h-7 px-2.5 text-xs" : "h-8 px-3 text-[13px]",
-        {
-          primary: "bg-primary-500 text-white shadow-sm hover:bg-primary-600",
-          secondary: "border border-line-strong bg-surface text-fg hover:bg-surface-hover",
-          ghost: "text-fg-2 hover:bg-surface-hover hover:text-fg",
-          danger: "border border-bad/25 bg-surface text-bad hover:bg-bad-bg",
-        }[variant])}>
+    <UiButton type={type} title={title} onClick={onClick} disabled={disabled || loading} variant={v} size={size === "sm" ? "sm" : "default"}>
       {loading ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" /> : icon}
       {children}
-    </button>
+    </UiButton>
   );
 }
 
@@ -156,66 +139,32 @@ export interface MenuItem {
   disabled?: boolean; reason?: string;
 }
 
-/** Overflow ("More") menu. Fixed-positioned so a table's or card's overflow never clips it. */
+/** Overflow ("More") menu on shadcn's dropdown menu: portalled, so a table or card never clips it. */
 export function Menu({ items, label = "More actions", size = "md" }: { items: MenuItem[]; label?: string; size?: "sm" | "md" }) {
-  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
-  const btn = useRef<HTMLButtonElement>(null);
-  const menu = useRef<HTMLDivElement>(null);
   const visible = items.filter((i) => !i.hidden);
-  useEffect(() => {
-    if (!pos) return;
-    const outside = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (!menu.current?.contains(t) && !btn.current?.contains(t)) setPos(null);
-    };
-    const close = () => setPos(null);
-    const key = (e: KeyboardEvent) => e.key === "Escape" && setPos(null);
-    document.addEventListener("mousedown", outside);
-    document.addEventListener("keydown", key);
-    window.addEventListener("scroll", close, true);
-    window.addEventListener("resize", close);
-    return () => {
-      document.removeEventListener("mousedown", outside);
-      document.removeEventListener("keydown", key);
-      window.removeEventListener("scroll", close, true);
-      window.removeEventListener("resize", close);
-    };
-  }, [pos]);
   if (!visible.length) return null;
-  const toggle = () => {
-    if (pos) return setPos(null);
-    const r = btn.current!.getBoundingClientRect();
-    const h = visible.reduce((n, i) => n + (i.disabled && i.reason ? 50 : 36), 10);
-    setPos({ top: r.bottom + h + 8 > window.innerHeight ? Math.max(8, r.top - h - 4) : r.bottom + 4,
-      right: Math.max(8, window.innerWidth - r.right) });
-  };
   return (
-    <>
-      <button ref={btn} type="button" aria-label={label} title={label} aria-haspopup="menu" aria-expanded={!!pos}
-        onClick={(e) => { e.stopPropagation(); toggle(); }}
-        className={clsx("inline-flex shrink-0 items-center justify-center rounded-md text-fg-2 transition hover:bg-surface-hover hover:text-fg focus:outline-none focus-visible:shadow-ring",
-          size === "sm" ? "h-7 w-7" : "h-8 w-8", pos && "bg-surface-hover text-fg")}>
-        <MoreHorizontal className="h-4 w-4" />
-      </button>
-      {pos && createPortal(
-        <div ref={menu} role="menu" style={{ top: pos.top, right: pos.right }} onClick={(e) => e.stopPropagation()}
-          className="fixed z-[55] w-64 overflow-hidden rounded-lg border border-line bg-surface py-1 text-left font-normal shadow-pop">
-          {visible.map((i) => (
-            <button key={i.label} type="button" role="menuitem" disabled={i.disabled}
-              onClick={() => { setPos(null); i.onClick?.(); }}
-              className={clsx("flex w-full items-start gap-2.5 px-3 py-2 text-left text-[13px] disabled:cursor-not-allowed",
-                i.disabled ? "text-fg-3" : i.danger ? "text-bad hover:bg-bad-bg" : "text-fg hover:bg-surface-hover")}>
-              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">{i.icon}</span>
-              <span className="min-w-0 flex-1">
-                <span className="block">{i.label}</span>
-                {i.disabled && i.reason && <span className="mt-0.5 block text-2xs leading-4 text-fg-3">{i.reason}</span>}
-              </span>
-            </button>
-          ))}
-        </div>,
-        document.body,
-      )}
-    </>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button type="button" aria-label={label} title={label} onClick={(e) => e.stopPropagation()}
+          className={clsx("inline-flex shrink-0 items-center justify-center rounded-md text-fg-2 transition hover:bg-surface-hover hover:text-fg focus:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-surface-hover data-[state=open]:text-fg",
+            size === "sm" ? "h-7 w-7" : "h-8 w-8")}>
+          <MoreHorizontal className="h-4 w-4" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64" onClick={(e) => e.stopPropagation()}>
+        {visible.map((i) => (
+          <DropdownMenuItem key={i.label} disabled={i.disabled} onSelect={() => i.onClick?.()}
+            className={clsx("items-start", i.danger && !i.disabled && "text-bad focus:bg-bad-bg focus:text-bad", i.disabled && "data-[disabled]:opacity-100 text-fg-3")}>
+            <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">{i.icon}</span>
+            <span className="min-w-0 flex-1">
+              <span className="block">{i.label}</span>
+              {i.disabled && i.reason && <span className="mt-0.5 block text-2xs leading-4 text-fg-3">{i.reason}</span>}
+            </span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -243,7 +192,7 @@ export function Table({ children, maxHeight }: { children: ReactNode; maxHeight?
 
 export const Th = ({ children, align = "left", w }: { children?: ReactNode; align?: "left" | "right" | "center"; w?: string }) => (
   <th style={w ? { width: w } : undefined} className={clsx(
-    "border-b border-line bg-surface-sunken px-3 py-2 text-2xs font-semibold uppercase tracking-[0.05em] text-fg-3",
+    "border-b border-line bg-surface-sunken px-3 py-2 text-xs font-medium text-fg-2",
     align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left")}>{children}</th>
 );
 
@@ -287,16 +236,39 @@ export function Pager({ page, pageSize, total, onPage }: { page: number; pageSiz
 
 /* ================================================================== KPIs */
 
+/** A metric's definition on hover or focus: what it means and how it is calculated. */
+export function MetricInfo({ metric, className }: { metric: string; className?: string }) {
+  const m = METRICS[metric];
+  if (!m) return null;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button type="button" aria-label={`How ${m.label.toLowerCase()} is calculated`}
+          className={clsx("inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-fg-3 outline-none hover:text-fg-2 focus-visible:ring-2 focus-visible:ring-ring", className)}>
+          <Info className="h-3.5 w-3.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs text-left">
+        <p className="font-medium">{m.label}</p>
+        <p className="mt-1 opacity-90">{m.meaning}</p>
+        <p className="mt-1.5 opacity-90"><span className="font-medium">Calculated as</span> {m.formula}.</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function Kpi({
-  label, value, sub, delta, deltaGood, target, progress, tone = "neutral", icon,
+  label, value, sub, delta, deltaGood, target, progress, tone = "neutral", icon, metric,
 }: {
   label: string; value: ReactNode; sub?: ReactNode; delta?: string | null; deltaGood?: boolean | null;
   target?: string; progress?: number | null; tone?: "neutral" | "good" | "warn" | "bad" | "primary"; icon?: ReactNode;
+  /** Key in lib/metrics: shows the definition next to the label. */
+  metric?: string;
 }) {
   return (
     <div className="rounded-lg border border-line bg-surface p-4 shadow-card">
       <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-medium text-fg-2">{label}</p>
+        <p className="flex items-center gap-1 text-xs font-medium text-fg-2">{label}{metric && <MetricInfo metric={metric} />}</p>
         {delta && (
           <Chip tone={deltaGood === null || deltaGood === undefined ? "neutral" : deltaGood ? "good" : "bad"}>
             {delta}
@@ -417,16 +389,16 @@ export function Tabs<T extends string>({ tabs, active, onChange, className }: {
   tabs: { id: T; label: string; count?: number; icon?: ReactNode }[]; active: T; onChange: (t: T) => void; className?: string;
 }) {
   return (
-    <div className={clsx("flex gap-1 overflow-x-auto border-b border-line", className)} role="tablist">
-      {tabs.map((t) => (
-        <button key={t.id} role="tab" aria-selected={active === t.id} onClick={() => onChange(t.id)}
-          className={clsx("-mb-px flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-[13px] font-medium transition",
-            active === t.id ? "border-azure text-primary-500" : "border-transparent text-fg-2 hover:text-fg")}>
-          {t.icon}{t.label}
-          {t.count !== undefined && <span className="num rounded bg-surface-sunken px-1.5 text-2xs text-fg-3">{t.count}</span>}
-        </button>
-      ))}
-    </div>
+    <UiTabs value={active} onValueChange={(v) => onChange(v as T)} className={clsx("overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className)}>
+      <TabsList className="w-full justify-start">
+        {tabs.map((t) => (
+          <TabsTrigger key={t.id} value={t.id}>
+            {t.icon}{t.label}
+            {t.count !== undefined && <span className="num rounded bg-surface-sunken px-1.5 text-2xs text-fg-3">{t.count}</span>}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </UiTabs>
   );
 }
 
@@ -434,16 +406,13 @@ export function Pills<T extends string>({ options, value, onChange }: {
   options: { id: T; label: string; count?: number }[]; value: T; onChange: (v: T) => void;
 }) {
   return (
-    <div role="group" className="inline-flex max-w-full flex-wrap overflow-hidden rounded-md border border-line-strong bg-surface">
-      {options.map((o, i) => (
-        <button key={o.id} onClick={() => onChange(o.id)} aria-pressed={value === o.id} className={clsx(
-          "inline-flex h-7 items-center gap-1.5 px-3 text-xs transition",
-          i > 0 && "border-l border-line-strong",
-          value === o.id ? "bg-primary-50 font-medium text-primary-600" : "text-fg-2 hover:bg-surface-hover")}>
+    <ToggleGroup type="single" value={value} onValueChange={(v) => v && onChange(v as T)}>
+      {options.map((o) => (
+        <ToggleGroupItem key={o.id} value={o.id}>
           {o.label}{o.count !== undefined && <span className="num text-fg-3">{o.count}</span>}
-        </button>
+        </ToggleGroupItem>
       ))}
-    </div>
+    </ToggleGroup>
   );
 }
 

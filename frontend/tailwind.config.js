@@ -1,3 +1,5 @@
+import animate from "tailwindcss-animate";
+
 /**
  * ARI Console - Capgemini brand theme.
  *
@@ -19,7 +21,20 @@ export default {
         line: { DEFAULT: "#E6E9ED", strong: "#C7CCD3" }, // neutral-250 / -350
         fg: { DEFAULT: "#171A22", 2: "#474C56", 3: "#636977" },
         // Capgemini blue. 500 is the navy used for primary actions and links.
+        // shadcn/ui semantic tokens (src/components/ui), mapped to the Capgemini palette in index.css.
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        card: { DEFAULT: "hsl(var(--card))", foreground: "hsl(var(--card-foreground))" },
+        popover: { DEFAULT: "hsl(var(--popover))", foreground: "hsl(var(--popover-foreground))" },
+        secondary: { DEFAULT: "hsl(var(--secondary))", foreground: "hsl(var(--secondary-foreground))" },
+        muted: { DEFAULT: "hsl(var(--muted))", foreground: "hsl(var(--muted-foreground))" },
+        accent: { DEFAULT: "hsl(var(--accent))", foreground: "hsl(var(--accent-foreground))" },
+        destructive: { DEFAULT: "hsl(var(--destructive))", foreground: "hsl(var(--destructive-foreground))" },
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
         primary: {
+          DEFAULT: "hsl(var(--primary))", foreground: "hsl(var(--primary-foreground))",
           50: "#EFF0F4", 100: "#DFE1EB", 200: "#8EA6D5", 300: "#5685C6", 400: "#3573C0",
           500: "#1D365A", 600: "#121A38", 700: "#070A16",
         },
@@ -53,5 +68,5 @@ export default {
       },
     },
   },
-  plugins: [],
+  plugins: [animate],
 };

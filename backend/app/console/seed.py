@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from .. import models
 from ..seed import COHORTS
-from . import compliance, engine, insights, playbook, router
+from . import agencies, compliance, engine, governance, insights, playbook, router
 from .models import (
     AlertRule, Campaign, ContactRecord, Decision, EngagementEvent, FeatureSnapshot, Handoff, Insight, Nudge, Outcome,
     PlatformConfig, RolePermission, User,
@@ -47,42 +47,42 @@ CAMPAIGNS = [
                     "Plans need a person to approve each offer.",
         target_cohorts=["C2"], treatment_codes=["S3", "S1", "S2"],
         tone="Supportive", cadence_days=3, max_touches=3, escalate_to=None,
-        wave_size=18, recovery_target=0.55)),
+        wave_size=18, recovery_target=0.35)),
     ("STR-014", "Early Engagement Cascade", "u-maya", "Live", 5, 5, dict(
         description="Tiered digital reminders before any escalation. Works across early buckets.",
         target_cohorts=["C1", "C2"], treatment_codes=["S1", "S2", "S4"],
         tone="Supportive", cadence_days=3, max_touches=3, escalate_to=None, wave_size=18,
-        recovery_target=0.50)),
+        recovery_target=0.32)),
     ("STR-009", "Low Balance Quick Win", "u-ravi", "Live", 5, 5, dict(
         description="Fast one-touch SMS for balances under $2.5k. High close rate, minimal cost.",
         target_cohorts=["C1"], max_balance=2500,
         treatment_codes=["S1", "S2"], tone="Neutral", cadence_days=2, max_touches=2, escalate_to=None,
-        wave_size=24, recovery_target=0.70)),
+        wave_size=24, recovery_target=0.25)),
     ("STR-018", "High-Risk Escalation Path", "u-maya", "Live", 4, 4, dict(
         description="Structured outreach for 60 DPD: plan offer, agent call, or hardship review.",
         target_cohorts=["C3"],
         treatment_codes=["S3", "S5", "S6"], tone="Neutral", cadence_days=4, max_touches=2,
-        escalate_to=None, wave_size=18, recovery_target=0.40)),
+        escalate_to=None, wave_size=18, recovery_target=0.3)),
     ("STR-031", "Multi-Channel Blitz", "u-ravi", "Live", 3, 3, dict(
         description="Daily touches across SMS, app and calls with early escalation.",
         target_cohorts=["C2", "C3"], treatment_codes=["S1", "S5", "S2"],
         tone="Direct", cadence_days=1, max_touches=4, escalate_after_days=5, escalate_to="S5",
-        wave_size=20, recovery_target=0.65)),
+        wave_size=20, recovery_target=0.33)),
     ("STR-022", "Settlement Fast-Track", "u-aisha", "Paused", 5, 2, dict(
         description="Deferral or call for very high-risk accounts. Paused pending review.",
         target_cohorts=["C4"],
         treatment_codes=["S4", "S5", "S6"], tone="Neutral", cadence_days=4, max_touches=2,
-        escalate_to=None, wave_size=12, recovery_target=0.35)),
+        escalate_to=None, wave_size=12, recovery_target=0.25)),
     ("STR-027", "First-Time Delinquent Nurture", "u-ravi", "In review", None, 0, dict(
         description="Empathetic multi-touch sequence for first-time missed payments. Avoids escalation.",
         target_cohorts=["C1"], treatment_codes=["S2", "S1"],
         tone="Supportive", cadence_days=4, max_touches=2, escalate_to=None, wave_size=20,
-        recovery_target=0.60, steps_completed=6)),
+        recovery_target=0.3, steps_completed=6)),
     ("STR-025", "Low-Risk Nurture Flow", "u-maya", "Draft", None, 0, dict(
         description="Gentle app-first nudges for low-risk early arrears.",
         target_cohorts=["C1"], treatment_codes=["S2"],
         tone="Supportive", cadence_days=5, max_touches=2, escalate_to=None, wave_size=20,
-        recovery_target=0.55, steps_completed=2)),
+        recovery_target=0.28, steps_completed=2)),
 ]
 
 ALERTS = [
@@ -109,6 +109,7 @@ def ensure_console(db: Session) -> None:
     # eligibility_evals) are created by create_all at startup.
     added_columns = [("campaigns", "parent_id", "VARCHAR(12)"),
                      ("customers", "route", "VARCHAR(12)"),
+                     ("customers", "product", "VARCHAR(20) DEFAULT 'Retail card'"),
                      ("customers", "route_validation", "BOOLEAN DEFAULT 0"),
                      ("decisions", "validation", "BOOLEAN DEFAULT 0"),
                      ("decisions", "origin", "VARCHAR(12) DEFAULT 'wave'"),
@@ -151,6 +152,9 @@ def ensure_console(db: Session) -> None:
         rows["shadow_mode"].value = "true"
     db.commit()
     playbook.seed_meta(db)
+    agencies.seed_panel(db, datetime.now(UTC))
+    db.commit()
+    governance.encrypt_existing(db)   # rows stored before encryption at rest was switched on
 
 
 def _backfill_snapshots(db: Session) -> None:
@@ -222,6 +226,9 @@ def seed_console(db: Session, force: bool = False) -> dict:
                      risk_bands="[]", steps_completed=f.pop("steps_completed", 6), **f)
         db.add(c)
         camps[cid] = c
+        if cid == "STR-025":   # drafted from one of ARI's suggestions
+            c.source = "suggested"
+            audit(db, owner, "CREATE", "strategy", cid, f"Drafted {cid} {name} from an ARI suggestion", at=_iso(created))
         audit(db, owner, "CREATE", "strategy", cid, f"Created strategy {cid} {name}", at=_iso(created))
         if status in ("Live", "Paused", "In review"):
             c.submitted_at = _iso(created + timedelta(days=1))
@@ -257,9 +264,19 @@ def seed_console(db: Session, force: bool = False) -> dict:
     _manual_nudges(db, camps, now)
     db.commit()
 
+    # This cycle's handoff, so the live strategies have new customers to decide in the wave below.
+    playbook.ingest_handoff(db, actor="system", trigger="auto", seed=8_101)
+    # Corporate card accounts arrive late and wait for a person: their balances are over the review threshold.
+    _corporate_accounts(db, now - timedelta(days=1))
+    db.commit()
+
     # A live wave in review: forbearance decisions waiting for a person.
     for cid in ("STR-021", "STR-018"):
         engine.run_wave(db, camps[cid], at=now - timedelta(hours=20), realise=False)
+    db.commit()
+
+    # Late-stage accounts placed with the agency panel, and ARI's latest proposals waiting for approval.
+    agencies.seed_history(db, now)
     db.commit()
 
     found = compliance.scan(db, until=now)
@@ -268,6 +285,42 @@ def seed_console(db: Session, force: bool = False) -> dict:
     db.commit()
     return {"status": "seeded", "decisions": db.query(Decision).count(),
             "nudges": db.query(Nudge).count(), "violations": found}
+
+
+# Fictional corporate card holders. A charge card is due in full, so the balance is the amount to recover.
+CORPORATE_ACCOUNTS = [
+    # name, balance, credit limit, cohort, days past due, client risk score
+    ("Kestrel Freight Co.", 30000.0, 50000.0, "C2", 31, 52.0),
+    ("Alder & Finch Architects", 30000.0, 40000.0, "C2", 33, 48.0),
+    ("Bluewater Marine Services", 30000.0, 45000.0, "C3", 61, 71.0),
+    ("Copperline Engineering Ltd", 300000.0, 400000.0, "C2", 30, 55.0),
+    ("Northgate Catering Group", 300000.0, 350000.0, "C3", 62, 74.0),
+]
+
+
+def _corporate_accounts(db: Session, at: datetime) -> None:
+    """Add the corporate card accounts, route them, and decide the ones the
+    router sends to a live strategy. Their balances are over the review
+    threshold, so every treated decision waits for a person."""
+    from . import nova   # nova imports this module's neighbours; import late
+    db.add(Handoff(at=_iso(at), by="system", trigger="manual",
+                   counts=json.dumps({"C2": 3, "C3": 2}), total=len(CORPORATE_ACCOUNTS)))
+    for name, balance, limit, cohort, dpd, risk in CORPORATE_ACCOUNTS:
+        band = {"C2": "Medium", "C3": "High"}[cohort]
+        c = models.Customer(cohort_id=cohort, name=name, product="Corporate card", balance=balance,
+                            credit_limit=limit, utilization=round(balance / limit, 3), tenure_years=9,
+                            sms_responsive=True, app_user=True, hardship_flag=True, missed_payments=1,
+                            payment_history=0.93, days_past_due=dpd, client_risk_band=band,
+                            client_risk_score=risk,
+                            persona_note="Corporate card: due in full each month. Short-term cash-flow squeeze.")
+        db.add(c)
+        db.flush()
+        router.record(db, c, origin="handoff", at=at, simulate=True)
+        if c.route != "strategy":
+            continue
+        camp, _ = nova.route(db, c)
+        if camp is not None:
+            engine.decide_now(db, camp, c, origin="wave", at=at)
 
 
 def _bau_contacts(db: Session, rng: random.Random, now: datetime) -> None:

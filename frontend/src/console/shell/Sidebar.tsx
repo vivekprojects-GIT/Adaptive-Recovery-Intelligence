@@ -20,7 +20,7 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
       <nav className="flex-1 overflow-y-auto px-2 py-3">
         {groups.map((g, gi) => (
           <div key={gi} className={gi ? "mt-5" : ""}>
-            {g.section && !collapsed && <p className="mb-1.5 px-3 text-2xs font-medium uppercase tracking-[0.1em] text-fg-3">{g.section}</p>}
+            {g.section && !collapsed && <p className="mb-1.5 px-3 text-2xs font-medium text-fg-3">{g.section}</p>}
             {g.section && collapsed && <div className="mx-3 mb-2 h-px bg-line" />}
             <ul className="space-y-0.5">
               {g.items.filter((i) => !i.perm || can(i.perm)).map((i) => {

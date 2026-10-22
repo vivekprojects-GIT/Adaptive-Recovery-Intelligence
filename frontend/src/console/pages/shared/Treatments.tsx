@@ -9,6 +9,7 @@ import {
   Banner, Button, Card, Chip, Drawer, Empty, ErrorState, Field, Kpi, Menu, Modal, Page, PageHeader, Pills, Progress, Select,
   Spinner, StatusChip, Table, Td, Th, Toggle, Tr, inputCls, useAction,
 } from "../../ui/ui";
+import { StrategyVsTreatment } from "../../ui/domain";
 
 /** Forbearance-type kinds change what the customer owes: a person approves each offer by default. */
 const REVIEW_BY_DEFAULT = new Set(["Arrangement", "Deferral", "Hardship"]);
@@ -228,9 +229,10 @@ export default function TreatmentsPage() {
   return (
     <>
       <PageHeader title="Treatment Playbook"
-        subtitle="The approved actions ARI may take. Strategies choose from these, and Thompson sampling learns which works for whom."
+        subtitle="The approved actions ARI may take. A strategy picks which of these it may use; ARI learns which works for whom."
         actions={manage && <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => setEditing("new")}>New treatment</Button>} />
       <Page>
+        <StrategyVsTreatment />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Kpi label="Active treatments" value={active.length} sub={`${all.length - active.length} retired`} />
           <Kpi label="Learning from scratch" value={active.filter((t) => t.historical_n === 0).length} sub="no track record: flat prior" />

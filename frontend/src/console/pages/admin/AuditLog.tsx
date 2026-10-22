@@ -3,7 +3,7 @@ import { Fragment, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { api } from "../../lib/api";
-import { dateTime } from "../../lib/format";
+import { dateTime, sentence } from "../../lib/format";
 import { useApi, useSession } from "../../lib/session";
 import { Button, Card, Empty, ErrorState, Page, PageHeader, Pager, Select, Spinner, Table, Td, Th, Tr, inputCls, useAction } from "../../ui/ui";
 
@@ -45,7 +45,7 @@ export default function AuditLog() {
                     <Tr onClick={() => setOpen(open === r.audit_id ? null : r.audit_id)}>
                       <Td className="whitespace-nowrap text-xs text-fg-3">{dateTime(r.at)}</Td>
                       <Td>{r.actor_name}</Td>
-                      <Td mono className={r.action === "DELETE" ? "text-bad" : "text-fg-2"}>{r.action}</Td>
+                      <Td className={r.action === "DELETE" ? "text-bad" : "text-fg-2"}>{sentence(r.action)}</Td>
                       <Td mono className="text-fg-2">{r.entity}{r.entity_id ? ` · ${r.entity_id}` : ""}</Td>
                       <Td className="text-[13px]">{r.summary}</Td>
                     </Tr>

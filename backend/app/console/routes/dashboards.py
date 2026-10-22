@@ -11,13 +11,22 @@ from sqlalchemy.orm import Session
 
 from ... import models
 from ...core.database import get_db
-from .. import analytics, scorecards
+from .. import analytics, performance, scorecards
 from ..engine import arrears
 from ..models import Campaign, Decision, Nudge, User
 from ..rbac import require
 from .common import UTC, _get_campaign, _insights_for, _strategy_out, fired_alerts
 
 router = APIRouter()
+
+
+@router.get("/performance")
+def collections_performance(campaign_id: str = "", period: str = "week",
+                            user: User = Depends(require("view_kpi_dashboard")), db: Session = Depends(get_db)):
+    """Control against Experiment, recoveries over time, and treatment effectiveness, with the formulas."""
+    if campaign_id:
+        _get_campaign(db, campaign_id)
+    return performance.report(db, campaign_id or None, "month" if period == "month" else "week")
 
 
 @router.get("/scorecards")

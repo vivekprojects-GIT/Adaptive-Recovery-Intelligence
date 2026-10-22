@@ -23,6 +23,30 @@
   --seq-4: #1c4076;
 }
 
+/* shadcn/ui tokens (HSL channels) mapped to the Capgemini palette in tailwind.config.js. */
+:root {
+  --background: 0 0% 100%;            /* surface */
+  --foreground: 225 19% 11%;          /* fg #171A22 */
+  --card: 0 0% 100%;
+  --card-foreground: 225 19% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 225 19% 11%;
+  --primary: 215 51% 23%;             /* Capgemini navy #1D365A */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 25% 96%;           /* surface-hover #F1F4F7 */
+  --secondary-foreground: 225 19% 11%;
+  --muted: 210 40% 98%;               /* surface-sunken #F8FAFC */
+  --muted-foreground: 223 9% 43%;     /* fg-3 #636977 */
+  --accent: 228 18% 95%;              /* primary-50 #EFF0F4 */
+  --accent-foreground: 215 51% 23%;
+  --destructive: 344 100% 31%;        /* bad #9E0029 */
+  --destructive-foreground: 0 0% 100%;
+  --border: 214 15% 92%;              /* line #E6E9ED */
+  --input: 215 11% 80%;               /* line-strong #C7CCD3 */
+  --ring: 209 100% 34%;               /* azure #0058AB */
+  --radius: 0.5rem;
+}
+
 @layer base {
   html, body, #root { height: 100%; }
   body {
@@ -39,7 +63,7 @@
 @layer utilities {
   /* Figures align in columns: Inter's tabular numerals inside Ubuntu text. */
   .num { font-family: "Inter", ui-sans-serif, system-ui, sans-serif; font-variant-numeric: tabular-nums; }
-  .label { @apply text-2xs font-medium uppercase tracking-[0.07em] text-fg-3; }
+  .label { @apply text-xs font-medium text-fg-3; }
   .brand-gradient { background-image: linear-gradient(135deg, #3573c0 0%, #1c4076 55%, #121a38 100%); }
 }
 

@@ -84,3 +84,9 @@ export const SEGMENT_LABEL: Record<string, string> = {
 
 /** The customer ID as people see and search it (the API accepts CUS-11342 or 11342). */
 export const customerRef = (id: number) => `CUS-${10000 + id}`;
+
+/** A stored code such as "CREATE" or "in_window", as words in sentence case. */
+export const sentence = (code: string) => {
+  const s = code.replace(/_/g, " ").toLowerCase();
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};

@@ -27,7 +27,7 @@ export interface Flow {
 function Step({ n, label, done, children }: { n: number; label: string; done: boolean; children: ReactNode }) {
   return (
     <li className={clsx("min-w-0 border-t-2 pt-2", done ? "border-primary-500" : "border-line")}>
-      <p className="text-2xs font-medium uppercase tracking-[0.08em] text-fg-3">{n} · {label}</p>
+      <p className="text-2xs font-medium text-fg-3">{n} · {label}</p>
       <div className="mt-1 space-y-0.5 text-xs leading-5 text-fg-2">{children}</div>
     </li>
   );

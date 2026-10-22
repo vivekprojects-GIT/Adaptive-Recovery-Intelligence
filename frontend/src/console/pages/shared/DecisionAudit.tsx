@@ -7,11 +7,14 @@ import { api, type DecisionRow } from "../../lib/api";
 import { dateTime, money, pct, SEGMENT_LABEL } from "../../lib/format";
 import { useApi, useSession } from "../../lib/session";
 import { BarList, SERIES } from "../../ui/charts";
+import { DecisionTree, TodayAndHistory } from "./DecisionTree";
 import {
   Banner, Button, Card, Chip, Drawer, ErrorState, Field, KV, Page, PageHeader, Select, Spinner, StatusChip, Table, Td, Th, Tr, inputCls, useAction,
 } from "../../ui/ui";
 
 interface Data {
+  history: { decision_id: string; decided_at: string; campaign_id: string; strategy: string | null; group: string;
+    treatment: string | null; review_status: string; current: boolean; outcome: string | null; amount: number | null }[];
   decision: DecisionRow; explanation: string; exclusion_reason: string | null; override_reason: string | null;
   original_treatment: string | null;
   snapshot: Record<string, number | string | boolean>;
@@ -48,7 +51,7 @@ function RuleResults({ rows }: { rows: Data["evaluations"] }) {
                 <Td className="text-xs text-fg-3">{mine.length} rules · {mine[0].rule_version}</Td></Tr>,
               ...shown.map((r, i) => (
                 <Tr key={`${a}-${i}`}><Td /><Td className="text-xs text-fg-3">{r.stage}</Td><Td className="font-mono text-2xs">{r.rule_id}</Td>
-                  <Td><Chip tone={r.result === "PASS" ? "neutral" : "bad"}>{r.result}</Chip></Td>
+                  <Td><Chip tone={r.result === "PASS" ? "neutral" : "bad"}>{r.result === "PASS" ? "Pass" : "Blocked"}</Chip></Td>
                   <Td className="text-xs"><span className="font-mono text-2xs text-fg-3">{r.reason_code}</span> {r.reason}</Td></Tr>
               )),
             ];
@@ -74,7 +77,7 @@ export default function DecisionAudit() {
   const headline = d.group === "Control" ? { tone: "neutral" as const, title: "Control holdout", body: "This customer is in the randomised comparison group and received business-as-usual treatment only." }
     : d.review_status === "cancelled" ? { tone: "neutral" as const, title: `Cancelled before review: ${d.treatment}`, body: data.exclusion_reason ?? "Withdrawn before anything was sent." }
     : !d.treatment && !d.overridden ? { tone: "warn" as const, title: "No treatment allowed", body: data.explanation }
-    : d.review_status === "pending" ? { tone: "warn" as const, title: `Held for human review: ${d.treatment}`, body: "A forbearance offer. Nothing is sent until a strategist approves it." }
+    : d.review_status === "pending" ? { tone: "warn" as const, title: `Held for human review: ${d.treatment}`, body: `${d.review_reason ?? "Needs a person's approval"}. Nothing is sent until a strategist approves it.` }
     : d.overridden ? { tone: "warn" as const, title: `Overridden by a person: ${data.original_treatment} → ${d.treatment ?? "no treatment"}`, body: data.override_reason ?? "" }
     : d.review_policy === "human_review" ? { tone: "good" as const, title: `Approved by a person: ${d.treatment}`, body: `Selected by the model, approved before sending.` }
     : { tone: "info" as const, title: `Executed automatically: ${d.treatment}`, body: "A communication treatment. Policy allows these to send without review, inside the contact rules." };
@@ -101,6 +104,11 @@ export default function DecisionAudit() {
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className="min-w-0 space-y-4">
+            <DecisionTree snapshot={data.snapshot} ranking={data.ranking} evaluations={data.evaluations} group={d.group}
+              strategy={d.strategy} campaignId={d.campaign_id} treatment={d.treatment} reviewPolicy={d.review_policy}
+              reviewStatus={d.review_status} reviewReason={d.review_reason} outcome={d.outcome} amount={d.amount} />
+            <TodayAndHistory snapshot={data.snapshot} ranking={data.ranking} treatment={d.treatment}
+              earlier={data.history.filter((h) => !h.current && h.decided_at < d.decided_at).length} />
             <Card title="Decision trace" subtitle="Each stage the decision passed through, in order, with what it found">
               <ol className="space-y-2">
                 {data.trace.map((t, i) => (
@@ -142,6 +150,21 @@ export default function DecisionAudit() {
           </div>
 
           <div className="space-y-4">
+            <Card title="Past recommendations" subtitle="Every recommendation made for this customer, newest first">
+              <ul className="space-y-2">
+                {data.history.map((h) => (
+                  <li key={h.decision_id} className={clsx("rounded-lg border px-2.5 py-2 text-xs", h.current ? "border-primary-500" : "border-line")}>
+                    <div className="flex items-center justify-between gap-2">
+                      {h.current ? <span className="font-mono font-medium">{h.decision_id}</span>
+                        : <Link to={`/decisions/${h.decision_id}`} className="font-mono text-primary-500 hover:underline">{h.decision_id}</Link>}
+                      <span className="text-2xs text-fg-3">{dateTime(h.decided_at)}</span>
+                    </div>
+                    <p className="mt-0.5 text-fg">{h.group === "Control" ? "Control: business as usual" : h.treatment ?? "No treatment allowed"}</p>
+                    <p className="text-2xs text-fg-3">{h.campaign_id}{h.strategy ? ` · ${h.strategy}` : ""} · {h.review_status !== "n/a" ? `${h.review_status} · ` : ""}{h.outcome ?? "in window"}{h.amount ? ` ${money(h.amount)}` : ""}</p>
+                  </li>
+                ))}
+              </ul>
+            </Card>
             <Card title="Decision factors" subtitle="Points toward nudge propensity">
               <BarList rows={data.factors.map((f) => ({ label: f.factor, value: f.points, sub: `of ${f.max_points}` }))} format={(v) => (v ?? 0).toFixed(1)} max={30} />
               <p className="mt-3 border-t border-line pt-2 text-xs text-fg-2">Self-cure likelihood <span className="num font-semibold text-fg">{data.self_cure}</span> → {SEGMENT_LABEL[String(data.snapshot.segment)]}</p>

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 
 from ...core.database import get_db
-from ..models import Campaign, ComplianceViolation, Decision, Handoff, Insight, PlatformConfig, User
+from ..models import Campaign, ComplianceViolation, Decision, Handoff, Insight, Placement, PlatformConfig, User
 from ..platform import METRICS, cfg, now
 from ..rbac import ROLES, current_user, granted
 
@@ -38,6 +38,7 @@ def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
                 ComplianceViolation.severity.in_(["Critical", "High"])).count(),
             "pending_review": db.query(Decision).filter(Decision.review_status == "pending").count(),
             "awaiting_approval": db.query(Campaign).filter(Campaign.status == "In review").count(),
+            "pending_placements": db.query(Placement).filter(Placement.status == "Proposed").count(),
             "new_insights": db.query(Insight).filter(Insight.to_user == user.user_id,
                                                      Insight.status == "New").count(),
         },

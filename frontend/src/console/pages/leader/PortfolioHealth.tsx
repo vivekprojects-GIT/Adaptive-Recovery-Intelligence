@@ -23,7 +23,7 @@ export default function PortfolioHealth() {
       <PageHeader title="Portfolio Health" subtitle="Where every handed-over account stands" />
       <Page>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Kpi label="Accounts handed over" value={num(data.customers)} sub={`${data.cohorts.length} cohorts`} />
+          <Kpi label="Accounts handed over" metric="accounts_imported" value={num(data.customers)} sub={`${data.cohorts.length} cohorts`} />
           <Kpi label="In a strategy" value={num(inStrategy)} sub={`${pct(inStrategy / data.customers, 0)} of the book`} progress={inStrategy / data.customers} />
           <Kpi label="Resolved or on a plan" value={num(resolved)} tone="good" sub={`${pct(resolved / Math.max(1, inStrategy), 0)} of those in a strategy`} />
           <Kpi label="Needing attention" value={num((data.pipeline.Unresponsive ?? 0) + (data.pipeline.Escalated ?? 0))} tone="warn" sub="unresponsive or escalated" />

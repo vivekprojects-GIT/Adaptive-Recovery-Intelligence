@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session
 from .. import models
 from ..scoring import eligibility, treatment_kind
 from . import analytics, engine
-from .models import Campaign, Decision, Outcome, Routing
+from .models import Campaign, Decision, Outcome, Routing, User
 from .platform import cfg, cfg_float
 from .playbook import active_codes, human_review_codes
 
@@ -325,7 +325,12 @@ def suggestions(db: Session, limit: int = 3) -> dict:
                   "Sleeping Dog": "contact is likely to backfire: suppressed"}[seg]
         left_out.append({"segment": seg, "label": FIT_LABEL[seg], "reason": reason,
                          "control": None if not n else {"paid": p, "n": n, "rate": p / n}})
-    return {"suggestions": found[:limit], "considered": len(found), "left_out": left_out}
+    # What was suggested before: drafts made from a suggestion, and where they stand now.
+    owners = {u.user_id: u.name for u in db.query(User)}
+    history = [{"campaign_id": c.campaign_id, "name": c.name, "status": c.status, "created_at": c.created_at,
+                "owner": owners.get(c.owner_id), "kind": "New version" if c.parent_id else "New strategy"}
+               for c in db.query(Campaign).filter(Campaign.source == "suggested").order_by(Campaign.created_at.desc())]
+    return {"suggestions": found[:limit], "considered": len(found), "left_out": left_out, "history": history}
 
 
 def find(db: Session, key: str) -> dict | None:

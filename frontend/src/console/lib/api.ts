@@ -102,7 +102,7 @@ export interface Me {
   user: { user_id: string; name: string; email: string; role: Role; role_label: string };
   permissions: string[];
   badges: { live_campaigns: number; open_violations: number; pending_review: number;
-    awaiting_approval: number; new_insights: number };
+    awaiting_approval: number; new_insights: number; pending_placements: number };
   agent: { decisions_total: number; shadow_mode: boolean; model_version: string };
 }
 
@@ -272,7 +272,7 @@ export interface InsightRow {
 
 export interface CustomerRow {
   customer_id: number; name: string; cohort_id: string; balance: number; arrears: number;
-  days_past_due: number; risk_score: number; risk_band: string; segment: string; route: string | null; route_validation: boolean;
+  days_past_due: number; risk_score: number; risk_band: string; segment: string; route: string | null; route_validation: boolean; product: string;
   status: string; progress: number; strategy: string | null; campaign_id: string | null;
   treatment: string | null; last_contact: string | null;
 }
@@ -283,6 +283,7 @@ export interface DecisionRow {
   treatment: string | null; selection_probability: number | null; review_policy: string;
   review_status: string; overridden: boolean; decided_at: string; latency_ms: number;
   outcome: string | null; amount: number | null;
+  balance: number | null; product: string; review_reason: string | null;
   /** wave: decided in a console wave. mcp: asked for by an agent (Nova) over MCP. */
   origin: "wave" | "mcp";
 }

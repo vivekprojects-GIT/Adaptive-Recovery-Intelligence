@@ -1,11 +1,11 @@
 /** Suggested strategies: complete strategies ARI proposes from the decision log. */
 import { Check, FilePenLine } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { api, type Strategy } from "../../../lib/api";
-import { num, pct } from "../../../lib/format";
+import { dateTime, num, pct } from "../../../lib/format";
 import { useApi, useSession } from "../../../lib/session";
-import { Banner, Button, Card, Chip, Spinner, useAction } from "../../../ui/ui";
+import { Banner, Button, Card, Chip, Spinner, StatusChip, useAction } from "../../../ui/ui";
 
 interface Suggestion {
   key: string; kind: "new" | "revision"; title: string; summary: string; accounts: number; based_on: string | null;
@@ -15,6 +15,7 @@ interface Suggestion {
 }
 interface Suggestions {
   suggestions: Suggestion[]; considered: number;
+  history: { campaign_id: string; name: string; status: string; created_at: string; owner: string | null; kind: string }[];
   left_out: { segment: string; label: string; reason: string; control: { paid: number; n: number; rate: number } | null }[];
 }
 const CONFIDENCE_TONE = { "Strong evidence": "good", "Some evidence": "info", "Little evidence": "neutral" } as const;
@@ -60,7 +61,7 @@ export default function Suggested() {
           </div>
           <div className="mt-3 overflow-x-auto rounded-md border border-line">
             <table className="w-full text-left text-xs">
-              <thead className="bg-surface-sunken text-2xs uppercase tracking-[0.06em] text-fg-3">
+              <thead className="bg-surface-sunken text-2xs text-fg-3">
                 <tr><th className="px-3 py-2 font-medium">Treatment</th><th className="px-3 py-2 font-medium">Channel</th>
                   <th className="px-3 py-2 font-medium">Evidence</th><th className="px-3 py-2 text-right font-medium">Open to</th></tr>
               </thead>
@@ -97,9 +98,21 @@ export default function Suggested() {
           </div>
         </Card>
       ))}
+      {data.history.length > 0 && (
+        <Card title="Previously suggested" subtitle="Suggestions that were turned into strategies, and where they stand now" flush>
+          <ul className="divide-y divide-line">
+            {data.history.map((h) => (
+              <li key={h.campaign_id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-xs">
+                <span><Link to={`/strategies/${h.campaign_id}`} className="font-mono text-primary-500 hover:underline">{h.campaign_id}</Link> <span className="text-fg">{h.name}</span></span>
+                <span className="text-fg-3">{h.kind} · {h.owner ?? "—"} · {dateTime(h.created_at)} · <StatusChip status={h.status} /></span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
       {data.left_out.length > 0 && (
         <p className="text-xs leading-5 text-fg-3">
-          Left out on purpose: {data.left_out.map((l) => `customers ${l.label} (${l.reason}${l.control ? `: ${l.control.paid} of ${l.control.n} control customers paid without treatment` : ""})`).join("; ")}.
+          Left out by the Propensity Router: {data.left_out.map((l) => `customers ${l.label} (${l.reason}${l.control ? `; ${l.control.paid} of ${l.control.n} paid without treatment` : ""})`).join("; ")}.
           {data.considered > data.suggestions.length && ` ${data.considered - data.suggestions.length} more ideas ranked lower.`}
         </p>
       )}

@@ -59,7 +59,7 @@ export default function Journey() {
     <>
       <PageHeader title="Recovery Journey" subtitle={`${c.name} · ${customerRef(Number(c.customer_id))}`}
         crumbs={[{ label: "Journeys", to: "/journeys" }, { label: String(c.name) }]}
-        meta={<><StatusChip status={data.summary.status} /><SegmentChip segment={String(c.segment)} />{data.routing && data.routing.route_label !== data.summary.status && <span className="text-xs text-fg-2" title={data.routing.reason}>→ {data.routing.validation ? "Strategy (validation share)" : data.routing.route_label}</span>}<Chip tone="neutral">{String(c.cohort_id)} · {c.days_past_due} DPD</Chip>
+        meta={<><StatusChip status={data.summary.status} />{data.flows[0] && <Link to={`/strategies/${data.flows[0].campaign_id}`} className="text-xs text-primary-500 hover:underline">In {data.flows[0].campaign_id} · {data.flows[0].campaign_name}</Link>}<SegmentChip segment={String(c.segment)} />{data.routing && data.routing.route_label !== data.summary.status && <span className="text-xs text-fg-2" title={data.routing.reason}>→ {data.routing.validation ? "Strategy (validation share)" : data.routing.route_label}</span>}<Chip tone="neutral">{String(c.cohort_id)} · {c.days_past_due} DPD</Chip>
           <Chip tone="neutral">Client risk {String(c.client_risk_band)} ({Number(c.client_risk_score).toFixed(0)})</Chip></>} />
       <Page>
         <StrategyFlow flows={data.flows} />
@@ -94,7 +94,7 @@ export default function Journey() {
             </Card>
 
             <div className="grid gap-4 lg:grid-cols-2">
-              <Card title="Intervention fit" subtitle="ARI's scores. Delinquency risk comes from the client's model.">
+              <Card title="Intervention fit" subtitle="ARI's scores. Delinquency risk comes from Meridian Vale Bank's risk model.">
                 <div className="mb-3 grid grid-cols-2 gap-3">
                   <div><p className="label">Nudge propensity</p><p className="num text-xl font-semibold">{data.nudge_profile.score}</p></div>
                   <div><p className="label">Self-cure likelihood</p><p className="num text-xl font-semibold">{data.nudge_profile.self_cure_score}</p></div>

@@ -300,6 +300,7 @@ class Received(BaseModel):
     raw: dict
     ignored_fields: list[str]
     aliases_used: list[str]
+    protected_dropped: list[str] = []   # protected attributes removed on arrival (console/fairness.py)
 
 
 def _inspect(model: BaseModel, raw: Any, path: str, ignored: list[str], aliases: list[str]) -> None:
@@ -323,12 +324,15 @@ def _inspect(model: BaseModel, raw: Any, path: str, ignored: list[str], aliases:
 
 
 def receive(model: NovaAccount | RecoveryContextV1) -> Received:
+    from .fairness import scrub   # late: fairness reads the models, which import this module's neighbours
     raw = model._raw if model._raw is not None else model.model_dump(mode="json", exclude_none=True)
+    raw, dropped = scrub(raw)   # protected attributes are never stored, even in the raw record
     ignored: list[str] = []
     aliases: list[str] = []
     _inspect(model, raw, "", ignored, aliases)
     account = model.to_account() if isinstance(model, RecoveryContextV1) else model
-    return Received(account=account, raw=raw, ignored_fields=ignored, aliases_used=aliases)
+    return Received(account=account, raw=raw, ignored_fields=ignored, aliases_used=aliases,
+                    protected_dropped=dropped)
 
 
 def lineage_only(acc: NovaAccount) -> list[str]:

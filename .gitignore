@@ -16,3 +16,6 @@ dist/
 .idea/
 
 .claude/settings.local.json
+
+# Local encryption key (production sets ARI_PII_KEY)
+.ari_pii_key

@@ -84,7 +84,7 @@ export default function MyDashboard() {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Kpi label="My strategies" value={k.strategies} sub={`${k.live} live`} />
           <Kpi label="Accounts decided" value={num(k.accounts)} sub="across my strategies" />
-          <Kpi label="Recovery rate (treated)" value={pct(k.recovery_rate)}
+          <Kpi label="Recovery rate (treated)" metric="payment_rate" value={pct(k.recovery_rate)}
             sub={k.control_rate !== null ? `control ${pct(k.control_rate)} · uplift ${pp(k.uplift)}` : "no control yet"} />
           <Kpi label="Decisions, last 24h" value={num(k.decisions_24h)} sub="from my strategies" />
         </div>
@@ -102,7 +102,7 @@ export default function MyDashboard() {
               <div className="rounded-lg border border-line border-l-[3px] border-l-primary-500 bg-surface p-4 shadow-card">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-2xs font-semibold uppercase tracking-wide text-primary-600">
+                    <p className="text-2xs font-semibold tracking-wide text-primary-600">
                       Draft in progress · {data.draft.campaign_id} · step {Math.min(stepsDone(data.draft.steps_completed) + 1, STEPS.length)} of {STEPS.length}
                     </p>
                     <p className="mt-1 text-[15px] font-semibold text-fg">{data.draft.name}</p>

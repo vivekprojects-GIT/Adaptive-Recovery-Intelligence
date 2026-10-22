@@ -11,3 +11,9 @@ starlette==0.41.3
 sse-starlette==3.0.3
 tzdata==2026.4
 psycopg[binary]==3.2.13
+opentelemetry-api==1.28.2
+opentelemetry-sdk==1.28.2
+opentelemetry-instrumentation-fastapi==0.49b2
+opentelemetry-exporter-otlp-proto-http==1.28.2
+cryptography==44.0.0
+anthropic==1.15.0

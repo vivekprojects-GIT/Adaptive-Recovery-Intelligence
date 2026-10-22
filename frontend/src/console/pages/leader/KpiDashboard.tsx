@@ -4,9 +4,10 @@ import { Link, useNavigate } from "react-router-dom";
 import { api, type Alert, type WeekPoint } from "../../lib/api";
 import { money, num, pct, pp } from "../../lib/format";
 import { useApi, useSession } from "../../lib/session";
-import { fmtMoney, MetricTrend, RateVsControl, UpliftRow } from "../../ui/charts";
+import { RateVsControl, UpliftRow } from "../../ui/charts";
+import { PerformancePanel } from "../shared/Performance";
 import { ResultCell } from "../../ui/domain";
-import { Banner, Button, Card, Chip, ErrorState, Kpi, Page, PageHeader, Progress, Spinner, StatusChip, Table, Td, Th, Tr, useAction } from "../../ui/ui";
+import { Banner, Button, Card, Chip, ErrorState, Kpi, MetricInfo, Page, PageHeader, Progress, Spinner, StatusChip, Table, Td, Th, Tr, useAction } from "../../ui/ui";
 
 interface K { value: number | null; delta?: number | null; target?: number }
 interface Data {
@@ -40,34 +41,34 @@ export default function KpiDashboard() {
         </>} />
       <Page>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <Kpi label="Portfolio recovery rate (treated)" value={pct(k.recovery_rate.value)} progress={rr / (k.recovery_rate.target || 1)}
+          <Kpi label="Payment rate (experiment)" metric="payment_rate" value={pct(k.recovery_rate.value)} progress={rr / (k.recovery_rate.target || 1)}
             tone={rr < (k.recovery_rate.target ?? 0) ? "warn" : "neutral"} target={pct(k.recovery_rate.target, 0)}
             delta={d(k.recovery_rate.delta, (x) => pp(x).replace(/^[+−]/, ""))} deltaGood={k.recovery_rate.delta === null ? null : (k.recovery_rate.delta ?? 0) >= 0}
             sub="vs prior 14 days" />
-          <Kpi label="Total recovered" value={money(k.recovered.value, true)} sub={`${num(k.decisions_30d)} decisions`}
+          <Kpi label="Total recovered" metric="recovered" value={money(k.recovered.value, true)} sub={`${num(k.decisions_30d)} decisions`}
             delta={d(k.recovered.delta, (x) => money(x, true))} deltaGood={k.recovered.delta === null ? null : (k.recovered.delta ?? 0) >= 0} />
-          <Kpi label="Contact cost per recovery" value={money(k.cost_per_recovery.value)} target={money(k.cost_per_recovery.target)}
+          <Kpi label="Contact cost per recovery" metric="cost_per_recovery" value={money(k.cost_per_recovery.value)} target={money(k.cost_per_recovery.target)}
             tone={(k.cost_per_recovery.value ?? 0) > (k.cost_per_recovery.target ?? 99) ? "warn" : "neutral"}
             delta={d(k.cost_per_recovery.delta, (x) => money(x))} deltaGood={k.cost_per_recovery.delta === null ? null : (k.cost_per_recovery.delta ?? 0) <= 0} />
-          <Kpi label="Escalation rate" value={pct(k.escalation_rate.value)} target={`< ${pct(k.escalation_rate.target, 0)}`}
+          <Kpi label="Escalation rate" metric="escalation_rate" value={pct(k.escalation_rate.value)} target={`< ${pct(k.escalation_rate.target, 0)}`}
             tone={(k.escalation_rate.value ?? 0) > (k.escalation_rate.target ?? 1) ? "bad" : "neutral"}
             delta={d(k.escalation_rate.delta, (x) => pp(x).replace(/^[+−]/, ""))} deltaGood={k.escalation_rate.delta === null ? null : (k.escalation_rate.delta ?? 0) <= 0} />
           <Kpi label="Active strategies" value={k.active_strategies.value} tone="primary"
             delta={k.active_strategies.delta ? `${k.active_strategies.delta > 0 ? "▲" : "▼"} ${Math.abs(k.active_strategies.delta)}` : null}
             deltaGood={null} sub={`${k.pending_review} offers awaiting review`} />
-          <Kpi label="Avg days to pay" value={k.avg_resolution_days.value ? `${k.avg_resolution_days.value} days` : "—"} sub="among payers"
+          <Kpi label="Avg days to pay" metric="avg_days_to_pay" value={k.avg_resolution_days.value ? `${k.avg_resolution_days.value} days` : "—"} sub="among payers"
             delta={d(k.avg_resolution_days.delta, (x) => `${x.toFixed(1)}d`)} deltaGood={k.avg_resolution_days.delta === null ? null : (k.avg_resolution_days.delta ?? 0) <= 0} />
         </div>
 
-        <Card title="What ARI caused: treated vs control, portfolio-wide" subtitle="Recovery rates include customers who would have paid anyway. The uplift is the part the strategies earned.">
+        <Card title="Experiment vs control, last 30 days" subtitle="Decisions made in the last 30 days. Payment rates include customers who would have paid anyway; the lift over control is what the strategies caused.">
           <div className="grid gap-5 lg:grid-cols-[1.6fr_1fr]">
             <RateVsControl data={data.weekly} target={k.recovery_rate.target} />
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-lg bg-surface-sunken p-3"><p className="label">Treated</p><p className="num text-xl font-semibold">{pct(k.recovery_rate.value)}</p></div>
+                <div className="rounded-lg bg-surface-sunken p-3"><p className="label">Experiment</p><p className="num text-xl font-semibold">{pct(k.recovery_rate.value)}</p></div>
                 <div className="rounded-lg bg-surface-sunken p-3"><p className="label">Control</p><p className="num text-xl font-semibold">{pct(k.uplift.control_rate)}</p></div>
               </div>
-              <div><p className="label mb-1">Uplift over control (95% interval)</p><UpliftRow uplift={k.uplift.value} ci={k.uplift.ci} mde={k.uplift.mde} /></div>
+              <div><p className="label mb-1 flex items-center gap-1">Lift over control (95% range) <MetricInfo metric="lift" /></p><UpliftRow uplift={k.uplift.value} ci={k.uplift.ci} mde={k.uplift.mde} /></div>
               {k.uplift.underpowered && (k.uplift.significant
                 ? <Banner tone="info">Significant, on a modest sample: the interval excludes zero, but effects this small are often overstated at this size. It firms up as cohorts accumulate.</Banner>
                 : <Banner tone="warn">Directional only: the lift is smaller than this sample can prove. It firms up as cohorts accumulate.</Banner>)}
@@ -75,9 +76,10 @@ export default function KpiDashboard() {
           </div>
         </Card>
 
-        <div className="grid gap-4 xl:grid-cols-[1fr_1fr_340px]">
-          <Card title="Recovered per week"><MetricTrend data={data.weekly as unknown as Record<string, unknown>[]} dataKey="recovered" format={fmtMoney} name="Recovered" /></Card>
-          <Card title="Segment performance" subtitle="By the client's risk band">
+        <PerformancePanel />
+
+        <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
+          <Card title="Segment performance" subtitle="By Meridian Vale Bank's risk band">
             <ul className="space-y-3">
               {data.segments.map((s) => (
                 <li key={s.band}>

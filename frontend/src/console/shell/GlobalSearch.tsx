@@ -145,7 +145,7 @@ export function GlobalSearch() {
           {hits.map((h, i) => (
             <div key={h.key}>
               {(i === 0 || hits[i - 1].group !== h.group) && (
-                <p className="px-3 pb-1 pt-2 text-2xs font-medium uppercase tracking-[0.08em] text-fg-3">{h.group}</p>
+                <p className="px-3 pb-1 pt-2 text-2xs font-medium text-fg-3">{h.group}</p>
               )}
               <button id={`gs-${i}`} role="option" aria-selected={i === active} type="button"
                 onMouseEnter={() => setActive(i)} onClick={() => go(h.to)}

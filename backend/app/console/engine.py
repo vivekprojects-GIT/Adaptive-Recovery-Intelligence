@@ -34,7 +34,10 @@ from .models import (
     Campaign, ContactRecord, Decision, EligibilityEval, EngagementEvent, ExternalCustomer, FeatureSnapshot, Nudge,
     Outcome,
 )
-from .platform import cfg
+from .platform import cfg, cfg_float
+from opentelemetry import context as otel_context, trace as otel_trace
+
+from ..core import pii, telemetry as otel
 from .router import GROUP_LABEL, ROUTE_LABEL
 from .playbook import human_review_codes
 
@@ -97,11 +100,19 @@ def as_of_decision(snap: dict) -> SimpleNamespace:
         "client_risk_band", "client_risk_score", "self_cure_score")})
 
 
+# Share of the balance due each cycle: a card's minimum payment, a loan's instalment.
+DUE_PER_CYCLE = {"Retail card": 0.035, "Personal loan": 0.04, "Auto loan": 0.03, "Small-business loan": 0.045}
+
+
 def arrears(c) -> float:
-    """Amount past due. The handoff carries balance and DPD; arrears is about one
-    minimum payment per missed cycle."""
+    """Amount past due. The handoff carries balance and DPD; arrears is one
+    minimum payment or instalment per missed cycle. A corporate charge card is
+    due in full."""
+    product = getattr(c, "product", None) or "Retail card"
+    if product == "Corporate card":
+        return round(float(c.balance), 2)
     cycles = max(1, round(c.days_past_due / 30))
-    return round(max(35.0, c.balance * 0.035) * cycles, 2)
+    return round(max(35.0, c.balance * DUE_PER_CYCLE.get(product, 0.035)) * cycles, 2)
 
 
 def _bucket(campaign_id: str, customer_id: int) -> float:
@@ -537,6 +548,8 @@ def undecided_pool(db: Session, camp: Campaign) -> list[models.Customer]:
     active = [k for (k,) in db.query(Campaign.campaign_id).filter(Campaign.status.in_(["Live", "Paused"]))]
     decided = {cid for (cid,) in db.query(Decision.customer_id)
                .filter(Decision.campaign_id.in_(active + lineage(db, camp)))}
+    from .agencies import open_customer_ids   # late: agencies imports this module
+    decided |= open_customer_ids(db)   # with a collection agency, or waiting to be placed
     codes = jl(camp.treatment_codes)
     pool = [c for c in target_customers(db, camp)
             if c.customer_id not in decided and c.route == "strategy"
@@ -555,7 +568,31 @@ def console_context(c) -> dict:
             "source_lineage": {"source": "Collections handoff", "customer_id": c.customer_id}}
 
 
-def decide_one(db: Session, camp: Campaign, c, *, decision_id: str, wave: int, decided_at: datetime,
+def decide_one(db: Session, camp: Campaign, c, **kw) -> Decision:
+    """One traced decision: see _decide_one."""
+    with otel.tracer.start_as_current_span("ari.decide") as span:
+        span.set_attribute("ari.strategy", camp.campaign_id)
+        span.set_attribute("ari.customer", pii.token(c.customer_id or 0, "customer"))
+        span.set_attribute("ari.origin", kw.get("origin", "wave"))
+        dec = _decide_one(db, camp, c, **kw)
+        span.set_attribute("ari.decision_id", dec.decision_id)
+        span.set_attribute("ari.group", dec.group)
+        span.set_attribute("ari.treatment", dec.treatment_code or "")
+        span.set_attribute("ari.review", dec.review_status or "n/a")
+        span.set_attribute("ari.validation", bool(dec.validation))
+        if dec.review_status == "pending":
+            span.add_event("review.required", {"ari.treatment": dec.treatment_code or "", "ari.balance": float(c.balance)})
+        attrs = {"strategy": camp.campaign_id, "group": dec.group, "review": dec.review_policy}
+        if dec.decision_id != "PREVIEW":
+            otel.decisions.add(1, attrs)
+            otel.decision_latency.record(dec.latency_ms, {"strategy": camp.campaign_id})
+            otel.log.info("Decision %s for customer %s in %s: %s%s", dec.decision_id, pii.token(c.customer_id or 0, "customer"), camp.campaign_id,
+                          dec.group if dec.group != "Treatment" else dec.treatment_code,
+                          " (waiting for review)" if dec.review_status == "pending" else "")
+        return dec
+
+
+def _decide_one(db: Session, camp: Campaign, c, *, decision_id: str, wave: int, decided_at: datetime,
                rng: np.random.Generator, arms_state: dict, human_review: set[str], auto_approve: bool,
                origin: str = "wave", context: dict | None = None) -> Decision:
     """One customer, one strategy. Every rule is evaluated for every candidate
@@ -574,11 +611,20 @@ def decide_one(db: Session, camp: Campaign, c, *, decision_id: str, wave: int, d
     s = snapshot(c)
     snap = {**vars(s), "client_risk_band": c.client_risk_band, "client_risk_score": c.client_risk_score,
             "self_cure_score": c.self_cure_score, "arrears": arrears(c), "route": getattr(c, "route", None),
+            "product": getattr(c, "product", None) or "Retail card",
             "route_validation": bool(getattr(c, "route_validation", False)), **ctx["snapshot_extra"],
             "contract_version": ctx["contract_version"], "guard": g}
     codes = [k for k in jl(camp.treatment_codes) if k in arms_state]
     eligible = [code for code in codes if eligibility(code, c)[0]]
-    allowed, rows, fresh = rules.evaluate(db, codes, c, g, decided_at)
+    with otel.tracer.start_as_current_span("ari.rules.evaluate") as rspan:
+        allowed, rows, fresh = rules.evaluate(db, codes, c, g, decided_at)
+        rspan.set_attribute("ari.candidates", len(codes))
+        rspan.set_attribute("ari.allowed", len(allowed))
+        for x in rows:
+            if x["result"] == "BLOCK":
+                rspan.add_event("rule.blocked", {"ari.treatment": x["arm_id"], "ari.rule": x["rule_id"],
+                                                 "ari.reason": x["reason_code"]})
+                otel.rule_blocks.add(1, {"rule": x["rule_id"]})
     blocked = rules.blocked_summary(rows)
     for b in blocked:
         b["name"] = arms_state[b["code"]]["name"]
@@ -622,8 +668,12 @@ def decide_one(db: Session, camp: Campaign, c, *, decision_id: str, wave: int, d
         dec.group = "Treatment"
         arms = [{"code": k, "name": arms_state[k]["name"], "a": arms_state[k]["a"],
                  "b": arms_state[k]["b"]} for k in allowed]
-        ranking = thompson_rank(arms, c, rng)
-        probs = selection_probabilities(arms, c, rng)
+        with otel.tracer.start_as_current_span("ari.thompson.select") as tspan:
+            ranking = thompson_rank(arms, c, rng)
+            probs = selection_probabilities(arms, c, rng)
+            tspan.set_attribute("ari.chosen", ranking[0]["code"])
+            tspan.set_attribute("ari.score", ranking[0]["score"])
+            tspan.set_attribute("ari.selection_probability", round(probs.get(ranking[0]["code"], 0.0), 4))
         chosen = ranking[0]["code"]
         for r in ranking:
             r["selection_probability"] = round(probs.get(r["code"], 0.0), 4)
@@ -639,7 +689,12 @@ def decide_one(db: Session, camp: Campaign, c, *, decision_id: str, wave: int, d
             + (f" Runner-up {runner['name']} at {runner['score']:.2f}." if runner else "")
             + f" Chosen {probs.get(chosen, 0):.0%} of the time in this context."
             + (f" Not allowed: {not_allowed}." if blocked else ""))
-        if chosen in human_review:
+        threshold = cfg_float(db, "human_review_balance_threshold")
+        over = c.balance >= threshold
+        if over:
+            dec.explanation += (f" The balance of ${c.balance:,.0f} is at or above the ${threshold:,.0f} review "
+                                f"threshold, so a person approves it before anything is sent.")
+        if chosen in human_review or over:
             dec.review_policy = "human_review"
             dec.review_status = "approved" if auto_approve else "pending"
             if auto_approve:
@@ -696,6 +751,24 @@ def decide_now(db: Session, camp: Campaign, c, *, origin: str, context: dict | N
 
 def run_wave(db: Session, camp: Campaign, at: datetime | None = None, actor: str = "system",
              realise: bool = True) -> dict:
+    """One traced wave: see _run_wave. A wave is a batch job, so it is its own
+    trace, linked to whatever started it (a request, the seed, a schedule)."""
+    parent = otel_trace.get_current_span().get_span_context()
+    with otel.tracer.start_as_current_span("ari.wave", context=otel_context.Context(),
+                                           links=[otel_trace.Link(parent)] if parent.is_valid else []) as span:
+        span.set_attribute("ari.strategy", camp.campaign_id)
+        out = _run_wave(db, camp, at, actor, realise)
+        for k in ("wave", "decided", "treatment", "control", "held_for_review", "blocked_by_guard"):
+            if out.get(k) is not None:
+                span.set_attribute(f"ari.{k}", out[k])
+        otel.log.info("Wave %s for %s: %s decided, %s treated, %s control, %s waiting for review",
+                      out.get("wave"), camp.campaign_id, out["decided"], out["treatment"], out["control"],
+                      out["held_for_review"])
+        return out
+
+
+def _run_wave(db: Session, camp: Campaign, at: datetime | None = None, actor: str = "system",
+              realise: bool = True) -> dict:
     """Decide, guard, execute and (optionally) observe one wave."""
     at = at or datetime.now(UTC)
     wave = camp.waves_run + 1
@@ -760,10 +833,23 @@ def run_wave(db: Session, camp: Campaign, at: datetime | None = None, actor: str
     return summary
 
 
-def execute(db: Session, camp: Campaign, dec, c, at: datetime,
-            rng: np.random.Generator, seq: Seq, touch: int = 1, escalation: bool = False,
-            manual_text: str | None = None, code: str | None = None,
-            ctx: dict | None = None, ctx_source: str = "") -> Nudge:
+def execute(db: Session, camp: Campaign, dec, c, at: datetime, *args, **kw) -> Nudge:
+    """One traced send: see _execute."""
+    with otel.tracer.start_as_current_span("ari.contact.send") as span:
+        n = _execute(db, camp, dec, c, at, *args, **kw)
+        span.set_attribute("ari.nudge_id", n.nudge_id)
+        span.set_attribute("ari.channel", n.channel)
+        span.set_attribute("ari.status", n.status)
+        otel.contacts.add(1, {"channel": n.channel, "status": n.status})
+        if n.status == "Held":
+            span.add_event("contact.held", {"ari.reason": n.failure_reason or ""})
+        return n
+
+
+def _execute(db: Session, camp: Campaign, dec, c, at: datetime,
+             rng: np.random.Generator, seq: Seq, touch: int = 1, escalation: bool = False,
+             manual_text: str | None = None, code: str | None = None,
+             ctx: dict | None = None, ctx_source: str = "") -> Nudge:
     """Send-time contact check, content, delivery. Returns the nudge; its
     status is Delivered, Failed, or Held (stopped by the check before sending).
 
@@ -819,7 +905,7 @@ def execute(db: Session, camp: Campaign, dec, c, at: datetime,
                    "detail": ("Delivery check failed: number unreachable. Channel delivery is not connected."
                               if failed else
                               f"{channel} send recorded. Channel delivery is not connected, so no message was sent "
-                              f"(ref SIM-{n.nudge_id[2:]})")})
+                              f"(ref MSG-{n.nudge_id[2:]})")})
     n.status = "Failed" if failed else "Delivered"
     n.sent_at = iso(send_at)
     if failed:
@@ -914,6 +1000,7 @@ def _observe(db: Session, camp: Campaign, dec: Decision, c, code: str | None, at
                    reward=reward if (not is_treated or delivered) else None,
                    reward_policy="binary-paid-in-window/1", learned=learned,
                    observed_at=iso(at + timedelta(days=days or window))))
+    otel.outcomes.add(1, {"group": dec.group, "paid": paid, "learned": learned})
     if learned:
         pending.append((code, reward))
 

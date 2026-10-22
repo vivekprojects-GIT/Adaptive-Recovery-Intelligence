@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.routing import Route
 
+from .core import telemetry
 from . import models
 from .console import models as console_models
 from .console.mcp_server import ENDPOINT_PATH as MCP_PATH, gateway as mcp_gateway, server as mcp_server
@@ -61,6 +62,8 @@ app.middleware("http")(metrics_middleware)
 app.include_router(console_router)
 # MCP: agents such as Nova's ask for recovery decisions here (console/mcp_server.py).
 app.router.routes.append(Route(MCP_PATH, endpoint=mcp_gateway))
+# OpenTelemetry: a server span for every request (core/telemetry.py).
+telemetry.instrument(app)
 
 
 @app.get("/health")
