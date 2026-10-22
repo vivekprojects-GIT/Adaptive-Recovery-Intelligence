@@ -37,7 +37,7 @@ RESTRICTION_FLAGS = ("cease_communication", "bankruptcy", "attorney_represented"
 # Accepted and stored with the decision, but not used to decide. Listed back
 # so nobody assumes ARI acted on them.
 LINEAGE_ONLY = ("customer_id", "risk_score", "product", "account_status", "source_system", "party_segment",
-                "delinquency_bucket", "preferred_channel")
+                "delinquency_bucket", "preferred_channel", "last_contact_at")
 
 
 def _tz(v: str | None) -> str | None:
@@ -87,6 +87,8 @@ class ContactCounts(_Input):
 
 
 class Arrangement(_Input):
+    arrangement_id: str | None = Field(None, max_length=64, description="Nova's id for the plan or promise to pay. "
+                                                                       "Kept with the decision, not used to decide.")
     active: bool | None = Field(None, description="An arrangement (plan, deferral) is in force.")
     type: str | None = Field(None, max_length=40, description="e.g. PAYMENT_PLAN, DEFERRAL.")
     promise_to_pay_status: Literal["NONE", "PENDING", "KEPT", "BROKEN"] | None = None
@@ -159,6 +161,8 @@ class NovaAccount(_Input):
     consent: Consent | None = Field(None, description="C1 consent by channel.")
     contacts_last_7d: int | None = Field(None, ge=0, description="Contacts in the last 7 days made by systems other "
                                                                  "than ARI (C5 counts). Counted against the contact cap.")
+    last_contact_at: datetime | None = Field(None, description="When any system last contacted the customer. Kept "
+                                                               "with the decision, not used to decide.")
     as_of_timestamp: datetime | None = Field(None, description="When the data was true in Nova.")
     source_system: str | None = Field(None, max_length=40, description="Nova's source system (lineage).")
     # v1 additions - optional in v0.
@@ -232,6 +236,7 @@ class ContactContextV1(_Input):
     recent_other: int | None = Field(None, ge=0)
     contacts_last_7d: int | None = Field(None, ge=0, description="Total, if Nova counts it. Otherwise the sum of "
                                                                  "the per-channel counts is used.")
+    last_contact_at: datetime | None = Field(None, description="When any system last contacted the customer.")
 
     @field_validator("timezone")
     @classmethod
@@ -283,7 +288,8 @@ class RecoveryContextV1(_Input):
             on_time_payment_ratio=d.on_time_payment_ratio, risk_segment=risk.segment, risk_score=risk.score,
             preferred_channel=beh.preferred_channel, app_user=beh.app_user, sms_responsive=beh.sms_responsive,
             hardship_flag=beh.hardship_flag, vulnerability_flag=r.vulnerable if r else None, consent=consent,
-            contacts_last_7d=total, as_of_timestamp=self.as_of_timestamp, source_system=self.source_system,
+            contacts_last_7d=total, last_contact_at=cc.last_contact_at if cc else None,
+            as_of_timestamp=self.as_of_timestamp, source_system=self.source_system,
             product=a.product, account_status=a.status, cycles_delinquent=d.cycles_delinquent,
             party_segment=party.segment, delinquency_bucket=d.bucket, arrangement=self.arrangement,
             timezone=cc.timezone if cc else None, contacts_by_channel=counts,
@@ -354,6 +360,7 @@ def guard_context(acc: NovaAccount) -> dict:
         "vulnerability_flag": acc.vulnerability_flag,
         "restrictions": acc.restrictions.model_dump() if acc.restrictions else None,
         "arrangement": acc.arrangement.model_dump(mode="json") if acc.arrangement else None,
+        "last_contact_at": ts(acc.last_contact_at),
         "timezone": acc.timezone,
         "as_of": {"as_of_timestamp": ts(acc.as_of_timestamp), "consent_as_of": ts(fresh.consent_as_of),
                   "contact_history_as_of": ts(fresh.contact_history_as_of),

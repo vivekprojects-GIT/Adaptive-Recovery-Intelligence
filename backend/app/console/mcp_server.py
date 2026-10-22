@@ -224,6 +224,9 @@ async def report_payment_outcome(
             max_length=64, description="Nova's id for this payment. Partial payments each send their own id and "
                                        "are added up; the same id sent again counts once; Reversed with an id "
                                        "removes that payment. Without an id, a report replaces the last one.")] = None,
+        cure_flag: Annotated[bool | None, Field(
+            description="Nova's own view: is the account cured (arrears paid in full)? ARI records it next to its "
+                        "own calculation and says when they disagree.")] = None,
 ) -> dict[str, Any]:
     """Tell ARI how a decision turned out. This is how the model learns.
 
@@ -232,7 +235,8 @@ async def report_payment_outcome(
     with its payment_id: the outcome is the total of the posted payments inside the evaluation window.
     """
     rep = nova.PaymentReport(decision_id=decision_id, account_id=account_id, paid=paid, amount=amount,
-                             payment_date=payment_date, payment_status=payment_status, payment_id=payment_id)
+                             payment_date=payment_date, payment_status=payment_status, payment_id=payment_id,
+                             cure_flag=cure_flag)
     return await _call("report_payment_outcome", lambda db: nova.report_outcome(db, rep),
                        lambda r: f"{r['decision_id']}: {'paid' if r['paid'] else 'not paid'}"
                                  + (", learned" if r["learned"] else "") + (" (correction)" if r["corrected"] else ""),

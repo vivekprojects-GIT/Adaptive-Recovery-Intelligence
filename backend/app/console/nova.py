@@ -75,6 +75,8 @@ class PaymentReport(BaseModel):
                               "teach the model a false success.")
     payment_id: str | None = Field(None, max_length=64, description="Nova's id for this payment. Each id counts "
                                    "once; a second id adds to the total. Without one, a report replaces the last.")
+    cure_flag: bool | None = Field(None, description="Nova's own view: is the account cured? Recorded next to ARI's, "
+                                                     "which comes from the payments and the arrears.")
 
 
 # ---------------------------------------------------------------------------
@@ -630,7 +632,8 @@ def _record_payment(db: Session, subject: str, customer_id: int, rep: PaymentRep
     pid = (rep.payment_id or "").strip() or UNIDENTIFIED
     amount = rep.amount if rep.amount is not None else (default_amount if rep.paid else None)
     vals = {"paid": rep.paid, "amount": None if amount is None else round(amount, 2),
-            "payment_date": rep.payment_date.isoformat() if rep.payment_date else None, "status": rep.payment_status}
+            "payment_date": rep.payment_date.isoformat() if rep.payment_date else None, "status": rep.payment_status,
+            "nova_cure_flag": rep.cure_flag}
     row = db.query(PaymentRecord).filter_by(subject=subject, payment_id=pid).first()
     if row is not None and all(getattr(row, k) == v for k, v in vals.items()):
         return row, True
@@ -669,6 +672,26 @@ def payment_tally(db: Session, subject: str, start: date, window: int) -> dict:
     return {"paid": bool(inside), "amount": round(sum(r.amount or 0.0 for r, _ in inside), 2),
             "days": min(days_in) if days_in else None, "payments": len(posted), "in_window": len(inside),
             "late": len(late), "reversed": sum(1 for r in rows if r.paid and r.status == "Reversed")}
+
+
+def cure_view(db: Session, subject: str, t: dict, arrears: float | None) -> dict:
+    """ARI's cure (the payments in the window cover the arrears) next to Nova's
+    latest cure flag, and whether they agree."""
+    ari = bool(t["paid"] and arrears is not None and t["amount"] >= arrears - 0.005)
+    flagged = (db.query(PaymentRecord).filter(PaymentRecord.subject == subject,
+                                              PaymentRecord.nova_cure_flag.isnot(None))
+               .order_by(PaymentRecord.reported_at.desc(), PaymentRecord.record_id.desc()).first())
+    nova_flag = flagged.nova_cure_flag if flagged else None
+    return {"ari": ari, "nova": nova_flag, "agree": None if nova_flag is None else nova_flag == ari,
+            "arrears": None if arrears is None else round(arrears, 2), "paid_in_window": t["amount"]}
+
+
+def _cure_note(cv: dict) -> str:
+    if cv["agree"] is not False:
+        return ""
+    owed = f" of ${cv['arrears']:,.2f} arrears" if cv["arrears"] is not None else ""
+    return (f" Nova marks the account {'cured' if cv['nova'] else 'not cured'}; ARI does not "
+            f"(${cv['paid_in_window']:,.2f} paid in the window{owed}). Both are recorded.")
 
 
 def _tally_note(t: dict, dup: bool, pid: str | None) -> str:
@@ -710,6 +733,7 @@ def _routing_outcome(db: Session, rep: PaymentReport, r: Routing) -> dict:
                  routed.date())
     _, dup = _record_payment(db, subject, r.customer_id, rep, engine.arrears(c))
     t = payment_tally(db, subject, routed.date(), r.window_days)
+    cv = cure_view(db, subject, t, engine.arrears(c))
     paid = t["paid"]
     r.paid = paid
     r.amount = t["amount"] if paid else 0.0
@@ -720,11 +744,11 @@ def _routing_outcome(db: Session, rep: PaymentReport, r: Routing) -> dict:
     db.commit()
     return {"decision_id": None, "account_id": rep.account_id, "routing": router.routing_out(r),
             "recorded": True, "corrected": False, "duplicate": dup, "payment_id": rep.payment_id, "paid": paid,
-            "counted_as_success": paid, "learned": False, "payments": t,
+            "counted_as_success": paid, "learned": False, "payments": t, "cure": cv,
             "note": ("Recorded against the Propensity Router. It scores the router; it never changes a "
                      "strategy's treatment scores.")
                     + ("" if in_window or paid else f" Paid after the {r.window_days}-day window, so it counts as not paid.")
-                    + _tally_note(t, dup, rep.payment_id)}
+                    + _tally_note(t, dup, rep.payment_id) + _cure_note(cv)}
 
 
 def report_outcome(db: Session, rep: PaymentReport) -> dict:
@@ -759,6 +783,9 @@ def report_outcome(db: Session, rep: PaymentReport) -> dict:
     sent_due = jl(dec.snapshot, {}).get("amount_past_due")
     _, duplicate = _record_payment(db, dec.decision_id, dec.customer_id, rep, sent_due or 0.0)
     t = payment_tally(db, dec.decision_id, decided_on, camp.evaluation_days)
+    snap = jl(dec.snapshot, {})
+    owed = snap.get("arrears") if snap.get("arrears") is not None else snap.get("amount_past_due")
+    cv = cure_view(db, dec.decision_id, t, owed)
     paid = t["paid"]
     success = binary_reward({"paid": paid, "in_window": True}) == 1.0
     if o is None:
@@ -803,13 +830,13 @@ def report_outcome(db: Session, rep: PaymentReport) -> dict:
                  f"design item).")
     if rep.paid and rep.payment_status == "Reversed":
         note += " The payment was reversed, so it no longer counts."
-    note += _tally_note(t, duplicate, rep.payment_id)
+    note += _tally_note(t, duplicate, rep.payment_id) + _cure_note(cv)
 
     db.commit()
     return {
         "decision_id": dec.decision_id, "recorded": True, "corrected": corrected and not duplicate,
         "duplicate": duplicate, "payment_id": rep.payment_id, "paid": paid, "amount": o.amount,
-        "counted_as_success": success, "learned": learnable, "note": note, "payments": t,
+        "counted_as_success": success, "learned": learnable, "note": note, "payments": t, "cure": cv,
         "learning": None if before is None else {
             "treatment": {"code": code, "name": before["name"]},
             "belief_before": round(before["mean"], 4), "belief_after": round(after["mean"], 4),

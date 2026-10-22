@@ -118,7 +118,8 @@ def ensure_console(db: Session) -> None:
                      ("decisions", "request_id", "VARCHAR(64)"),
                      ("decisions", "context_as_of", "VARCHAR(32)"),
                      ("decisions", "feature_snapshot_id", "INTEGER"),
-                     ("outcomes", "reward_policy", "VARCHAR(40)")]
+                     ("outcomes", "reward_policy", "VARCHAR(40)"),
+                     ("payment_records", "nova_cure_flag", "BOOLEAN")]
     try:
         for table, column, ddl in added_columns:
             cols = {r[1] for r in db.execute(text(f"PRAGMA table_info({table})"))}

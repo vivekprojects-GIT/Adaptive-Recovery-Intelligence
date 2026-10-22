@@ -6,6 +6,8 @@
   * a payment outside the evaluation window is held but not counted
   * a report without a payment_id still replaces the previous one (as before)
   * the same holds for accounts the Propensity Router kept off strategies
+  * Nova's own cure flag is recorded next to ARI's, and a disagreement is named
+  * arrangement_id and last_contact_at are accepted and kept with the decision
 
     cd backend
     .venv/Scripts/python.exe tests/verify_payments.py      (Windows)
@@ -30,8 +32,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app.console import nova  # noqa: E402
-from app.console.contract import NovaAccount  # noqa: E402
-from app.console.models import Outcome, PaymentRecord, PlatformConfig  # noqa: E402
+import json  # noqa: E402
+
+from app.console.contract import NovaAccount, RecoveryContextV1, receive  # noqa: E402
+from app.console.models import FeatureSnapshot, Outcome, PaymentRecord, PlatformConfig  # noqa: E402
 from app.core.database import SessionLocal  # noqa: E402
 from app.main import app  # noqa: E402
 
@@ -130,6 +134,56 @@ with TestClient(app):
     k = report(db, account_id=acc, paid=True, amount=80, payment_id="BAU-2")
     check(j["paid"] and k["routing"] is not None and k["payments"]["amount"] == 180,
           f"two payments on a routed-away account add up (${k['payments']['amount']})")
+
+    def fresh_decision(start: int) -> dict:
+        for n in range(start, start + 40):
+            r = nova.recovery_strategy(db, account(n))
+            if r.get("decision_id") and r["action"] in ("contact", "control_bau", "awaiting_approval"):
+                return r
+        raise AssertionError("no decision")
+
+    print("\n7. Nova's cure flag is recorded next to ARI's")
+    d3 = fresh_decision(200)["decision_id"]
+    m = report(db, decision_id=d3, paid=True, amount=300, payment_id="CURE-1", cure_flag=True)
+    check(m["cure"]["ari"] and m["cure"]["nova"] is True and m["cure"]["agree"],
+          "paid the full $300 arrears: ARI and Nova both say cured")
+    d4 = fresh_decision(240)["decision_id"]
+    n_ = report(db, decision_id=d4, paid=True, amount=100, payment_id="CURE-2", cure_flag=True)
+    check(not n_["cure"]["ari"] and n_["cure"]["nova"] is True and n_["cure"]["agree"] is False,
+          "paid $100 of $300: Nova says cured, ARI does not")
+    check("Nova marks the account cured; ARI does not" in n_["note"], "the answer names the disagreement")
+    rec = db.query(PaymentRecord).filter_by(subject=d4, payment_id="CURE-2").one()
+    check(rec.nova_cure_flag is True, "Nova's flag is stored with the payment")
+    q = report(db, decision_id=d4, paid=True, amount=200, payment_id="CURE-3", cure_flag=True)
+    check(q["cure"]["ari"] and q["cure"]["agree"], "a second payment of $200 completes the arrears: they agree")
+    check(report(db, decision_id=d3, paid=True, amount=10, payment_id="CURE-4")["cure"]["nova"] is True,
+          "a later payment without a flag keeps Nova's last flag")
+
+    print("\n8. arrangement_id and last_contact_at are kept with the decision")
+    extra = {"arrangement": {"arrangement_id": "ARR-7781", "active": False, "promise_to_pay_status": "BROKEN"},
+             "last_contact_at": "2026-10-18T14:30:00Z"}
+    got = receive(account(300, **extra))
+    check(not {"arrangement.arrangement_id", "last_contact_at"} & set(got.ignored_fields),
+          f"v0: neither field is ignored (ignored: {got.ignored_fields or 'none'})")
+    ctx = RecoveryContextV1.model_validate({
+        "request_id": "req-v1-arr", "as_of_timestamp": "2026-10-19T06:00:00Z",
+        "account": {"account_id": "NOVA-PAY-V1", "current_balance": 4180},
+        "delinquency": {"days_past_due": 31, "amount_past_due": 300},
+        "arrangement": {"arrangement_id": "ARR-9001", "active": False},
+        "contact_context": {"timezone": "America/Chicago", "last_contact_at": "2026-10-17T10:00:00Z"}})
+    got1 = receive(ctx)
+    check(got1.account.arrangement.arrangement_id == "ARR-9001" and got1.account.last_contact_at is not None
+          and not {"arrangement.arrangement_id", "contact_context.last_contact_at"} & set(got1.ignored_fields),
+          "v1: both read from the nested context")
+    kept = None
+    for n in range(300, 340):
+        r = nova.recovery_strategy(db, account(n, **extra))
+        if r.get("decision_id"):
+            kept = db.query(FeatureSnapshot).filter_by(decision_id=r["decision_id"]).one()
+            break
+    g = json.loads(kept.guard_context) if kept else {}
+    check(g.get("arrangement", {}).get("arrangement_id") == "ARR-7781" and g.get("last_contact_at", "").startswith(
+        "2026-10-18T14:30"), "both are frozen with the decision's context")
     db.close()
 
 print(f"\n{'All checks passed' if not failures else f'{len(failures)} check(s) failed'}")

@@ -311,6 +311,9 @@ class PaymentRecord(Base):
     amount: Mapped[float | None] = mapped_column(Float, nullable=True)
     payment_date: Mapped[str | None] = mapped_column(String(10), nullable=True)   # YYYY-MM-DD
     status: Mapped[str] = mapped_column(String(10), default="Posted")             # Posted | Reversed
+    # Nova's own view of whether the account is cured, as sent. ARI computes its
+    # own from the payments and the arrears; both are kept so they can be compared.
+    nova_cure_flag: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     first_reported_at: Mapped[str] = mapped_column(String(32))
     reported_at: Mapped[str] = mapped_column(String(32))
 
