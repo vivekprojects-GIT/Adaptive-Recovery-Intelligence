@@ -68,7 +68,7 @@ export function DecisionTree(p: Props) {
   return (
     <Card title="Decision tree" subtitle="How this recommendation was reached, branch by branch, from what was known at the time">
       <ul className="space-y-2">
-        <Node title={`Account · ${s.product ?? "Retail card"}`}
+        <Node title={`Account · ${s.product ?? "Consumer Credit Card"}`}
           detail={`Balance ${money(Number(s.balance))} · arrears ${money(Number(s.arrears ?? 0))} · ${s.days_past_due} days past due · ${s.client_risk_band} risk`}>
           <Node title={`Propensity Router: ${SEGMENT_LABEL[String(s.segment)] ?? s.segment} → ${validation ? "Strategy (validation share)" : ROUTE[route] ?? route}`}
             detail={`Nudge propensity ${num(Number(s.nudge_score))} · self-cure likelihood ${num(Number(s.self_cure_score))}`}>
@@ -106,7 +106,7 @@ export function TodayAndHistory({ snapshot: s, ranking, treatment, earlier }: {
     ["Days past due", `${s.days_past_due} days`],
     ["Balance", money(Number(s.balance))],
     ["Arrears", money(Number(s.arrears ?? 0))],
-    ["Product", String(s.product ?? "Retail card")],
+    ["Card business", String(s.product ?? "Consumer Credit Card")],
     ["Bank's risk band", `${s.client_risk_band}${s.client_risk_score !== undefined ? ` (${Number(s.client_risk_score).toFixed(0)})` : ""}`],
     ["Hardship flag", s.hardship_flag ? "On file" : "None"],
     ["Contacts in last 7 days", String(s.reported_contacts_7d ?? 0)],

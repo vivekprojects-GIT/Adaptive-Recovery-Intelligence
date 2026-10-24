@@ -1,7 +1,7 @@
 /** Every console page, the permission it needs, and the guard that enforces it in the UI. */
 import { Lock } from "lucide-react";
 import { type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 
 import { useSession } from "./lib/session";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -16,7 +16,6 @@ import UserManagement from "./pages/admin/UserManagement";
 import Approvals from "./pages/leader/Approvals";
 import Compliance from "./pages/leader/Compliance";
 import Governance from "./pages/leader/Governance";
-import KpiDashboard from "./pages/leader/KpiDashboard";
 import PortfolioHealth from "./pages/leader/PortfolioHealth";
 import Reports from "./pages/leader/Reports";
 import Scorecards from "./pages/leader/Scorecards";
@@ -29,24 +28,24 @@ import Cohorts from "./pages/shared/Cohorts";
 import Customers from "./pages/shared/Customers";
 import DecisionAudit from "./pages/shared/DecisionAudit";
 import Decisions from "./pages/shared/Decisions";
-import Executive from "./pages/shared/Executive";
+import Dashboard from "./pages/shared/Dashboard";
 import Journey from "./pages/shared/Journey";
 import Journeys from "./pages/shared/Journeys";
 import NudgeDetail from "./pages/shared/NudgeDetail";
 import Nudges from "./pages/shared/Nudges";
 import StrategyAnalytics from "./pages/shared/StrategyAnalytics";
 import StrategyDetail from "./pages/shared/StrategyDetail";
+import StrategyWorkspace from "./pages/shared/StrategyWorkspace";
 import TreatmentsPage from "./pages/shared/Treatments";
 import LiveCampaigns from "./pages/strategist/LiveCampaigns";
-import MyDashboard from "./pages/strategist/MyDashboard";
 import MyStrategies from "./pages/strategist/MyStrategies";
 import ReviewQueue from "./pages/strategist/ReviewQueue";
 import StrategyBuilder from "./pages/strategist/StrategyBuilder";
 import { HOME } from "./shell/nav";
 
-export function RequirePerm({ perm, children }: { perm?: string; children: ReactNode }) {
+export function RequirePerm({ perm, children }: { perm?: string | string[]; children: ReactNode }) {
   const { can, me } = useSession();
-  if (!perm || can(perm)) return <>{children}</>;
+  if (!perm || (Array.isArray(perm) ? perm.some(can) : can(perm))) return <>{children}</>;
   return (
     <div className="p-10">
       <div className="mx-auto max-w-md rounded-lg border border-line bg-surface p-6 text-center shadow-card">
@@ -61,11 +60,15 @@ export function RequirePerm({ perm, children }: { perm?: string; children: React
   );
 }
 
-export const ROUTES: { path: string; el: ReactNode; perm?: string }[] = [
-  { path: "/executive", el: <Executive />, perm: "view_kpi_dashboard" },
+export const ROUTES: { path: string; el: ReactNode; perm?: string | string[] }[] = [
+  { path: "/overview", el: <Dashboard />, perm: "view_kpi_dashboard" },
+  // The three earlier dashboards are one now.
+  { path: "/executive", el: <Navigate to="/overview" replace /> },
+  { path: "/kpis", el: <Navigate to="/overview" replace /> },
+  { path: "/workspace", el: <StrategyWorkspace />, perm: "view_kpi_dashboard" },
   { path: "/agencies", el: <Agencies />, perm: "view_kpi_dashboard" },
-  { path: "/governance", el: <Governance />, perm: "view_compliance" },
-  { path: "/dashboard", el: <MyDashboard /> },
+  { path: "/governance", el: <Governance />, perm: ["view_compliance", "manage_roles"] },
+  { path: "/dashboard", el: <Navigate to="/overview" replace /> },
   { path: "/builder", el: <StrategyBuilder />, perm: "create_strategy" },
   { path: "/builder/:id", el: <StrategyBuilder />, perm: "edit_strategy" },
   { path: "/strategies", el: <MyStrategies /> },
@@ -83,7 +86,6 @@ export const ROUTES: { path: string; el: ReactNode; perm?: string }[] = [
   { path: "/decisions/:id", el: <DecisionAudit />, perm: "view_ai_decisions" },
   { path: "/cohorts", el: <Cohorts /> },
   { path: "/treatments", el: <TreatmentsPage />, perm: "view_kpi_dashboard" },
-  { path: "/kpis", el: <KpiDashboard />, perm: "view_kpi_dashboard" },
   { path: "/portfolio", el: <PortfolioHealth />, perm: "view_kpi_dashboard" },
   { path: "/compare", el: <StrategyCompare />, perm: "compare_strategies" },
   { path: "/approvals", el: <Approvals />, perm: "approve_strategy" },

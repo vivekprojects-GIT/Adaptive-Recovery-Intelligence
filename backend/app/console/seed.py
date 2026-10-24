@@ -21,13 +21,13 @@ from sqlalchemy.orm import Session
 
 from .. import models
 from ..seed import COHORTS
-from . import agencies, compliance, engine, governance, insights, playbook, router
+from . import agencies, compliance, engine, governance, insights, playbook, recovery, router
 from .models import (
     AlertRule, Campaign, ContactRecord, Decision, EngagementEvent, FeatureSnapshot, Handoff, Insight, Nudge, Outcome,
     PlatformConfig, RolePermission, User,
 )
 from .platform import CONFIG_DEFAULTS, audit, customer_ref
-from .rbac import DEFAULT_GRANTS, PERMISSION_KEYS
+from .rbac import DATA_PERMISSIONS, DEFAULT_GRANTS, PERMISSION_KEYS
 
 UTC = timezone.utc
 
@@ -109,7 +109,7 @@ def ensure_console(db: Session) -> None:
     # eligibility_evals) are created by create_all at startup.
     added_columns = [("campaigns", "parent_id", "VARCHAR(12)"),
                      ("customers", "route", "VARCHAR(12)"),
-                     ("customers", "product", "VARCHAR(20) DEFAULT 'Retail card'"),
+                     ("customers", "product", "VARCHAR(20) DEFAULT 'Consumer Credit Card'"),
                      ("customers", "route_validation", "BOOLEAN DEFAULT 0"),
                      ("decisions", "validation", "BOOLEAN DEFAULT 0"),
                      ("decisions", "origin", "VARCHAR(12) DEFAULT 'wave'"),
@@ -130,6 +130,16 @@ def ensure_console(db: Session) -> None:
         db.rollback()
     _backfill_snapshots(db)
     router.route_unrouted(db)   # customers loaded before the Propensity Router existed
+    for rp in db.query(RolePermission).filter(RolePermission.role == "admin",
+                                              RolePermission.permission.in_(DATA_PERMISSIONS),
+                                              RolePermission.granted.is_(True)):
+        rp.granted = False   # admin manages people and access, never customer data
+    # Card businesses renamed to the bank's four (Kumar, Oct 2026).
+    for old, new in (("Retail card", "Consumer Credit Card"), ("Corporate card", "Small Business Card"),
+                     ("Personal loan", "Consumer Credit Card"), ("Auto loan", "Consumer Credit Card"),
+                     ("Small-business loan", "Small Business Card")):
+        db.query(models.Customer).filter(models.Customer.product == old).update(
+            {models.Customer.product: new}, synchronize_session=False)
     have = {(r.role, r.permission) for r in db.query(RolePermission)}
     for role, grants in DEFAULT_GRANTS.items():
         for p in PERMISSION_KEYS:
@@ -154,6 +164,7 @@ def ensure_console(db: Session) -> None:
     db.commit()
     playbook.seed_meta(db)
     agencies.seed_panel(db, datetime.now(UTC))
+    recovery.seed(db, datetime.now(UTC))
     db.commit()
     governance.encrypt_existing(db)   # rows stored before encryption at rest was switched on
 
@@ -267,7 +278,7 @@ def seed_console(db: Session, force: bool = False) -> dict:
 
     # This cycle's handoff, so the live strategies have new customers to decide in the wave below.
     playbook.ingest_handoff(db, actor="system", trigger="auto", seed=8_101)
-    # Corporate card accounts arrive late and wait for a person: their balances are over the review threshold.
+    # Small business card accounts arrive late and wait for a person: their balances are over the review threshold.
     _corporate_accounts(db, now - timedelta(days=1))
     db.commit()
 
@@ -279,6 +290,9 @@ def seed_console(db: Session, force: bool = False) -> dict:
     # Late-stage accounts placed with the agency panel, and ARI's latest proposals waiting for approval.
     agencies.seed_history(db, now)
     db.commit()
+    # Charged-off accounts for the Recovery side (placeholders until the bank's workbook is loaded).
+    recovery.seed(db, now)
+    db.commit()
 
     found = compliance.scan(db, until=now)
     _insights(db, now)
@@ -288,19 +302,19 @@ def seed_console(db: Session, force: bool = False) -> dict:
             "nudges": db.query(Nudge).count(), "violations": found}
 
 
-# Fictional corporate card holders. A charge card is due in full, so the balance is the amount to recover.
+# Fictional small-business card holders with balances over the review threshold.
 CORPORATE_ACCOUNTS = [
     # name, balance, credit limit, cohort, days past due, client risk score
     ("Kestrel Freight Co.", 30000.0, 50000.0, "C2", 31, 52.0),
-    ("Alder & Finch Architects", 30000.0, 40000.0, "C2", 33, 48.0),
-    ("Bluewater Marine Services", 30000.0, 45000.0, "C3", 61, 71.0),
-    ("Copperline Engineering Ltd", 300000.0, 400000.0, "C2", 30, 55.0),
-    ("Northgate Catering Group", 300000.0, 350000.0, "C3", 62, 74.0),
+    ("Alder & Finch Architects", 24500.0, 40000.0, "C2", 33, 48.0),
+    ("Bluewater Marine Services", 38200.0, 45000.0, "C3", 61, 71.0),
+    ("Copperline Engineering Ltd", 46800.0, 60000.0, "C2", 30, 55.0),
+    ("Northgate Catering Group", 41300.0, 55000.0, "C3", 62, 74.0),
 ]
 
 
 def _corporate_accounts(db: Session, at: datetime) -> None:
-    """Add the corporate card accounts, route them, and decide the ones the
+    """Add the small business card accounts, route them, and decide the ones the
     router sends to a live strategy. Their balances are over the review
     threshold, so every treated decision waits for a person."""
     from . import nova   # nova imports this module's neighbours; import late
@@ -308,12 +322,12 @@ def _corporate_accounts(db: Session, at: datetime) -> None:
                    counts=json.dumps({"C2": 3, "C3": 2}), total=len(CORPORATE_ACCOUNTS)))
     for name, balance, limit, cohort, dpd, risk in CORPORATE_ACCOUNTS:
         band = {"C2": "Medium", "C3": "High"}[cohort]
-        c = models.Customer(cohort_id=cohort, name=name, product="Corporate card", balance=balance,
+        c = models.Customer(cohort_id=cohort, name=name, product="Small Business Card", balance=balance,
                             credit_limit=limit, utilization=round(balance / limit, 3), tenure_years=9,
                             sms_responsive=True, app_user=True, hardship_flag=True, missed_payments=1,
                             payment_history=0.93, days_past_due=dpd, client_risk_band=band,
                             client_risk_score=risk,
-                            persona_note="Corporate card: due in full each month. Short-term cash-flow squeeze.")
+                            persona_note="Small business card. Short-term cash-flow squeeze.")
         db.add(c)
         db.flush()
         router.record(db, c, origin="handoff", at=at, simulate=True)

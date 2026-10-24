@@ -116,27 +116,27 @@ export function GlobalSearch() {
     can("view_ai_decisions") && "decisions and messages"].filter(Boolean).join(", ");
 
   return (
-    <div ref={ref} className={clsx("min-w-0", expanded ? "absolute inset-x-3 top-2.5 z-40" : "relative ml-4 max-w-[440px] flex-1")}>
+    <div ref={ref} className={clsx("min-w-0", expanded ? "absolute inset-x-3 top-3 z-40" : "relative ml-auto w-full max-w-[400px]")}>
       {!expanded && (
         <button onClick={() => { setExpanded(true); setOpen(true); requestAnimationFrame(() => input.current?.focus()); }}
-          aria-label="Search" className="flex h-9 w-9 items-center justify-center rounded-md text-primary-100 hover:bg-white/10 hover:text-white lg:hidden">
+          aria-label="Search" className="ml-auto flex h-9 w-9 items-center justify-center rounded-md text-fg-2 hover:bg-surface-hover hover:text-fg lg:hidden">
           <Search className="h-[18px] w-[18px]" />
         </button>
       )}
       <form role="search" className={clsx("relative", expanded ? "block" : "hidden lg:block")}
         onSubmit={(e) => { e.preventDefault(); submit(); }}>
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary-200" />
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-3" />
         <input ref={input} value={q} placeholder={placeholder} aria-label="Search" aria-expanded={showPanel} aria-controls="global-search-results"
           aria-activedescendant={active >= 0 ? `gs-${active}` : undefined} role="combobox" autoComplete="off"
           onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onKeyDown={onKey}
-          className="h-9 w-full rounded-md border border-white/10 bg-ink-800 pl-9 pr-16 text-[13px] text-white placeholder:text-primary-200 focus:border-primary-200/60 focus:outline-none lg:bg-white/[0.08] lg:focus:bg-white/[0.12]" />
+          className="h-10 w-full rounded-lg border border-line bg-surface-sunken pl-9 pr-16 text-[13px] text-fg placeholder:text-fg-3 focus:border-primary-500 focus:bg-surface focus:outline-none" />
         {q ? (
           <button type="button" aria-label="Clear search" onClick={() => { setQ(""); input.current?.focus(); }}
-            className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-primary-200 hover:text-white">
+            className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-fg-3 hover:text-fg">
             <X className="h-3.5 w-3.5" />
           </button>
         ) : (
-          <kbd className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 rounded border border-white/15 px-1.5 text-2xs text-primary-200 lg:block">/</kbd>
+          <kbd className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 rounded border border-line px-1.5 text-2xs text-fg-3 lg:block">/</kbd>
         )}
       </form>
       {showPanel && (

@@ -61,9 +61,20 @@ DEFAULT_GRANTS: dict[str, set[str]] = {
         "compare_strategies", "view_customer_list", "view_ai_decisions", "view_compliance",
         "resolve_violations", "use_ai_workbench",
     },
-    "admin": set(PERMISSION_KEYS),
+    # Platform administration only: people, access and platform operation. No
+    # customer records, account numbers or banking data (Kumar, Oct 2026).
+    "admin": {"manage_users", "manage_roles", "configure_platform", "manage_integrations", "view_audit_log",
+              "manage_alert_rules", "view_system_health"},
     "viewer": {"view_kpi_dashboard"},
 }
+
+# Permissions that open customer, account or banking data. The admin role can
+# never hold them, so an administrator cannot grant them back to themselves.
+DATA_PERMISSIONS: set[str] = set(PERMISSION_KEYS) - DEFAULT_GRANTS["admin"]
+
+
+def sees_customer_data(db: Session, role: str) -> bool:
+    return "view_customer_list" in granted(db, role)
 
 # A platform must never be configurable into a state with no way back in.
 LOCKED: set[tuple[str, str]] = {("admin", "manage_roles"), ("admin", "manage_users")}
@@ -85,6 +96,18 @@ def current_user(
     if user.status != "Active":
         raise HTTPException(403, f"{user.name}'s account is {user.status.lower()}.")
     return user
+
+
+def require_any(*permissions: str):
+    """Dependency factory: the user must hold at least one of the permissions."""
+
+    def check(user: User = Depends(current_user), db: Session = Depends(get_db)) -> User:
+        if not set(permissions) & granted(db, user.role):
+            labels = " or ".join(next(l for k, l, *_ in PERMISSIONS if k == m) for m in permissions)
+            raise HTTPException(403, f"{ROLES.get(user.role, user.role)} role does not have: {labels}.")
+        return user
+
+    return check
 
 
 def require(*permissions: str):

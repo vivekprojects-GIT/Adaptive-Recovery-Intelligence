@@ -4,15 +4,15 @@ import { useNavigate } from "react-router-dom";
 
 import type { Role } from "../lib/api";
 import { useSession } from "../lib/session";
+import { HOME } from "../shell/nav";
 import { BrandMark, CLIENT_BANK, PRODUCT_NAME } from "../ui/brand";
 import { Avatar } from "../ui/ui";
 
-const HOME: Record<Role, string> = { strategist: "/dashboard", leader: "/kpis", admin: "/admin", viewer: "/kpis" };
 
 const WHAT: Record<Role, string> = {
   strategist: "Builds strategies, runs waves, reviews forbearance offers and follows customer journeys.",
   leader: "Approves strategies, compares results, watches compliance and sends improvements.",
-  admin: "Manages users, permissions, platform settings, integrations and alerts.",
+  admin: "Manages users, roles and permissions, and runs the platform. No access to customer or account data.",
   viewer: "Read-only access to portfolio KPIs.",
 };
 

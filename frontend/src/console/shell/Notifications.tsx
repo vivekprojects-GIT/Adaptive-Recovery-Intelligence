@@ -18,7 +18,7 @@ export function Notifications() {
   if (!me) return null;
   const b = me.badges;
   const items: { label: string; count: number; to: string; perm?: string }[] = [
-    { label: "New insights from your strategy leader", count: me.user.role === "strategist" ? b.new_insights : 0, to: "/dashboard" },
+    { label: "New insights from your strategy leader", count: me.user.role === "strategist" ? b.new_insights : 0, to: "/overview" },
     { label: "Decisions waiting for review", count: b.pending_review, to: "/review", perm: "override_decisions" },
     { label: "Strategies waiting for approval", count: b.awaiting_approval, to: "/approvals", perm: "approve_strategy" },
     { label: "Agency placements waiting for approval", count: b.pending_placements, to: "/agencies", perm: "approve_placements" },
@@ -28,7 +28,7 @@ export function Notifications() {
   return (
     <div ref={ref} className="relative">
       <button onClick={() => setOpen((o) => !o)} aria-label="Notifications"
-        className="relative flex h-9 w-9 items-center justify-center rounded-md text-primary-100 hover:bg-white/10 hover:text-white">
+        className="relative flex h-9 w-9 items-center justify-center rounded-md text-fg-2 hover:bg-surface-hover hover:text-fg">
         <Bell className="h-[18px] w-[18px]" />
         {total > 0 && <span className="num absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#dd1d46] px-1 text-[9px] font-semibold text-white">{total > 99 ? "99+" : total}</span>}
       </button>

@@ -29,13 +29,13 @@ OPEN = ("Proposed", "Placed")
 # Fictional panel. Fees are contingency rates on recoveries.
 PANEL = [
     dict(agency_id="AGY-01", name="Harbor Point Recovery", fee_rate=0.22,
-         products=["Retail card"], min_dpd=90, capacity=120, placement_days=90,
+         products=["Consumer Credit Card", "Co-brand Card"], min_dpd=90, capacity=120, placement_days=90,
          contract_ref="MSA-2025-114"),
     dict(agency_id="AGY-02", name="Summit Ridge Collections", fee_rate=0.18,
-         products=["Personal loan", "Auto loan", "Retail card"], min_dpd=90, capacity=80, placement_days=120,
+         products=["Retail Card", "Consumer Credit Card"], min_dpd=90, capacity=80, placement_days=120,
          contract_ref="MSA-2025-131"),
     dict(agency_id="AGY-03", name="Lakeshore Commercial Recovery", fee_rate=0.25,
-         products=["Small-business loan", "Corporate card"], min_dpd=60, capacity=40, placement_days=120,
+         products=["Small Business Card"], min_dpd=60, capacity=40, placement_days=120,
          contract_ref="MSA-2026-007"),
 ]
 
@@ -81,9 +81,9 @@ def eligibility(db: Session, c, at: datetime | None = None, held: set[int] | Non
     if c.hardship_flag:
         return False, "Hardship on file: stays with the bank's hardship team"
     floor = min((a.min_dpd for a in db.query(Agency).filter_by(status="Active")
-                 if (c.product or "Retail card") in json.loads(a.products)), default=None)
+                 if (c.product or "Consumer Credit Card") in json.loads(a.products)), default=None)
     if floor is None:
-        return False, f"No agency on the panel takes {c.product or 'Retail card'} accounts"
+        return False, f"No agency on the panel takes {c.product or 'Consumer Credit Card'} accounts"
     if c.days_past_due < floor:
         return False, f"{c.days_past_due} days past due; placement starts at {floor}"
     if _paid_recently(db, c.customer_id, at):
@@ -103,7 +103,7 @@ def _results(db: Session) -> dict[str, dict]:
 def match(db: Session, c) -> tuple[Agency | None, str]:
     """The agency for this account: contracted for the product, open capacity,
     best net recovery so far; the lower fee breaks a tie."""
-    product = c.product or "Retail card"
+    product = c.product or "Consumer Credit Card"
     load = dict(db.query(Placement.agency_id, func.count()).filter(Placement.status.in_(OPEN))
                 .group_by(Placement.agency_id).all())
     res = _results(db)
@@ -206,7 +206,7 @@ def _row(db: Session, p: Placement, names: dict[str, str], customers: dict[int, 
          agencies: dict[str, Agency]) -> dict:
     c = customers.get(p.customer_id)
     return {"placement_id": p.placement_id, "customer_id": p.customer_id, "customer_ref": customer_ref(p.customer_id),
-            "customer_name": c.name if c else None, "product": (c.product if c else None) or "Retail card",
+            "customer_name": c.name if c else None, "product": (c.product if c else None) or "Consumer Credit Card",
             "days_past_due": c.days_past_due if c else None, "agency_id": p.agency_id,
             "agency": agencies[p.agency_id].name, "fee_rate": agencies[p.agency_id].fee_rate, "status": p.status,
             "amount": p.amount, "recovered": p.recovered, "fee": p.fee, "net": round(p.recovered - p.fee, 2),

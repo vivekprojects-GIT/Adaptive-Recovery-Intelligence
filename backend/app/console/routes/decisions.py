@@ -35,7 +35,7 @@ def _decision_row(d: Decision, o: Outcome | None, names: dict, camps: dict, t: d
     if d.review_policy == "human_review":
         review_reason = (f"Balance at or above ${threshold:,.0f}" if balance is not None and balance >= threshold
                          else "Payment plan, deferral or hardship offer")
-    return {"balance": balance, "product": snap.get("product") or "Retail card", "review_reason": review_reason,
+    return {"balance": balance, "product": snap.get("product") or "Consumer Credit Card", "review_reason": review_reason,
             "decision_id": d.decision_id, "campaign_id": d.campaign_id, "strategy": camps.get(d.campaign_id),
             "customer_id": d.customer_id, "customer": cust.get(d.customer_id), "wave": d.wave,
             "group": d.group, "treatment_code": d.treatment_code,

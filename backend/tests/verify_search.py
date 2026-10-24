@@ -47,7 +47,7 @@ with TestClient(app) as api:
         db.commit()
 
     customer = api.get("/console/customers?page_size=1", headers=as_("u-ravi")).json()["rows"][0]
-    ref = f"CUS-{10000 + customer['customer_id']}"
+    ref = str(7051000000 + customer["customer_id"])
     strategy = api.get("/console/strategies", headers=as_("u-ravi")).json()[0]
     decision = api.get("/console/decisions?page_size=1", headers=as_("u-ravi")).json()["rows"][0]
 
@@ -78,7 +78,7 @@ with TestClient(app) as api:
     check(set(r["scopes"]) == {"strategies", "customers", "decisions"} and len(r["customers"]) == 1,
           "a strategy leader finds customers too")
     r = api.get(f"/console/search?q={ref}", headers=as_("u-priya")).json()
-    check(len(r["customers"]) == 1, "a platform admin finds customers too")
+    check(not r.get("customers"), "a platform admin finds no customers: admin never sees customer data")
 
     print("\n3. Edges")
     r = api.get("/console/search?q=a", headers=as_("u-ravi")).json()

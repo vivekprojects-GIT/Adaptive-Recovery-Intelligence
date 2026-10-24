@@ -229,7 +229,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
           <div className="space-y-4">
             <Field label="Strategy name" required><input id="strategy-name" className={inputCls} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Medium-Risk Payment Plan Flow" /></Field>
             <Field label="Description"><textarea id="strategy-description" rows={2} className={`${inputCls} h-auto py-2`} value={form.description} onChange={(e) => set("description", e.target.value)} /></Field>
-            <Field label="Delinquency buckets" hint="The cohorts Meridian Vale Bank's collections system hands over. ARI does not re-segment them.">
+            <Field label="Delinquency buckets" hint="The cohorts Meridian Valley Bank's collections system hands over. ARI does not re-segment them.">
               <div className="grid gap-2 sm:grid-cols-2">
                 {cohorts.map((c) => (
                   <CheckCard key={c.cohort_id} checked={form.target_cohorts.includes(c.cohort_id)} onChange={() => toggle("target_cohorts", c.cohort_id)}
@@ -244,7 +244,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
                 <Field label="Minimum days past due"><input id="min-dpd" type="number" className={inputCls} value={form.min_dpd ?? ""} onChange={(e) => set("min_dpd", numOrNull(e.target.value))} placeholder="Any" /></Field>
                 <Field label="Maximum days past due"><input id="max-dpd" type="number" className={inputCls} value={form.max_dpd ?? ""} onChange={(e) => set("max_dpd", numOrNull(e.target.value))} placeholder="Any" /></Field>
               </div>
-              <Field label="Client risk bands" hint="From Meridian Vale Bank's risk model. Leave empty to accept every band in the cohorts.">
+              <Field label="Client risk bands" hint="From Meridian Valley Bank's risk model. Leave empty to accept every band in the cohorts.">
                 <div className="flex flex-wrap gap-2">
                   {["Low", "Medium", "High", "Very high"].map((b) => (
                     <button key={b} type="button" onClick={() => toggle("risk_bands", b)} className={clsx("h-8 rounded-lg border px-3 text-[13px]",

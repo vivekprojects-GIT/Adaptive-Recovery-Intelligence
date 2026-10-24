@@ -20,10 +20,25 @@ from ..models import (
     AuditEvent, Campaign, ContactRecord, Decision, Handoff, Nudge, Outcome, PlatformConfig, RolePermission, User,
 )
 from ..platform import CONFIG_DEFAULTS, METRICS, STARTED_AT, audit, cfg, now
-from ..rbac import LOCKED, PERMISSIONS, ROLES, granted, require
+from ..rbac import DATA_PERMISSIONS, LOCKED, PERMISSIONS, ROLES, granted, require, sees_customer_data
 from .common import UTC, _user_names
 
 router = APIRouter()
+
+
+# Audit records about the platform itself. Everything else can name a customer
+# or an account, so a role without customer access sees only what kind of
+# action happened, by whom and when.
+PLATFORM_ENTITIES = {"user", "roles", "config", "integration", "alert", "alert_rule", "platform", "report",
+                     "strategy", "treatment", "handoff", "insight"}
+
+
+def masked_summary(a: AuditEvent, see: bool) -> str:
+    if see or a.entity in PLATFORM_ENTITIES:
+        return a.summary
+    verb = {"CREATE": "Created", "UPDATE": "Updated", "APPROVE": "Approved", "REJECT": "Rejected",
+            "READ": "Read", "DELETE": "Deleted", "EXPORT": "Exported"}.get(a.action, a.action.title())
+    return f"{verb} a {a.entity.replace('_', ' ')} record (details restricted to business roles)"
 
 
 @router.get("/admin/overview")
@@ -32,6 +47,7 @@ def admin_overview(user: User = Depends(require("manage_users")), db: Session = 
     owned = Counter(c.owner_id for c in db.query(Campaign))
     names = _user_names(db)
     audits = db.query(AuditEvent).order_by(AuditEvent.at.desc()).limit(8).all()
+    see = sees_customer_data(db, user.role)
     return {
         "kpis": {"users": len(users), "active_users": sum(u.status == "Active" for u in users),
                  "live_strategies": db.query(Campaign).filter(Campaign.status == "Live").count(),
@@ -45,7 +61,7 @@ def admin_overview(user: User = Depends(require("manage_users")), db: Session = 
                               for r, l in ROLES.items()],
         "health": system_health(user, db),
         "audit": [{"at": a.at, "actor": names.get(a.actor, a.actor), "action": a.action,
-                   "summary": a.summary} for a in audits],
+                   "summary": masked_summary(a, see)} for a in audits],
     }
 
 
@@ -132,6 +148,9 @@ def save_roles(body: RolesIn, user: User = Depends(require("manage_roles")), db:
         if role not in ROLES:
             continue
         for perm, val in perms.items():
+            if role == "admin" and perm in DATA_PERMISSIONS and val:
+                raise HTTPException(409, f"Platform Admin cannot be given '{perm.replace('_', ' ')}': the admin role "
+                                         f"manages people and access, and never sees customer or account data.")
             if (role, perm) in LOCKED and not val:
                 raise HTTPException(409, f"{ROLES[role]} must keep '{perm.replace('_', ' ')}' - "
                                          f"otherwise nobody could manage access again.")
@@ -252,7 +271,11 @@ def integrations(user: User = Depends(require("manage_integrations")), db: Sessi
 @router.get("/admin/callbacks")
 def callback_status(user: User = Depends(require("manage_integrations")), db: Session = Depends(get_db)):
     """Callbacks to Nova: where they go, how many were delivered, the latest few."""
-    return callbacks.status(db)
+    out = callbacks.status(db)
+    if not sees_customer_data(db, user.role):
+        for r in out["recent"]:
+            r["account_id"] = "Restricted"
+    return out
 
 
 @router.post("/admin/callbacks/retry")
@@ -283,7 +306,11 @@ def callback_rotate_secret(user: User = Depends(require("manage_integrations")),
 @router.get("/admin/mcp")
 def mcp_status(user: User = Depends(require("manage_integrations")), db: Session = Depends(get_db)):
     """The MCP endpoint agents call: transport, tools, traffic. The token stays masked."""
-    return mcp_server.status(db)
+    out = mcp_server.status(db)
+    if not sees_customer_data(db, user.role):
+        for r in out.get("recent", []):
+            r["summary"] = f"{r['tool']} call (details restricted to business roles)"
+    return out
 
 
 @router.post("/admin/mcp/token")
@@ -317,13 +344,18 @@ def audit_log(actor: str = "", action: str = "", entity: str = "", q: str = "", 
     query = query.filter(AuditEvent.at <= now())
     total = query.count()
     names = _user_names(db)
+    see = sees_customer_data(db, user.role)
     rows = query.order_by(AuditEvent.at.desc()).offset((page - 1) * page_size).limit(page_size).all()
     return {"total": total, "page": page, "page_size": page_size,
             "actors": [{"id": k, "name": names.get(k, k)} for (k,) in db.query(AuditEvent.actor).distinct()],
             "entities": sorted({e for (e,) in db.query(AuditEvent.entity).distinct()}),
             "rows": [{"audit_id": a.audit_id, "at": a.at, "actor": a.actor, "actor_name": names.get(a.actor, a.actor),
-                      "action": a.action, "entity": a.entity, "entity_id": a.entity_id, "summary": a.summary,
-                      "detail": json.loads(a.detail or "{}")} for a in rows]}
+                      "action": a.action, "entity": a.entity,
+                      "entity_id": a.entity_id if see or a.entity in PLATFORM_ENTITIES else "Restricted",
+                      "summary": masked_summary(a, see),
+                      "detail": json.loads(a.detail or "{}") if see or a.entity in PLATFORM_ENTITIES else {}}
+                     for a in rows],
+            "restricted": not see}
 
 
 @router.post("/admin/reseed")

@@ -516,3 +516,35 @@ class DecisionEvent(Base):
     last_attempt_at: Mapped[str | None] = mapped_column(String(32), nullable=True)
     delivered_at: Mapped[str | None] = mapped_column(String(32), nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class RecoveryAccount(Base):
+    """A charged-off account in recovery (console/recovery.py). Carries the
+    balance at charge-off, what has been recovered and what remains, not days
+    past due. Collections accounts live in customers."""
+    __tablename__ = "recovery_accounts"
+
+    recovery_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    external_ref: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)   # Nova account_id
+    name: Mapped[str] = mapped_column(String(80))
+    product: Mapped[str] = mapped_column(String(20), index=True)        # card business
+    charge_off_date: Mapped[str] = mapped_column(String(10))
+    charge_off_balance: Mapped[float] = mapped_column(Float)
+    recovered: Mapped[float] = mapped_column(Float, default=0.0)
+    # In Recovery | Settlement Review | Specialist Review | Payment Arranged | Settled | Paid in Full | With Agency | Legal
+    status: Mapped[str] = mapped_column(String(20), default="In Recovery", index=True)
+    assigned_treatment: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    assigned_by: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    assigned_at: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    source: Mapped[str] = mapped_column(String(12), default="placeholder")   # placeholder | workbook | nova
+    created_at: Mapped[str] = mapped_column(String(32), index=True)
+
+
+class RecoveryPayment(Base):
+    """A payment received on a recovery account after charge-off."""
+    __tablename__ = "recovery_payments"
+
+    payment_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    recovery_id: Mapped[int] = mapped_column(ForeignKey("recovery_accounts.recovery_id"), index=True)
+    amount: Mapped[float] = mapped_column(Float)
+    paid_at: Mapped[str] = mapped_column(String(32), index=True)

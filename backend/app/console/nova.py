@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session
 
 from .. import models
 from ..scoring import nudge_score, self_cure_score, segment_for
-from . import analytics, engine, router, rules
+from . import analytics, engine, recovery, router, rules
 from ..core import telemetry as otel
 from .contract import (
     FEATURE_SET_VERSION, Consent, NovaAccount, Received, RecoveryContextV1, guard_context, lineage_only, receive,
@@ -140,17 +140,15 @@ def _apply(rec: NovaAccount, c: models.Customer) -> list[str]:
 
 
 def product_name(raw: str | None) -> str:
-    """Nova's product code, read into ARI's product names."""
-    t = (raw or "").lower()
-    if "corp" in t:
-        return "Corporate card"
-    if "auto" in t or "vehicle" in t:
-        return "Auto loan"
-    if "business" in t or "sme" in t or "commercial" in t:
-        return "Small-business loan"
-    if "loan" in t or "personal" in t:
-        return "Personal loan"
-    return "Retail card"
+    """Nova's product code, read into the bank's four card businesses."""
+    t = (raw or "").lower().replace("-", " ").replace("_", " ")
+    if "co brand" in t or "cobrand" in t:
+        return "Co-brand Card"
+    if any(w in t for w in ("business", "sme", "corp", "commercial")):
+        return "Small Business Card"
+    if "retail" in t or "store" in t or "private label" in t:
+        return "Retail Card"
+    return "Consumer Credit Card"
 
 
 def _link(db: Session, account_id: str) -> ExternalCustomer | None:
@@ -429,6 +427,30 @@ def _received_out(out: dict, got: Received) -> dict:
     return out
 
 
+def _to_recovery(db: Session, rec: NovaAccount, record: bool) -> dict:
+    """A charged-off account (or 180+ days past due) belongs to recovery, not
+    collections: it is filed as a recovery account and gets no collections decision."""
+    from .models import RecoveryAccount
+    existing = db.query(RecoveryAccount).filter_by(external_ref=rec.account_id).first()
+    if record:
+        if existing is None:
+            existing = RecoveryAccount(external_ref=rec.account_id, name=(rec.customer_name or rec.account_id)[:80],
+                                       product=product_name(rec.product), charge_off_date=date.today().isoformat(),
+                                       charge_off_balance=float(rec.current_balance), recovered=0.0,
+                                       status="In Recovery", source="nova", created_at=now())
+            db.add(existing)
+            audit(db, ACTOR, "CREATE", "recovery", rec.account_id,
+                  f"Filed {rec.account_id} for recovery: charged off ({rec.days_past_due} days past due)")
+        db.commit()
+    why = ("the account is charged off" if rec.account_status and "charge" in rec.account_status.lower()
+           else f"{rec.days_past_due} days past due is at or past charge-off ({recovery.CHARGE_OFF_DPD} days)")
+    return {"account_id": rec.account_id, "action": "recovery", "decision_id": None,
+            "process": "recovery", "recovery_account": recovery.account_number(existing.recovery_id) if existing else None,
+            "summary": f"Recovery, not collections: {why}. No collections treatment is chosen; recovery "
+                       f"treatments (settlement, one-time payment, specialist review) are assigned in the "
+                       f"Strategy Workspace."}
+
+
 def recovery_strategy(db: Session, request: NovaAccount | RecoveryContextV1 | Received, *,
                       record: bool = True) -> dict:
     """The recovery action for one account. record=False is a dry run: nothing
@@ -439,6 +461,8 @@ def recovery_strategy(db: Session, request: NovaAccount | RecoveryContextV1 | Re
     routing -> every rule for every candidate treatment -> control split ->
     Thompson sampling among the allowed treatments."""
     got = request if isinstance(request, Received) else receive(request)
+    if recovery.classify(got.account.account_status, got.account.days_past_due) == "recovery":
+        return _received_out(_to_recovery(db, got.account, record), got)
     rec = got.account
     if record and rec.request_id:
         prior = (db.query(Decision).filter(Decision.origin == "mcp", Decision.request_id == rec.request_id)

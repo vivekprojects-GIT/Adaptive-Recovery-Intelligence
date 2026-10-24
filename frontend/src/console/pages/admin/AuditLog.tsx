@@ -47,7 +47,7 @@ export default function AuditLog() {
                       <Td>{r.actor_name}</Td>
                       <Td className={r.action === "DELETE" ? "text-bad" : "text-fg-2"}>{sentence(r.action)}</Td>
                       <Td mono className="text-fg-2">{r.entity}{r.entity_id ? ` · ${r.entity_id}` : ""}</Td>
-                      <Td className="text-[13px]">{r.summary}</Td>
+                      <Td className={r.entity_id === "Restricted" ? "text-[13px] text-fg-2" : "text-[13px]"}>{r.summary}</Td>
                     </Tr>
                     {open === r.audit_id && Object.keys(r.detail).length > 0 && (
                       <tr><td colSpan={5} className="border-b border-line bg-surface-sunken px-4 py-2"><pre className="whitespace-pre-wrap font-mono text-2xs text-fg-2">{JSON.stringify(r.detail, null, 2)}</pre></td></tr>

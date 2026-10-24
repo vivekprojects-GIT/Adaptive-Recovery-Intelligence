@@ -55,8 +55,8 @@ with TestClient(app) as api:
         db.get(User, "u-tom").status = "Active"
         db.commit()
 
-    print("\n1. Every role lands on the executive dashboard, and its numbers add up")
-    for uid in ("u-ravi", "u-james", "u-priya", "u-tom"):
+    print("\n1. Every business role lands on the executive dashboard, and its numbers add up")
+    for uid in ("u-ravi", "u-james", "u-tom"):
         r = api.get("/console/executive", headers=as_(uid))
         check(r.status_code == 200, f"{uid} opens the executive dashboard")
     d = api.get("/console/executive", headers=as_("u-james")).json()
@@ -64,9 +64,9 @@ with TestClient(app) as api:
         n = db.query(models.Customer).count()
     check(d["intake"]["accounts"] == n, f"accounts imported ({d['intake']['accounts']}) match the customer count ({n})")
     check(sum(x["accounts"] for x in d["intake"]["by_product"]) == n, "the product split adds up to every account")
-    check({x["product"] for x in d["intake"]["by_product"]} >= {"Retail card", "Personal loan", "Auto loan",
-                                                                 "Small-business loan", "Corporate card"},
-          "cards, personal, auto and small-business loans are all in the book")
+    check({x["product"] for x in d["intake"]["by_product"]} == {"Consumer Credit Card", "Small Business Card",
+                                                                "Retail Card", "Co-brand Card"},
+          "the book holds exactly the bank's four card businesses")
     check(sum(x["accounts"] for x in d["routing"]) == n, "every account has a route")
     check(all(s["state"] in ("on_track", "watch", "off_track", None) for s in d["deviations"]["strategies"]),
           "each live strategy is compared with its target")
@@ -88,13 +88,38 @@ with TestClient(app) as api:
         c = next(c for c in db.query(models.Customer).filter(models.Customer.days_past_due >= 90)
                  if agencies.eligibility(db, c, held=held)[0] and agencies.match(db, c)[0] is not None)
         cid = c.customer_id
-    r = api.post("/console/placements", json={"customer_id": cid, "reason": "Broken promise to pay"}, headers=as_("u-priya"))
-    check(r.status_code == 200 and r.json()["status"] == "Proposed", "an admin proposes an account")
-    own = r.json()["placement_id"]
-    r = api.post(f"/console/placements/{own}/review", json={"approve": True}, headers=as_("u-priya"))
-    check(r.status_code == 403, "the person who proposed it cannot approve it")
+    r = api.post("/console/placements", json={"customer_id": cid, "reason": "Broken promise to pay"}, headers=as_("u-ravi"))
+    check(r.status_code == 200 and r.json()["status"] == "Proposed", "a strategist proposes an account")
+    with SessionLocal() as db:   # a leader's own proposal (proposed directly, as no default role holds both rights)
+        held = agencies.open_customer_ids(db)
+        c2 = next(c for c in db.query(models.Customer).filter(models.Customer.days_past_due >= 90)
+                  if agencies.eligibility(db, c, held=held)[0] and agencies.match(db, c)[0] is not None)
+        own = agencies.propose(db, c2, "u-james").placement_id
+        db.commit()
     r = api.post(f"/console/placements/{own}/review", json={"approve": True}, headers=as_("u-james"))
-    check(r.status_code == 200, "someone else can")
+    check(r.status_code == 403, "the person who proposed it cannot approve it")
+    with SessionLocal() as db:
+        agencies.review(db, own, False, "u-james", "test cleanup")
+        db.commit()
+
+    print("\n2b. Platform Admin manages people and access, never customer data")
+    for path in ("/console/executive", "/console/customers", "/console/decisions", "/console/placements",
+                 "/console/kpis", "/console/treatments"):
+        check(api.get(path, headers=as_("u-priya")).status_code == 403, f"admin is refused {path}")
+    r = api.get("/console/search?q=a", headers=as_("u-priya")).json()
+    check("customers" not in r.get("scopes", []), "admin's search has no customer scope")
+    r = api.put("/console/admin/roles", json={"matrix": {"admin": {"view_customer_list": True}}}, headers=as_("u-priya"))
+    check(r.status_code == 409, "admin cannot grant itself customer access")
+    log = api.get("/console/admin/audit?entity=placement", headers=as_("u-priya")).json()
+    check(log["restricted"] and log["rows"] and all(x["entity_id"] == "Restricted" and "restricted" in x["summary"]
+                                                    and "70510" not in x["summary"] for x in log["rows"]),
+          f"the audit log shows admin what happened to placements, not which accounts ({len(log['rows'])} rows)")
+    log = api.get("/console/admin/audit?entity=strategy", headers=as_("u-priya")).json()
+    check(log["rows"] and all(x["entity_id"] != "Restricted" for x in log["rows"]),
+          "strategy records, which name no customer, stay readable")
+    check(api.get("/console/admin/users", headers=as_("u-priya")).status_code == 200, "admin still manages users")
+    check(api.get("/console/governance", headers=as_("u-priya")).status_code == 200,
+          "admin can read the security and governance summary")
 
     print("\n3. A placed account is never picked by a strategy")
     with SessionLocal() as db:

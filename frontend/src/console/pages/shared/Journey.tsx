@@ -94,7 +94,7 @@ export default function Journey() {
             </Card>
 
             <div className="grid gap-4 lg:grid-cols-2">
-              <Card title="Intervention fit" subtitle="ARI's scores. Delinquency risk comes from Meridian Vale Bank's risk model.">
+              <Card title="Intervention fit" subtitle="ARI's scores. Delinquency risk comes from Meridian Valley Bank's risk model.">
                 <div className="mb-3 grid grid-cols-2 gap-3">
                   <div><p className="label">Nudge propensity</p><p className="num text-xl font-semibold">{data.nudge_profile.score}</p></div>
                   <div><p className="label">Self-cure likelihood</p><p className="num text-xl font-semibold">{data.nudge_profile.self_cure_score}</p></div>

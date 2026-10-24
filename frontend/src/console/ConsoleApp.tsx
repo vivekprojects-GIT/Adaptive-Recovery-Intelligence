@@ -26,11 +26,11 @@ function Shell() {
   if (signedOut && !me) return <SignIn />;
   if (!me) return <Spinner label="Signing in" />;
   return (
-    <div className="flex h-full flex-col">
-      <ShellBar collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
-      <div className="flex min-h-0 flex-1">
-        <Sidebar collapsed={collapsed} />
-        <div className="flex min-w-0 flex-1 flex-col">
+    <div className="flex h-full">
+      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <ShellBar />
+        <div className="flex min-h-0 flex-1">
           <main ref={mainRef} className="min-w-0 flex-1 overflow-y-auto">
             <Routes>
               <Route path="/" element={<Navigate to={HOME[me.user.role]} replace />} />

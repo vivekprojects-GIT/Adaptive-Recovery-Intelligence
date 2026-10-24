@@ -43,5 +43,22 @@ export function ProductLockup({ onDark, compact }: { onDark?: boolean; compact?:
 }
 
 
+/** The bank's mark in the sidebar: a monogram and the name on two lines. */
+export function BankMark({ compact }: { compact?: boolean }) {
+  const [first, ...rest] = CLIENT_BANK.toUpperCase().split(" ");
+  return (
+    <div className="flex items-center gap-3">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white/10 text-[17px] font-semibold text-white ring-1 ring-white/15">
+        {CLIENT_BANK.charAt(0)}
+      </span>
+      {!compact && (
+        <span className="text-[13px] font-semibold leading-[1.15] tracking-[0.06em] text-white">
+          {first} {rest.slice(0, -1).join(" ")}<br />{rest[rest.length - 1]}
+        </span>
+      )}
+    </div>
+  );
+}
+
 /** The bank this ARI deployment serves. A fictional name in the demo environment. */
-export const CLIENT_BANK = "Meridian Vale Bank";
+export const CLIENT_BANK = "Meridian Valley Bank";

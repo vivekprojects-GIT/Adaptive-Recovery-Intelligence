@@ -100,19 +100,18 @@ def as_of_decision(snap: dict) -> SimpleNamespace:
         "client_risk_band", "client_risk_score", "self_cure_score")})
 
 
-# Share of the balance due each cycle: a card's minimum payment, a loan's instalment.
-DUE_PER_CYCLE = {"Retail card": 0.035, "Personal loan": 0.04, "Auto loan": 0.03, "Small-business loan": 0.045}
+# Minimum payment due each cycle, as a share of the balance, by card business.
+DUE_PER_CYCLE = {"Consumer Credit Card": 0.03, "Retail Card": 0.04, "Co-brand Card": 0.03,
+                 "Small Business Card": 0.035}
+DEFAULT_PRODUCT = "Consumer Credit Card"
 
 
 def arrears(c) -> float:
     """Amount past due. The handoff carries balance and DPD; arrears is one
-    minimum payment or instalment per missed cycle. A corporate charge card is
-    due in full."""
-    product = getattr(c, "product", None) or "Retail card"
-    if product == "Corporate card":
-        return round(float(c.balance), 2)
+    minimum payment per missed cycle."""
+    product = getattr(c, "product", None) or DEFAULT_PRODUCT
     cycles = max(1, round(c.days_past_due / 30))
-    return round(max(35.0, c.balance * DUE_PER_CYCLE.get(product, 0.035)) * cycles, 2)
+    return round(max(35.0, c.balance * DUE_PER_CYCLE.get(product, 0.03)) * cycles, 2)
 
 
 def _bucket(campaign_id: str, customer_id: int) -> float:
@@ -581,7 +580,8 @@ def decide_one(db: Session, camp: Campaign, c, **kw) -> Decision:
         span.set_attribute("ari.review", dec.review_status or "n/a")
         span.set_attribute("ari.validation", bool(dec.validation))
         if dec.review_status == "pending":
-            span.add_event("review.required", {"ari.treatment": dec.treatment_code or "", "ari.balance": float(c.balance)})
+            span.add_event("review.required", {"ari.treatment": dec.treatment_code or "",
+                                               "ari.review_policy": dec.review_policy or ""})
         attrs = {"strategy": camp.campaign_id, "group": dec.group, "review": dec.review_policy}
         if dec.decision_id != "PREVIEW":
             otel.decisions.add(1, attrs)
@@ -611,7 +611,7 @@ def _decide_one(db: Session, camp: Campaign, c, *, decision_id: str, wave: int, 
     s = snapshot(c)
     snap = {**vars(s), "client_risk_band": c.client_risk_band, "client_risk_score": c.client_risk_score,
             "self_cure_score": c.self_cure_score, "arrears": arrears(c), "route": getattr(c, "route", None),
-            "product": getattr(c, "product", None) or "Retail card",
+            "product": getattr(c, "product", None) or DEFAULT_PRODUCT,
             "route_validation": bool(getattr(c, "route_validation", False)), **ctx["snapshot_extra"],
             "contract_version": ctx["contract_version"], "guard": g}
     codes = [k for k in jl(camp.treatment_codes) if k in arms_state]

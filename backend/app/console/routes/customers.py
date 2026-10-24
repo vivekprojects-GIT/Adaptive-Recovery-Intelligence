@@ -42,7 +42,7 @@ def customers(view: str = "all", q: str = "", cohort: str = "", page: int = 1, p
                      "balance": c.balance, "arrears": arrears(c), "days_past_due": c.days_past_due,
                      "risk_score": c.client_risk_score, "risk_band": c.client_risk_band,
                      "segment": c.segment, "route": c.route, "route_validation": bool(c.route_validation),
-                     "product": c.product or "Retail card",
+                     "product": c.product or "Consumer Credit Card",
                      "status": s["status"] if s else analytics.unrouted_status(c),
                      "progress": s["progress"] if s else 0,
                      "strategy": camps.get(s["campaign_id"]) if s else None,

@@ -41,7 +41,7 @@ def _expected_days(text: str) -> tuple[int, int] | None:
 
 def intake(db: Session) -> dict:
     customers = db.query(models.Customer).all()
-    by_product = Counter((c.product or "Retail card") for c in customers)
+    by_product = Counter((c.product or "Consumer Credit Card") for c in customers)
     by_cohort = Counter(c.cohort_id for c in customers)
     cohorts = db.query(models.Cohort).order_by(models.Cohort.sort_order).all()
     handoffs = db.query(Handoff).order_by(Handoff.at.desc()).all()
@@ -50,7 +50,7 @@ def intake(db: Session) -> dict:
         "balance": round(sum(c.balance for c in customers), 2),
         "arrears": round(sum(arrears(c) for c in customers), 2),
         "by_product": [{"product": p, "accounts": n,
-                        "balance": round(sum(c.balance for c in customers if (c.product or "Retail card") == p), 2)}
+                        "balance": round(sum(c.balance for c in customers if (c.product or "Consumer Credit Card") == p), 2)}
                        for p, n in by_product.most_common()],
         "by_bucket": [{"cohort_id": co.cohort_id, "bucket": co.dpd_bucket, "name": co.name,
                        "accounts": by_cohort.get(co.cohort_id, 0)} for co in cohorts],

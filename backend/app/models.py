@@ -43,8 +43,8 @@ class Customer(Base):
     route: Mapped[str | None] = mapped_column(String(12), nullable=True, index=True)
     # Sent to a strategy against its group's route, so the router itself can be scored.
     route_validation: Mapped[bool] = mapped_column(Boolean, default=False)
-    # Retail card | Corporate card. A corporate charge card is due in full, so its whole balance is in arrears.
-    product: Mapped[str] = mapped_column(String(20), default="Retail card")
+    # The card business: Consumer Credit Card | Small Business Card | Retail Card | Co-brand Card.
+    product: Mapped[str] = mapped_column(String(20), default="Consumer Credit Card")
     is_persona: Mapped[bool] = mapped_column(Boolean, default=False)
     persona_note: Mapped[str] = mapped_column(Text, default="")
 

@@ -31,7 +31,7 @@ export default function Decisions() {
           </div>
           <form className="relative w-64" onSubmit={(e) => { e.preventDefault(); set("q", q); }}>
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-fg-3" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Decision or customer ID" className={`${inputCls} pl-8`} />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Decision or account number" className={`${inputCls} pl-8`} />
           </form>
         </div>
         <Card flush>

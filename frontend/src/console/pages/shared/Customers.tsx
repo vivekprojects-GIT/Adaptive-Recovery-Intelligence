@@ -36,7 +36,7 @@ export default function Customers({ journeys }: { journeys?: boolean }) {
   return (
     <>
       <PageHeader title={journeys ? "Journeys" : "Customers"}
-        subtitle={journeys ? "Every customer a strategy has touched, with where their journey stands" : `${data?.total ?? "…"} accounts handed over by Meridian Vale Bank's collections system`} />
+        subtitle={journeys ? "Every customer a strategy has touched, with where their journey stands" : `${data?.total ?? "…"} accounts handed over by Meridian Valley Bank's collections system`} />
       <Page>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Pills value={view} onChange={(v) => set("view", v)} options={[
@@ -47,13 +47,13 @@ export default function Customers({ journeys }: { journeys?: boolean }) {
           ]} />
           <form className="relative w-72" onSubmit={(e) => { e.preventDefault(); set("q", q); }}>
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-fg-3" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name, customer ID or account ID" className={`${inputCls} pl-8`} />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name, account number or account ID" className={`${inputCls} pl-8`} />
           </form>
         </div>
         <Card flush>
           {loading && !data ? <Spinner /> : (
             <Table>
-              <thead><tr><Th>Customer</Th><Th>Ref ID</Th><Th align="right">Balance</Th>
+              <thead><tr><Th>Customer</Th><Th>Account number</Th><Th align="right">Balance</Th>
                 <Th>Client risk</Th><Th>Fit group</Th><Th>Strategy</Th><Th>Status</Th><Th w="110px">Progress</Th><Th>Last contact</Th></tr></thead>
               <tbody>
                 {data?.rows.map((r) => (

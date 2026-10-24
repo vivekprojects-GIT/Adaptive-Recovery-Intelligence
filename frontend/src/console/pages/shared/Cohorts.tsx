@@ -33,11 +33,11 @@ export default function Cohorts() {
   return (
     <>
       <PageHeader title="Cohorts & Handoffs"
-        subtitle="Where ARI starts: the delinquent accounts Meridian Vale Bank's collections system hands over, cohort by cohort"
+        subtitle="Where ARI starts: the delinquent accounts Meridian Valley Bank's collections system hands over, cohort by cohort"
         actions={can("launch_strategy") && <Button icon={<Inbox className="h-4 w-4" />} loading={busy === "handoff"} onClick={receive}>Receive next handoff</Button>} />
       <Page>
         <Banner tone="neutral" title="Upstream, not rebuilt">
-          Delinquency risk, DPD buckets and cohort identification come from Meridian Vale Bank's existing collections system. ARI receives them as a handoff and starts at the intervention decision.
+          Delinquency risk, DPD buckets and cohort identification come from Meridian Valley Bank's existing collections system. ARI receives them as a handoff and starts at the intervention decision.
         </Banner>
 
         <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">

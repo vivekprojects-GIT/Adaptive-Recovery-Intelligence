@@ -12,9 +12,9 @@ import type { Learning } from "../lib/api";
 import { money, num, pct, pp, weekLabel } from "../lib/format";
 
 export const SERIES = ["var(--series-1)", "var(--series-2)", "var(--series-3)", "var(--series-4)", "var(--series-5)"];
-const AXIS = { fontSize: 11, fill: "var(--chart-axis)" };
+export const AXIS = { fontSize: 11, fill: "var(--chart-axis)" };
 
-function Tip({ label, rows }: { label: string; rows: { name: string; value: string; color?: string }[] }) {
+export function Tip({ label, rows }: { label: string; rows: { name: string; value: string; color?: string }[] }) {
   return (
     <div className="rounded-lg border border-line bg-surface px-3 py-2 text-xs shadow-pop">
       <p className="font-semibold text-fg">{label}</p>
@@ -208,7 +208,7 @@ export function BeliefBars({ rows }: { rows: { name: string; mean: number; low: 
 }
 
 const waveTick = (l: string) => (l === "Prior" ? "Prior" : l.replace("Wave ", "W"));
-const legendText = (v: string) => <span style={{ color: "var(--chart-axis)" }}>{v}</span>;
+export const legendText = (v: string) => <span style={{ color: "var(--chart-axis)" }}>{v}</span>;
 
 /** How the engine's belief in each treatment moved, wave by wave: posterior mean
  *  (line) and its 95% interval (band). A band that narrows is the engine learning. */

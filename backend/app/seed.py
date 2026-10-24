@@ -33,7 +33,7 @@ COHORTS = [
     dict(cohort_id="C4", name="90+ DPD - very high risk", dpd_bucket="90+ DPD", client_risk_band="Very high",
          expected_payment="Unlikely without help", sort_order=4, size=160,
          mix={"Persuadable": 0.10, "Sure Thing": 0.05, "Lost Cause": 0.70, "Sleeping Dog": 0.15},
-         dpd=(90, 125), risk=(84, 98),
+         dpd=(90, 178), risk=(84, 98),
          description="Pre charge-off. Mostly hardship cases."),
 ]
 
@@ -65,10 +65,11 @@ STRATEGIES = [
 ]
 
 
-# The consumer and small-business lending book handed over for collections.
-# Balances sit in the retail range ($500-$15,000). Corporate cards arrive separately.
-PRODUCT_MIX = [("Retail card", 0.55), ("Personal loan", 0.20), ("Auto loan", 0.15), ("Small-business loan", 0.10)]
-PRODUCTS = [p for p, _ in PRODUCT_MIX] + ["Corporate card"]
+# The bank's four card businesses, named as in the bank's reference workbook.
+# Placeholder mix until the workbook's Data Example values are loaded.
+PRODUCT_MIX = [("Consumer Credit Card", 0.45), ("Retail Card", 0.25), ("Co-brand Card", 0.18),
+               ("Small Business Card", 0.12)]
+PRODUCTS = [p for p, _ in PRODUCT_MIX]
 
 
 def draw_product(rng: random.Random) -> str:

@@ -3,7 +3,7 @@ and stored as a graph, so an agent can reach any of it through a small set of
 read-only tools.
 
   Taxonomy   a class tree. Every node belongs to one class, and every class
-             sits under a parent, e.g. Auto loan < Loan < Product, or
+             sits under a parent, e.g. Retail Card < Card < Product, or
              Split Payment Plan < Arrangement < Treatment.
   Nodes      one per thing: a customer, a strategy, a decision, an agency,
              and the reference values they share (a delinquency bucket, a
@@ -44,13 +44,11 @@ TAXONOMY: list[tuple[str, str | None, str]] = [
     ("Customer", "Party", "A delinquent account holder handed over for collections"),
     ("Agency", "Party", "An external collection agency on the bank's panel"),
     ("Product", "Thing", "What the customer owes on"),
-    ("Card", "Product", "A card product"),
-    ("Retail card", "Card", "Consumer credit card: a minimum payment is due each cycle"),
-    ("Corporate card", "Card", "Charge card for a business: due in full each cycle"),
-    ("Loan", "Product", "An instalment loan"),
-    ("Personal loan", "Loan", "Unsecured consumer instalment loan"),
-    ("Auto loan", "Loan", "Instalment loan secured on a vehicle"),
-    ("Small-business loan", "Loan", "Instalment loan to a small business"),
+    ("Card", "Product", "A card business"),
+    ("Consumer Credit Card", "Card", "General-purpose consumer credit card"),
+    ("Small Business Card", "Card", "Card issued to a small business"),
+    ("Retail Card", "Card", "Store or private-label card for one retailer"),
+    ("Co-brand Card", "Card", "Card issued with a partner brand"),
     ("Segment", "Thing", "A way the book is divided"),
     ("Delinquency bucket", "Segment", "How far behind the account is, from the bank's collections system"),
     ("Risk band", "Segment", "The bank's own risk rating"),
@@ -149,7 +147,7 @@ def _extract(db: Session) -> tuple[list[dict], list[tuple[str, str, str]]]:
         return nid
 
     for cls, _, desc in TAXONOMY:   # products and treatment kinds are classes and nodes
-        if is_a(cls, "Product") and cls not in ("Product", "Card", "Loan"):
+        if is_a(cls, "Product") and cls not in ("Product", "Card"):
             node(f"product:{_slug(cls)}", cls, cls, description=desc)
     cohorts = db.query(models.Cohort).order_by(models.Cohort.sort_order).all()
     for co in cohorts:
@@ -186,7 +184,7 @@ def _extract(db: Session) -> tuple[list[dict], list[tuple[str, str, str]]]:
 
     for c in db.query(models.Customer):
         ref = customer_ref(c.customer_id)
-        product = c.product or "Retail card"
+        product = c.product or "Consumer Credit Card"
         nid = node(f"customer:{c.customer_id}", "Customer", ref, customer_ref=ref,
                    token=pii.token(c.customer_id, "customer"), balance=round(c.balance, 2), arrears=arrears(c),
                    days_past_due=c.days_past_due, missed_payments_12m=c.missed_payments,

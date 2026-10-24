@@ -17,13 +17,13 @@ export function UserMenu() {
   if (!me) return null;
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="flex items-center gap-2.5 rounded-md py-1 pl-1 pr-2 outline-none hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white/40 data-[state=open]:bg-white/10">
+      <DropdownMenuTrigger className="flex items-center gap-2.5 rounded-md py-1 pl-1 pr-2 outline-none hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-surface-hover">
         <Avatar name={me.user.name} />
         <span className="hidden text-left leading-tight md:block">
-          <span className="block text-[13px] font-medium text-white">{me.user.name}</span>
-          <span className="block text-2xs text-primary-200">{me.user.role_label}</span>
+          <span className="block whitespace-nowrap text-[13px] font-medium text-fg">{me.user.name}</span>
+          <span className="block whitespace-nowrap text-2xs text-fg-3">{me.user.role_label}</span>
         </span>
-        <ChevronDown className="h-3.5 w-3.5 text-primary-200" />
+        <ChevronDown className="h-3.5 w-3.5 text-fg-3" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72 p-0">
         <div className="flex items-center gap-3 px-4 py-3">

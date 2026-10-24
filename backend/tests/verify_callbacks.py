@@ -175,7 +175,7 @@ with TestClient(app) as api:
           "the governance page counts it")
 
     print("\n5. Product is reported as used")
-    out = nova.recovery_strategy(db, account(901, product="Auto loan"))
+    out = nova.recovery_strategy(db, account(901, product="Co-brand Card"))
     lineage = out.get("lineage_only") or out.get("received", {}).get("lineage_only") or []
     check("product" not in lineage, f"product is not listed as stored only ({lineage})")
     check("used" in (NovaAccount.model_fields["product"].description or "").lower(),

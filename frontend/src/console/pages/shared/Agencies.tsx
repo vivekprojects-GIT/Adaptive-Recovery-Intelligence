@@ -93,7 +93,7 @@ export default function Agencies() {
 
         <Card title="Agency panel" subtitle="Contract terms and results to date. Agencies are compared on net recovery, after their fee." flush>
           <Table>
-            <thead><tr><Th>Agency</Th><Th>Products</Th><Th align="right">Fee</Th><Th align="right">From DPD</Th>
+            <thead><tr><Th>Agency</Th><Th>Card businesses</Th><Th align="right">Fee</Th><Th align="right">From DPD</Th>
               <Th align="right">Open / capacity</Th><Th align="right">Balance placed</Th><Th align="right">Recovered</Th>
               <Th align="right"><span className="inline-flex items-center gap-1">Net liquidation <MetricInfo metric="net_liquidation" /></span></Th>
               <Th align="right">Paying</Th><Th align="right">Days to first payment</Th></tr></thead>
@@ -124,7 +124,7 @@ export default function Agencies() {
             ]} />
           </div>
           <Table maxHeight="560px">
-            <thead><tr><Th>Placement</Th><Th>Customer</Th><Th>Product</Th><Th align="right">DPD</Th><Th>Agency</Th>
+            <thead><tr><Th>Placement</Th><Th>Account</Th><Th>Card business</Th><Th align="right">DPD</Th><Th>Agency</Th>
               <Th align="right">Balance</Th><Th align="right">Recovered</Th><Th>Status</Th><Th>{tab === "Proposed" ? "Why" : "History"}</Th>
               {approver && tab !== "Closed" && <Th align="right" w="170px"> </Th>}</tr></thead>
             <tbody>
