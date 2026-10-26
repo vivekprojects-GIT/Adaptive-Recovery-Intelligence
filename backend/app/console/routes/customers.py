@@ -7,10 +7,12 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 
 from ... import models
+from ...seed import PRODUCTS
 from ...core.database import get_db
 from ...scoring import eligibility, fit_reasons, nudge_explanation
 from .. import analytics, compliance, engine
@@ -24,13 +26,20 @@ router = APIRouter()
 
 
 @router.get("/customers")
-def customers(view: str = "all", q: str = "", cohort: str = "", page: int = 1, page_size: int = 25,
+def customers(view: str = "all", q: str = "", cohort: str = "", product: str = "", page: int = 1, page_size: int = 25,
               user: User = Depends(require("view_customer_list")), db: Session = Depends(get_db)):
+    """Accounts in collections, filtered by view, search, delinquency bucket and card business."""
+    if product and product not in PRODUCTS:
+        raise HTTPException(400, f"Unknown card business {product}. Use one of: {', '.join(PRODUCTS)}.")
     query = db.query(models.Customer)
     if cohort:
         query = query.filter(models.Customer.cohort_id == cohort)
     if q.strip():
         query = query.filter(customer_match(q))
+    # Counts per card business for the filter, before the card filter itself is applied.
+    by_product = dict(query.with_entities(models.Customer.product, func.count()).group_by(models.Customer.product).all())
+    if product:
+        query = query.filter(models.Customer.product == product)
     all_rows = query.all()
     states = analytics.customer_state(db, [c.customer_id for c in all_rows])
     t = _treatments(db)
@@ -64,6 +73,7 @@ def customers(view: str = "all", q: str = "", cohort: str = "", page: int = 1, p
     total = len(rows)
     start = (page - 1) * page_size
     return {"total": total, "page": page, "page_size": page_size, "counts": counts,
+            "products": [{"product": p, "accounts": by_product.get(p, 0)} for p in PRODUCTS],
             "rows": rows[start:start + page_size]}
 
 

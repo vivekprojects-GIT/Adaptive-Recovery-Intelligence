@@ -72,6 +72,19 @@ with TestClient(app) as api:
           "each live strategy is compared with its target")
     check(any(x["kind"] == "reviews" or x["kind"] == "violations" for x in d["exceptions"]), "exceptions are listed")
 
+    r = api.get("/console/customers?product=Retail Card&page_size=500", headers=as_("u-james")).json()
+    check(bool(r["rows"]) and all(x["product"] == "Retail Card" for x in r["rows"]), f"the card filter returns only Retail Card ({r['total']})")
+    check(sum(p["accounts"] for p in r["products"]) == n, "the per-business counts add up to every account")
+    check(api.get("/console/customers?product=Personal loan", headers=as_("u-james")).status_code == 400,
+          "an unknown card business is refused")
+    r = api.get("/console/decisions?review=pending&product=Small Business Card&page_size=100", headers=as_("u-james")).json()
+    with SessionLocal() as db:
+        sbc = {c.customer_id for c in db.query(models.Customer).filter(models.Customer.product == "Small Business Card")}
+    check(bool(r["rows"]) and all(x["customer_id"] in sbc for x in r["rows"]),
+          f"the review queue filters to Small Business Card ({r['total']} waiting)")
+    allp = api.get("/console/decisions?review=pending&page_size=1", headers=as_("u-james")).json()
+    check(sum(p["decisions"] for p in allp["products"]) == allp["total"], "per-business decision counts add up")
+
     print("\n2. Agency placements always wait for a person")
     pending = api.get("/console/placements?status=Proposed", headers=as_("u-james")).json()
     check(len(pending) > 0, f"ARI's proposals are waiting for approval ({len(pending)})")

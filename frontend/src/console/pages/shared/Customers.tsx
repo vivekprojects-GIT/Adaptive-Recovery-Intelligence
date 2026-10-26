@@ -7,9 +7,9 @@ import type { CustomerRow } from "../../lib/api";
 import { ROUTE_LABEL, ago, customerRef, money } from "../../lib/format";
 import { useApi } from "../../lib/session";
 import { SegmentChip } from "../../ui/domain";
-import { Avatar, Card, Empty, ErrorState, Page, PageHeader, Pager, Pills, Progress, Spinner, StatusChip, Table, Td, Th, Tr, inputCls } from "../../ui/ui";
+import { Avatar, Card, Empty, ErrorState, Page, PageHeader, Pager, Pills, Progress, Select, Spinner, StatusChip, Table, Td, Th, Tr, inputCls } from "../../ui/ui";
 
-interface Data { total: number; page: number; page_size: number; counts: Record<string, number>; rows: CustomerRow[] }
+interface Data { total: number; page: number; page_size: number; counts: Record<string, number>; products: { product: string; accounts: number }[]; rows: CustomerRow[] }
 
 export function RiskBar({ score }: { score: number }) {
   const tone = score >= 75 ? "bg-bad" : score >= 50 ? "bg-warn" : "bg-good";
@@ -27,7 +27,8 @@ export default function Customers({ journeys }: { journeys?: boolean }) {
   const page = Number(params.get("page") ?? 1);
   const [q, setQ] = useState(params.get("q") ?? "");
   useEffect(() => setQ(params.get("q") ?? ""), [params]);
-  const path = `/customers?view=${view}&page=${page}&page_size=20&q=${encodeURIComponent(params.get("q") ?? "")}`;
+  const card = params.get("card") ?? "";
+  const path = `/customers?view=${view}&page=${page}&page_size=20&q=${encodeURIComponent(params.get("q") ?? "")}&product=${encodeURIComponent(card)}`;
   const { data, error, loading, reload } = useApi<Data>(path, [path]);
   const navigate = useNavigate();
   const set = (k: string, v: string) => { const n = new URLSearchParams(params); v ? n.set(k, v) : n.delete(k); if (k !== "page") n.delete("page"); setParams(n); };
@@ -45,10 +46,15 @@ export default function Customers({ journeys }: { journeys?: boolean }) {
             { id: "unresponsive", label: "Unresponsive", count: c.unresponsive }, { id: "resolved", label: "Resolved", count: c.resolved },
             { id: "pending", label: "Pending review", count: c.pending },
           ]} />
+          <div className="flex flex-wrap items-center gap-2">
+          <Select className="w-60" value={card} onChange={(v) => set("card", v)}
+            options={[{ value: "", label: "All card businesses" },
+              ...(data?.products ?? []).map((p) => ({ value: p.product, label: `${p.product} (${p.accounts.toLocaleString()})` }))]} />
           <form className="relative w-72" onSubmit={(e) => { e.preventDefault(); set("q", q); }}>
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-fg-3" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name, account number or account ID" className={`${inputCls} pl-8`} />
           </form>
+          </div>
         </div>
         <Card flush>
           {loading && !data ? <Spinner /> : (

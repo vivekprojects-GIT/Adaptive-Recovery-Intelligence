@@ -5,17 +5,18 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import type { DecisionRow } from "../../lib/api";
 import { customerRef, dateTime, money, pct } from "../../lib/format";
 import { useApi } from "../../lib/session";
-import { Card, Chip, Empty, ErrorState, Page, PageHeader, Pager, Pills, Spinner, StatusChip, Table, Td, Th, Tr, inputCls } from "../../ui/ui";
+import { Card, Chip, Empty, ErrorState, Page, PageHeader, Pager, Pills, Select, Spinner, StatusChip, Table, Td, Th, Tr, inputCls } from "../../ui/ui";
 
 export default function Decisions() {
   const [params, setParams] = useSearchParams();
   const group = params.get("group") ?? "";
   const review = params.get("review") ?? "";
   const campaign = params.get("campaign") ?? "";
+  const card = params.get("card") ?? "";
   const page = Number(params.get("page") ?? 1);
   const [q, setQ] = useState(params.get("q") ?? "");
-  const path = `/decisions?group=${group}&review=${review}&campaign=${campaign}&q=${encodeURIComponent(params.get("q") ?? "")}&page=${page}&page_size=25`;
-  const { data, error, loading, reload } = useApi<{ total: number; rows: DecisionRow[] }>(path, [path]);
+  const path = `/decisions?group=${group}&review=${review}&campaign=${campaign}&q=${encodeURIComponent(params.get("q") ?? "")}&product=${encodeURIComponent(card)}&page=${page}&page_size=25`;
+  const { data, error, loading, reload } = useApi<{ total: number; rows: DecisionRow[]; products: { product: string; decisions: number }[] }>(path, [path]);
   const navigate = useNavigate();
   const set = (k: string, v: string) => { const n = new URLSearchParams(params); v ? n.set(k, v) : n.delete(k); if (k !== "page") n.delete("page"); setParams(n); };
   if (error) return <ErrorState message={error} onRetry={reload} />;
@@ -29,10 +30,15 @@ export default function Decisions() {
             <Pills value={group} onChange={(v) => set("group", v)} options={[{ id: "", label: "All groups" }, { id: "Treatment", label: "Treatment" }, { id: "Control", label: "Control" }]} />
             <Pills value={review} onChange={(v) => set("review", v)} options={[{ id: "", label: "Any review" }, { id: "pending", label: "Pending" }, { id: "approved", label: "Approved" }, { id: "rejected", label: "Rejected" }]} />
           </div>
-          <form className="relative w-64" onSubmit={(e) => { e.preventDefault(); set("q", q); }}>
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-fg-3" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Decision or account number" className={`${inputCls} pl-8`} />
-          </form>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select className="w-60" value={card} onChange={(v) => set("card", v)}
+              options={[{ value: "", label: "All card businesses" },
+                ...(data?.products ?? []).map((p) => ({ value: p.product, label: `${p.product} (${p.decisions.toLocaleString()})` }))]} />
+            <form className="relative w-64" onSubmit={(e) => { e.preventDefault(); set("q", q); }}>
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-fg-3" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Decision or account number" className={`${inputCls} pl-8`} />
+            </form>
+          </div>
         </div>
         <Card flush>
           {loading && !data ? <Spinner /> : (

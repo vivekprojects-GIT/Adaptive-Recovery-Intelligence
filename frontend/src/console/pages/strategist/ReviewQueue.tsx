@@ -1,17 +1,21 @@
 import { Check, X } from "lucide-react";
 import { Fragment, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { api, type DecisionRow } from "../../lib/api";
 import { ago, customerRef, money, pct } from "../../lib/format";
 import { useApi, useSession } from "../../lib/session";
-import { Banner, Button, Card, Empty, ErrorState, Field, Modal, Page, PageHeader, Spinner, Table, Td, Th, Tr, inputCls, useAction } from "../../ui/ui";
+import { Banner, Button, Card, Empty, ErrorState, Field, Modal, Page, PageHeader, Select, Spinner, Table, Td, Th, Tr, inputCls, useAction } from "../../ui/ui";
 
 interface Detail { snapshot: Record<string, number | string>; explanation: string }
 
 export default function ReviewQueue() {
   const { refresh } = useSession();
-  const { data, error, loading, reload } = useApi<{ rows: DecisionRow[]; total: number }>("/decisions?review=pending&page_size=100");
+  const [params, setParams] = useSearchParams();
+  const card = params.get("card") ?? "";
+  const { data, error, loading, reload } = useApi<{ rows: DecisionRow[]; total: number; products: { product: string; decisions: number }[] }>(
+    `/decisions?review=pending&page_size=100&product=${encodeURIComponent(card)}`, [card]);
+  const setCard = (v: string) => { const n = new URLSearchParams(params); v ? n.set("card", v) : n.delete("card"); setParams(n); };
   const [reject, setReject] = useState<DecisionRow | null>(null);
   const [note, setNote] = useState("");
   const [open, setOpen] = useState<string | null>(null);
@@ -43,7 +47,10 @@ export default function ReviewQueue() {
         <Banner tone="info" title="Why these wait">
           A person approves every decision for a balance at or above the review threshold ($10,000, set in Platform Config), and every payment plan, deferral or hardship referral, because these change what a customer owes or when. Below the threshold, other treatments run automatically. Nothing here is sent until you approve it. Approving re-checks consent, contact limits and any vulnerability flag against the newest data from Nova, then sends it. While channel delivery is not connected, the send is recorded and no message reaches the customer. Rejecting records why and sends nothing.
         </Banner>
-        <Card flush title={`${data?.total ?? 0} decisions waiting`}>
+        <Card flush title={`${data?.total ?? 0} decisions waiting${card ? ` · ${card}` : ""}`}
+          actions={<Select className="w-60" value={card} onChange={setCard}
+            options={[{ value: "", label: "All card businesses" },
+              ...(data?.products ?? []).map((p) => ({ value: p.product, label: `${p.product} (${p.decisions.toLocaleString()})` }))]} />}>
           <Table>
             <thead><tr><Th>Decision</Th><Th>Customer</Th><Th align="right">Balance</Th><Th>Strategy</Th><Th>Proposed offer</Th><Th>Why it waits</Th><Th>Waiting</Th><Th align="right">Action</Th></tr></thead>
             <tbody>

@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 
 from ... import models
+from ...seed import PRODUCTS
 from ...core.database import get_db
 from ...scoring import eligibility, fit_reasons, nudge_explanation
 from .. import callbacks, engine
@@ -49,9 +50,12 @@ def _decision_row(d: Decision, o: Outcome | None, names: dict, camps: dict, t: d
 
 
 @router.get("/decisions")
-def decisions(campaign: str = "", group: str = "", review: str = "", q: str = "", page: int = 1,
+def decisions(campaign: str = "", group: str = "", review: str = "", q: str = "", product: str = "", page: int = 1,
               page_size: int = 30, user: User = Depends(require("view_ai_decisions")),
               db: Session = Depends(get_db)):
+    """The decision log (and, with review=pending, the review queue), filterable by card business."""
+    if product and product not in PRODUCTS:
+        raise HTTPException(400, f"Unknown card business {product}. Use one of: {', '.join(PRODUCTS)}.")
     query = db.query(Decision, Outcome).outerjoin(Outcome, Outcome.decision_id == Decision.decision_id)
     if campaign:
         query = query.filter(Decision.campaign_id == campaign)
@@ -64,6 +68,13 @@ def decisions(campaign: str = "", group: str = "", review: str = "", q: str = ""
         query = query.filter(or_(Decision.decision_id.ilike(f"%{q.strip()}%"),
                                  Decision.customer_id.in_(select(models.Customer.customer_id)
                                                           .where(customer_match(q)))))
+    # Decisions per card business for the filter, before the card filter itself.
+    by_product = dict(query.join(models.Customer, models.Customer.customer_id == Decision.customer_id)
+                      .with_entities(models.Customer.product, func.count(Decision.decision_id))
+                      .group_by(models.Customer.product).all())
+    if product:
+        query = query.filter(Decision.customer_id.in_(select(models.Customer.customer_id)
+                                                      .where(models.Customer.product == product)))
     total = query.count()
     rows = query.order_by(Decision.decided_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
     names, t = _user_names(db), _treatments(db)
@@ -71,6 +82,7 @@ def decisions(campaign: str = "", group: str = "", review: str = "", q: str = ""
     cust = {c.customer_id: c.name for c in db.query(models.Customer).filter(
         models.Customer.customer_id.in_([d.customer_id for d, _ in rows]))}
     return {"total": total, "page": page, "page_size": page_size,
+            "products": [{"product": p, "decisions": by_product.get(p, 0)} for p in PRODUCTS],
             "rows": [_decision_row(d, o, names, camps, t, cust, cfg_float(db, "human_review_balance_threshold"))
                      for d, o in rows]}
 
