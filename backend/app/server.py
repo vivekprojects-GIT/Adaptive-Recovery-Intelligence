@@ -30,7 +30,7 @@ class SPAStaticFiles(StaticFiles):
 
 # Mounted sub-apps do not run their own lifespan, so seeding and the MCP
 # transport start from here. The MCP endpoint is then /api/mcp.
-app = FastAPI(title="Adaptive Recovery Intelligence", docs_url=None, redoc_url=None, lifespan=lifespan)
+app = FastAPI(title="CARE - Collection and Recovery Agent", docs_url=None, redoc_url=None, lifespan=lifespan)
 
 
 @app.get("/healthz")

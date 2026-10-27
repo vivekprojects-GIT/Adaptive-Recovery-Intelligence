@@ -44,7 +44,7 @@ with TestClient(app) as api:
     with SessionLocal() as db:
         playbook.ingest_handoff(db, actor="u-maya", trigger="manual", sizes={"C4": 300})
 
-    print("\n1. What ARI suggests")
+    print("\n1. What CARE suggests")
     r = api.get("/console/strategies/suggestions", headers=MAYA)
     data = r.json()
     sg = data["suggestions"]
@@ -100,7 +100,7 @@ with TestClient(app) as api:
     stale = api.post("/console/strategies/suggestions/new-C9/draft", headers=MAYA)
     check(stale.status_code == 409, "a suggestion that no longer applies is refused (409)")
     audit = api.get("/console/admin/audit?q=suggestion", headers={"X-User-Id": "u-priya"})
-    check(audit.status_code == 200 and "ARI suggestion" in audit.text, "each choice is in the audit log")
+    check(audit.status_code == 200 and "CARE suggestion" in audit.text, "each choice is in the audit log")
 
 print(f"\n{'All checks passed' if not failures else f'{len(failures)} check(s) failed'}. Database: {TMP}")
 sys.exit(1 if failures else 0)

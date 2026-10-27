@@ -20,7 +20,7 @@ export default function Nudges() {
   const set = (k: string, v: string) => { const n = new URLSearchParams(params); v ? n.set(k, v) : n.delete(k); if (k !== "page") n.delete("page"); setParams(n); };
   return (
     <>
-      <PageHeader title="Nudges" subtitle="Every message and call ARI scheduled, with what happened to it" />
+      <PageHeader title="Nudges" subtitle="Every message and call CARE scheduled, with what happened to it" />
       <Page>
         <Pills value={status} onChange={(v) => set("status", v)} options={[
           { id: "", label: "All", count: all }, { id: "Clicked", label: "Clicked", count: c.Clicked ?? 0 },

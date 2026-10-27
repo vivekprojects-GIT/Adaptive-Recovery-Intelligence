@@ -1,4 +1,4 @@
-"""ARI Console persistence.
+"""CARE Console persistence.
 
 The intervention engine (scoring.py) and the treatment playbook (models.Strategy,
 S1-S6) are unchanged. This module adds what an operating console needs on top:
@@ -131,9 +131,9 @@ class Handoff(Base):
 
 
 class ExternalCustomer(Base):
-    """An account as an upstream system knows it (Nova), linked to ARI's record.
+    """An account as an upstream system knows it (Nova), linked to CARE's record.
     The upstream reference is the join key for every later call - decisions,
-    outcome reports - so ARI never has to invent one."""
+    outcome reports - so CARE never has to invent one."""
     __tablename__ = "external_customers"
     __table_args__ = (UniqueConstraint("source", "external_ref"),)
 
@@ -191,7 +191,7 @@ class FeatureSnapshot(Base):
     """The exact context a decision was made on, frozen at decision time and
     never updated: what was received, how it was read, what was assumed, and
     how fresh it was. Historical screens read this, never today's customer
-    record. ARI keeps the context of each request, not a copy of Nova's data."""
+    record. CARE keeps the context of each request, not a copy of Nova's data."""
     __tablename__ = "feature_snapshots"
 
     snapshot_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -206,7 +206,7 @@ class FeatureSnapshot(Base):
     raw_payload: Mapped[str] = mapped_column(EncryptedText, default="{}")   # as received, encrypted at rest
     features: Mapped[str] = mapped_column(Text, default="{}")       # the normalised values the rules and model used
     guard_context: Mapped[str] = mapped_column(Text, default="{}")  # consent, contacts, restrictions, as-of times
-    assumed: Mapped[str] = mapped_column(Text, default="[]")        # values ARI had to default
+    assumed: Mapped[str] = mapped_column(Text, default="[]")        # values CARE had to default
     ignored_fields: Mapped[str] = mapped_column(Text, default="[]")  # sent, but not part of the contract
     aliases_used: Mapped[str] = mapped_column(Text, default="[]")
     lineage_only: Mapped[str] = mapped_column(Text, default="[]")   # accepted and stored, not used to decide
@@ -311,14 +311,14 @@ class PaymentRecord(Base):
     amount: Mapped[float | None] = mapped_column(Float, nullable=True)
     payment_date: Mapped[str | None] = mapped_column(String(10), nullable=True)   # YYYY-MM-DD
     status: Mapped[str] = mapped_column(String(10), default="Posted")             # Posted | Reversed
-    # Nova's own view of whether the account is cured, as sent. ARI computes its
+    # Nova's own view of whether the account is cured, as sent. CARE computes its
     # own from the payments and the arrears; both are kept so they can be compared.
     nova_cure_flag: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     first_reported_at: Mapped[str] = mapped_column(String(32))
     reported_at: Mapped[str] = mapped_column(String(32))
 
 class ContactRecord(Base):
-    """Every outbound contact the customer received - ARI's own nudges AND the
+    """Every outbound contact the customer received - CARE's own nudges AND the
     bank's business-as-usual systems. Contact rules are about what the customer
     experienced, so compliance has to count both."""
     __tablename__ = "contact_records"
@@ -326,7 +326,7 @@ class ContactRecord(Base):
     contact_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     customer_id: Mapped[int] = mapped_column(Integer, index=True)
     channel: Mapped[str] = mapped_column(String(30))
-    source: Mapped[str] = mapped_column(String(12))    # ARI | BAU
+    source: Mapped[str] = mapped_column(String(12))    # CARE | BAU
     nudge_id: Mapped[str | None] = mapped_column(String(12), nullable=True)
     at: Mapped[str] = mapped_column(String(32), index=True)
     local_hour: Mapped[int] = mapped_column(Integer)
@@ -455,7 +455,7 @@ class Agency(Base):
 
 
 class Placement(Base):
-    """An account sent to an agency. Proposed by ARI or a person; nothing is
+    """An account sent to an agency. Proposed by CARE or a person; nothing is
     placed until a person approves it."""
     __tablename__ = "placements"
 

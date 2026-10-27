@@ -1,4 +1,4 @@
-"""The ARI Console API, one module per area. Every route names the permission it
+"""The CARE Console API, one module per area. Every route names the permission it
 requires (rbac.require), so the UI hiding a button is never the only guard.
 
 Modules are included in this order, which is the order routes are matched in."""

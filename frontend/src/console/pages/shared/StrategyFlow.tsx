@@ -1,4 +1,4 @@
-/** One customer's strategy decisions from start to finish: what ARI chose and
+/** One customer's strategy decisions from start to finish: what CARE chose and
  *  why, what was sent, what the customer did, the result, and how that result
  *  changed the treatment's score in the strategy. */
 import clsx from "clsx";

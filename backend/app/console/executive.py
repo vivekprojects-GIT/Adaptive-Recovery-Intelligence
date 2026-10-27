@@ -3,7 +3,7 @@
   Intake        accounts the bank's collections system has handed over, by
                 product and delinquency bucket
   Routing       where the Propensity Router sent them
-  Pipeline      in ARI strategies, waiting for a person, with an agency
+  Pipeline      in CARE strategies, waiting for a person, with an agency
   Recovery      dollars and accounts recovered, experiment against control
   Deviations    expected against actual: each strategy's target, each
                 bucket's expected time to pay, each treatment's track record
@@ -23,7 +23,7 @@ from .engine import arrears
 from .models import Campaign, ComplianceViolation, Decision, Handoff, Nudge, Outcome, Placement
 
 UTC = timezone.utc
-ROUTES = [("strategy", "ARI strategies"), ("bau", "Business as usual"), ("hardship", "Hardship team"),
+ROUTES = [("strategy", "CARE strategies"), ("bau", "Business as usual"), ("hardship", "Hardship team"),
           ("suppress", "Do not contact")]
 REVIEW_SLA_HOURS = 24
 
@@ -130,7 +130,7 @@ def deviations(db: Session) -> dict:
                         "paid": paid_by.get(co.cohort_id, 0), "accounts": n_by.get(co.cohort_id, 0),
                         "payment_rate": round(paid_by[co.cohort_id] / n_by[co.cohort_id], 4) if n_by.get(co.cohort_id) else None,
                         "state": state})
-    # 3. Each treatment against its record in the playbook before ARI.
+    # 3. Each treatment against its record in the playbook before CARE.
     treatments = []
     hist = {s.code: s for s in db.query(models.Strategy)}
     for t in performance.treatments(db, None):
@@ -146,8 +146,8 @@ def deviations(db: Session) -> dict:
                                     "approved. Within 5 points below target is shown as watch.",
                       "buckets": "Average days from decision to payment against the time to pay the bank's "
                                  "collections system expects for the bucket.",
-                      "treatments": "Payment rate under ARI against the treatment's track record in the playbook "
-                                    "before ARI."}}
+                      "treatments": "Payment rate under CARE against the treatment's track record in the playbook "
+                                    "before CARE."}}
 
 
 def exceptions(db: Session, alerts: list[dict]) -> list[dict]:
@@ -173,7 +173,7 @@ def exceptions(db: Session, alerts: list[dict]) -> list[dict]:
     add("reviews", "High", overdue, f"Decisions waiting more than {REVIEW_SLA_HOURS} hours for review",
         "Nothing is sent to these customers until a person decides.", "/review")
     add("placements", "High", pl_overdue, f"Agency placements waiting more than {REVIEW_SLA_HOURS} hours",
-        "Proposed by ARI; a person approves every placement.", "/agencies")
+        "Proposed by CARE; a person approves every placement.", "/agencies")
     add("failed", "Medium", failed, "Messages that failed to send, last 7 days",
         "Usually an unreachable number or a channel outage.", "/customers")
     add("held", "Low", held, "Messages held by the contact rules, last 7 days",

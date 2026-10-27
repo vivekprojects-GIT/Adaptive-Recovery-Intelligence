@@ -30,7 +30,7 @@ export default function Integrations() {
   );
   return (
     <>
-      <PageHeader title="API & Integrations" subtitle="Agents that ask ARI for decisions, data flowing in from the bank, and the channels ARI decides for" />
+      <PageHeader title="API & Integrations" subtitle="Agents that ask CARE for decisions, data flowing in from the bank, and the channels CARE decides for" />
       <Page>
         {data.shadow_mode && (
           <Banner tone="neutral" title="Channel delivery is not connected">

@@ -6,7 +6,7 @@
   * a payment outside the evaluation window is held but not counted
   * a report without a payment_id still replaces the previous one (as before)
   * the same holds for accounts the Propensity Router kept off strategies
-  * Nova's own cure flag is recorded next to ARI's, and a disagreement is named
+  * Nova's own cure flag is recorded next to CARE's, and a disagreement is named
   * arrangement_id and last_contact_at are accepted and kept with the decision
 
     cd backend
@@ -142,16 +142,16 @@ with TestClient(app):
                 return r
         raise AssertionError("no decision")
 
-    print("\n7. Nova's cure flag is recorded next to ARI's")
+    print("\n7. Nova's cure flag is recorded next to CARE's")
     d3 = fresh_decision(200)["decision_id"]
     m = report(db, decision_id=d3, paid=True, amount=300, payment_id="CURE-1", cure_flag=True)
     check(m["cure"]["ari"] and m["cure"]["nova"] is True and m["cure"]["agree"],
-          "paid the full $300 arrears: ARI and Nova both say cured")
+          "paid the full $300 arrears: CARE and Nova both say cured")
     d4 = fresh_decision(240)["decision_id"]
     n_ = report(db, decision_id=d4, paid=True, amount=100, payment_id="CURE-2", cure_flag=True)
     check(not n_["cure"]["ari"] and n_["cure"]["nova"] is True and n_["cure"]["agree"] is False,
-          "paid $100 of $300: Nova says cured, ARI does not")
-    check("Nova marks the account cured; ARI does not" in n_["note"], "the answer names the disagreement")
+          "paid $100 of $300: Nova says cured, CARE does not")
+    check("Nova marks the account cured; CARE does not" in n_["note"], "the answer names the disagreement")
     rec = db.query(PaymentRecord).filter_by(subject=d4, payment_id="CURE-2").one()
     check(rec.nova_cure_flag is True, "Nova's flag is stored with the payment")
     q = report(db, decision_id=d4, paid=True, amount=200, payment_id="CURE-3", cure_flag=True)

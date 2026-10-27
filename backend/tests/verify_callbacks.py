@@ -1,5 +1,5 @@
 """Check what Nova is told when a person changes one of its decisions, and what
-ARI refuses to keep, through the real API on a throwaway database:
+CARE refuses to keep, through the real API on a throwaway database:
 
   * with no callback URL set, events wait in the outbox and Nova reads them
     with get_decision_updates

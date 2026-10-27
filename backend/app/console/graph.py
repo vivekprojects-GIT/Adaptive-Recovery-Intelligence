@@ -1,4 +1,4 @@
-"""The recovery knowledge graph: ARI's structured data, organised by a taxonomy
+"""The recovery knowledge graph: CARE's structured data, organised by a taxonomy
 and stored as a graph, so an agent can reach any of it through a small set of
 read-only tools.
 
@@ -51,7 +51,7 @@ TAXONOMY: list[tuple[str, str | None, str]] = [
     ("Segment", "Thing", "A way the book is divided"),
     ("Delinquency bucket", "Segment", "How far behind the account is, from the bank's collections system"),
     ("Risk band", "Segment", "The bank's own risk rating"),
-    ("Fit group", "Segment", "ARI's Propensity Router: how the customer is likely to respond to contact"),
+    ("Fit group", "Segment", "CARE's Propensity Router: how the customer is likely to respond to contact"),
     ("Route", "Segment", "Where the Propensity Router sends the customer"),
     ("Treatment", "Thing", "One approved action from the Treatment Playbook"),
     ("Reminder", "Treatment", "A reminder that a payment is due"),
@@ -63,7 +63,7 @@ TAXONOMY: list[tuple[str, str | None, str]] = [
     ("Channel", "Thing", "How a treatment reaches the customer"),
     ("Strategy", "Thing", "A plan that decides which customers get which treatments, against a control group"),
     ("Event", "Thing", "Something that happened to an account"),
-    ("Decision", "Event", "ARI's choice for one customer in one strategy"),
+    ("Decision", "Event", "CARE's choice for one customer in one strategy"),
     ("Outcome", "Event", "What the customer did within the evaluation window"),
     ("Placement", "Event", "An account sent to a collection agency"),
 ]
@@ -92,7 +92,7 @@ RELATIONSHIPS: list[tuple[str, str, str, str]] = [
 
 GROUP_LABEL = {"Persuadable": "Likely responsive", "Sure Thing": "Likely self-cure", "Lost Cause": "Needs support",
                "Sleeping Dog": "Do not contact"}
-ROUTE_LABEL = {"strategy": "ARI strategies", "bau": "Business as usual", "hardship": "Hardship team",
+ROUTE_LABEL = {"strategy": "CARE strategies", "bau": "Business as usual", "hardship": "Hardship team",
                "suppress": "Do not contact"}
 
 

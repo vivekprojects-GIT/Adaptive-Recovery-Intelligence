@@ -320,7 +320,7 @@ ENGAGEMENT_LABEL = {"Opened": "Message opened", "Clicked": "Clicked payment link
 def _flow(db: Session, c, d: Decision, camp: Campaign | None, treatments: dict[str, str],
           step: dict | None, standing: dict[str, dict]) -> dict:
     """One decision from start to finish: what was chosen and why, what was sent,
-    what the customer did, the outcome, and what ARI learned from it."""
+    what the customer did, the outcome, and what CARE learned from it."""
     ranking = jl(d.ranking, [])
     chosen = next((r for r in ranking if r.get("code") == d.treatment_code), None)
     runner = next((r for r in ranking if r.get("code") != d.treatment_code), None)
@@ -472,7 +472,7 @@ def journey(db: Session, customer_id: int) -> dict:
     for r in db.query(ContactRecord).filter(ContactRecord.customer_id == customer_id,
                                             ContactRecord.source == "BAU"):
         events.append({"at": r.at, "kind": "bau", "title": f"BAU {r.channel.lower()}",
-                       "detail": "Bank's existing collections system (not ARI)", "tag": "BAU"})
+                       "detail": "Bank's existing collections system (not CARE)", "tag": "BAU"})
     events.sort(key=lambda e: e["at"], reverse=True)
 
     state = customer_state(db, [customer_id]).get(customer_id)

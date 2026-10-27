@@ -7,7 +7,7 @@ recovery and agencies. The data is different too: a recovery account carries
 its balance at charge-off, what has been recovered and what remains, not days
 past due.
 
-ARI decides which process an account belongs to from its status, so nobody
+CARE decides which process an account belongs to from its status, so nobody
 classifies accounts by hand: charged off, or 180 days past due or more, means
 recovery; anything else is collections.
 
@@ -79,7 +79,7 @@ def classify(account_status: str | None, days_past_due: int | None) -> str:
 
 
 def recommend(a: RecoveryAccount) -> dict:
-    """ARI's suggested treatment, with the reason. Large or disputed balances go
+    """CARE's suggested treatment, with the reason. Large or disputed balances go
     to a specialist; customers who are already paying are asked to finish; the
     rest get a settlement offer."""
     remaining = a.charge_off_balance - a.recovered

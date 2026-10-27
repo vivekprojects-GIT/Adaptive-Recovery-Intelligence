@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import type { Role } from "../lib/api";
 import { useSession } from "../lib/session";
 import { HOME } from "../shell/nav";
-import { BrandMark, CLIENT_BANK, PRODUCT_NAME } from "../ui/brand";
+import { BrandMark, CLIENT_BANK, CareLogo, PRODUCT_NAME } from "../ui/brand";
 import { Avatar } from "../ui/ui";
 
 
@@ -32,8 +32,9 @@ export default function SignIn() {
       <section className="brand-gradient relative hidden w-[46%] max-w-[640px] flex-col justify-between overflow-hidden p-10 text-white lg:flex">
         <BrandMark onDark size="lg" />
         <div className="relative">
-          <p className="text-sm font-medium text-primary-200">{CLIENT_BANK}</p>
-          <h1 className="mt-3 text-[40px] font-light leading-[1.1] tracking-tight">Adaptive Recovery<br />Intelligence</h1>
+          <h1 className="sr-only">{PRODUCT_NAME}: Collection and Recovery Agent</h1>
+          <CareLogo onDark size="lg" />
+          <p className="mt-6 text-sm font-medium text-primary-200">{CLIENT_BANK}</p>
           <p className="mt-4 max-w-md text-[15px] leading-6 text-primary-100">
             Decide which collections treatment works for which customer, and prove it against a randomised control group.
           </p>
@@ -59,7 +60,7 @@ export default function SignIn() {
       {/* sign-in */}
       <section className="flex flex-1 flex-col bg-surface">
         <div className="flex items-center px-8 py-6 lg:hidden">
-          <BrandMark />
+          <CareLogo />
         </div>
         <div className="mx-auto flex w-full max-w-[460px] flex-1 flex-col justify-center px-8 pb-12">
           <h2 className="text-[26px] font-medium tracking-tight text-fg">Sign in</h2>
@@ -75,7 +76,7 @@ export default function SignIn() {
             <span className="h-px flex-1 bg-line" />Accounts in this environment<span className="h-px flex-1 bg-line" />
           </div>
 
-          {error && !users.length && <p className="mb-3 text-sm text-bad">Cannot reach the ARI service: {error}</p>}
+          {error && !users.length && <p className="mb-3 text-sm text-bad">Cannot reach the CARE service: {error}</p>}
           <ul className="space-y-2">
             {people.map((u) => {
               const active = u.status === "Active";

@@ -1,12 +1,12 @@
-"""Nova integration: the service behind ARI's MCP server.
+"""Nova integration: the service behind CARE's MCP server.
 
 Nova, the bank's enterprise data layer, owns what is true about a customer.
-ARI, the recovery agent, owns the decision. Between them:
+CARE, the recovery agent, owns the decision. Between them:
 
-  1. Nova sends one account's context; ARI returns the recovery action.
+  1. Nova sends one account's context; CARE returns the recovery action.
   2. The decision is recorded with its selection probability (data contract
      C11), so it can be audited and replayed.
-  3. Nova reports the payment outcome; ARI learns from it.
+  3. Nova reports the payment outcome; CARE learns from it.
   4. Either side reads a decision back by id or by account.
 
 What Nova may send - RecoveryContext v0 and v1 - is defined in contract.py;
@@ -64,8 +64,8 @@ class NovaError(ValueError):
 # What Nova sends
 # ---------------------------------------------------------------------------
 class PaymentReport(BaseModel):
-    """A payment outcome for a decision ARI returned (data contract C10)."""
-    decision_id: str | None = Field(None, description="The decision_id ARI returned. Preferred.")
+    """A payment outcome for a decision CARE returned (data contract C10)."""
+    decision_id: str | None = Field(None, description="The decision_id CARE returned. Preferred.")
     account_id: str | None = Field(None, description="Or the account: its latest decision is used.")
     paid: bool = Field(description="Did the customer pay?")
     amount: float | None = Field(None, ge=0, description="Amount paid. Defaults to the amount_past_due Nova sent with the account.")
@@ -75,7 +75,7 @@ class PaymentReport(BaseModel):
                               "teach the model a false success.")
     payment_id: str | None = Field(None, max_length=64, description="Nova's id for this payment. Each id counts "
                                    "once; a second id adds to the total. Without one, a report replaces the last.")
-    cure_flag: bool | None = Field(None, description="Nova's own view: is the account cured? Recorded next to ARI's, "
+    cure_flag: bool | None = Field(None, description="Nova's own view: is the account cured? Recorded next to CARE's, "
                                                      "which comes from the payments and the arrears.")
 
 
@@ -158,7 +158,7 @@ def _link(db: Session, account_id: str) -> ExternalCustomer | None:
 
 
 def upsert(db: Session, rec: NovaAccount) -> tuple[models.Customer, list[str]]:
-    """Create or refresh ARI's record of this account. Nova's account_id stays the key."""
+    """Create or refresh CARE's record of this account. Nova's account_id stays the key."""
     link = _link(db, rec.account_id)
     c = db.get(models.Customer, link.customer_id) if link else None
     created = c is None
@@ -273,7 +273,7 @@ def describe(db: Session, dec: Decision, c, camp: Campaign, account_id: str, *, 
     elif preview:
         needs_person = dec.review_policy == "human_review"
         action = "would_need_approval" if needs_person else "would_contact"
-        summary = (f"ARI would offer {t['name']} via {t['channel']} ({p:.0%} of the time for accounts like "
+        summary = (f"CARE would offer {t['name']} via {t['channel']} ({p:.0%} of the time for accounts like "
                    f"this)" + (", after a person approves it" if needs_person else "")
                    + ". Nothing was recorded or sent.")
     elif dec.group == "Control":
@@ -287,7 +287,7 @@ def describe(db: Session, dec: Decision, c, camp: Campaign, account_id: str, *, 
         action = "awaiting_approval"
         summary = (f"{t['name']} via {t['channel']}, chosen by Thompson sampling ({p:.0%} of the time for "
                    f"accounts like this). It changes what the customer owes, so a person approves it in the "
-                   f"ARI Review Queue before anything is sent. Consent and contact limits are checked again "
+                   f"CARE Review Queue before anything is sent. Consent and contact limits are checked again "
                    f"against Nova's newest data when it is approved.")
     elif dec.review_status == "rejected":
         action = "rejected"
@@ -382,7 +382,7 @@ def _exclusion_summary(action: str, blocked: list[dict], explanation: str) -> st
     if action == "restricted":
         return f"A restriction on file stops automated treatment: {text}. Keep the account with the bank's own process."
     if action == "blocked_stale_data":
-        return (f"Guardrail data is missing or out of date, so ARI does not decide (fails closed): {text}. "
+        return (f"Guardrail data is missing or out of date, so CARE does not decide (fails closed): {text}. "
                 f"Send current data from Nova to get a decision.")
     return explanation
 
@@ -705,7 +705,7 @@ def payment_tally(db: Session, subject: str, start: date, window: int) -> dict:
 
 
 def cure_view(db: Session, subject: str, t: dict, arrears: float | None) -> dict:
-    """ARI's cure (the payments in the window cover the arrears) next to Nova's
+    """CARE's cure (the payments in the window cover the arrears) next to Nova's
     latest cure flag, and whether they agree."""
     ari = bool(t["paid"] and arrears is not None and t["amount"] >= arrears - 0.005)
     flagged = (db.query(PaymentRecord).filter(PaymentRecord.subject == subject,
@@ -720,7 +720,7 @@ def _cure_note(cv: dict) -> str:
     if cv["agree"] is not False:
         return ""
     owed = f" of ${cv['arrears']:,.2f} arrears" if cv["arrears"] is not None else ""
-    return (f" Nova marks the account {'cured' if cv['nova'] else 'not cured'}; ARI does not "
+    return (f" Nova marks the account {'cured' if cv['nova'] else 'not cured'}; CARE does not "
             f"(${cv['paid_in_window']:,.2f} paid in the window{owed}). Both are recorded.")
 
 
@@ -788,7 +788,7 @@ def report_outcome(db: Session, rep: PaymentReport) -> dict:
         return _routing_outcome(db, rep, routed)
     dec = _decision_for(db, rep.decision_id, rep.account_id)
     if dec.origin != "mcp":
-        raise NovaError(f"{dec.decision_id} was decided in a console wave; ARI tracks its outcome itself, "
+        raise NovaError(f"{dec.decision_id} was decided in a console wave; CARE tracks its outcome itself, "
                         f"so it is not reported over MCP.")
     if dec.group == "Excluded":
         raise NovaError(f"{dec.decision_id} was excluded before any treatment: nothing was sent, so there is no "

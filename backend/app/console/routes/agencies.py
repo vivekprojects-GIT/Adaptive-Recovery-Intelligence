@@ -74,7 +74,7 @@ def propose_placement(body: ProposeIn, user: User = Depends(require("override_de
 
 @router.post("/placements/scan")
 def scan_for_placements(user: User = Depends(require("override_decisions")), db: Session = Depends(get_db)):
-    """ARI proposes eligible late-stage accounts. Every proposal waits for approval."""
+    """CARE proposes eligible late-stage accounts. Every proposal waits for approval."""
     made = agencies.propose_batch(db, "system", limit=10)
     db.commit()
     return {"proposed": len(made), "placement_ids": [p.placement_id for p in made]}

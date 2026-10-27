@@ -36,7 +36,7 @@ export default function Compliance() {
 
   return (
     <>
-      <PageHeader title="Compliance & Governance" subtitle="Policy breaches across everything the customer experienced: ARI's messages and the bank's own systems"
+      <PageHeader title="Compliance & Governance" subtitle="Policy breaches across everything the customer experienced: CARE's messages and the bank's own systems"
         actions={<>
           {can("resolve_violations") && <Button icon={<RefreshCw className="h-3.5 w-3.5" />} loading={busy === "scan"}
             onClick={() => run("scan", () => api.post<{ new_violations: number }>("/compliance/scan"), (r) => `Scan complete: ${r.new_violations} new.`).then(reload)}>Scan now</Button>}
@@ -52,7 +52,7 @@ export default function Compliance() {
         </div>
 
         <Banner tone="info">
-          ARI's contact guard stops its own messages breaching caps, hours and opt-outs before they are sent. Most breaches here come from the bank's BAU dialler and letters running alongside, or from manual messages. They are pinned to the ARI strategy contacting the same customer that week, because that strategy's contact plan is what can change.
+          CARE's contact guard stops its own messages breaching caps, hours and opt-outs before they are sent. Most breaches here come from the bank's BAU dialler and letters running alongside, or from manual messages. They are pinned to the CARE strategy contacting the same customer that week, because that strategy's contact plan is what can change.
         </Banner>
 
         <div className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">

@@ -27,8 +27,38 @@ export function BrandMark({ onDark, size = "md" }: { onDark?: boolean; size?: "s
   );
 }
 
-/** The product's name on screen. One place to change it once the final name is chosen. */
-export const PRODUCT_NAME = "Adaptive Recovery Intelligence";
+/** The product's name on screen, and what it stands for. One place to change it. */
+export const PRODUCT_NAME = "CARE";
+export const PRODUCT_FULL_NAME = "Collection and Recovery Agent";
+
+/** CARE's mark: an open C holding a payment coming back. Same drawing as public/favicon.svg. */
+export function CareMark({ size = 32, className }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden className={clsx("shrink-0", className)}>
+      <rect width="32" height="32" rx="8" fill="#12ABDB" />
+      <path d="M21.2 10.3A7.6 7.6 0 1 0 21.2 21.7" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" />
+      <circle cx="23.1" cy="16" r="2.2" fill="#fff" />
+    </svg>
+  );
+}
+
+/** CARE lock-up: the mark, the name, and what it stands for. */
+export function CareLogo({ onDark, size = "md", compact }: { onDark?: boolean; size?: "md" | "lg"; compact?: boolean }) {
+  const lg = size === "lg";
+  return (
+    <div className="flex items-center gap-2.5">
+      <CareMark size={lg ? 44 : 32} />
+      {!compact && (
+        <span className="leading-none">
+          <span className={clsx("block font-semibold tracking-[0.16em]", lg ? "text-[30px]" : "text-[17px]",
+            onDark ? "text-white" : "text-fg")}>{PRODUCT_NAME}</span>
+          <span className={clsx("mt-1 block whitespace-nowrap", lg ? "text-[13px]" : "text-[10.5px]",
+            onDark ? "text-primary-200/85" : "text-fg-3")}>{PRODUCT_FULL_NAME}</span>
+        </span>
+      )}
+    </div>
+  );
+}
 
 /** Product lock-up: Capgemini | product name. */
 export function ProductLockup({ onDark, compact }: { onDark?: boolean; compact?: boolean }) {
@@ -43,22 +73,5 @@ export function ProductLockup({ onDark, compact }: { onDark?: boolean; compact?:
 }
 
 
-/** The bank's mark in the sidebar: a monogram and the name on two lines. */
-export function BankMark({ compact }: { compact?: boolean }) {
-  const [first, ...rest] = CLIENT_BANK.toUpperCase().split(" ");
-  return (
-    <div className="flex items-center gap-3">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white/10 text-[17px] font-semibold text-white ring-1 ring-white/15">
-        {CLIENT_BANK.charAt(0)}
-      </span>
-      {!compact && (
-        <span className="text-[13px] font-semibold leading-[1.15] tracking-[0.06em] text-white">
-          {first} {rest.slice(0, -1).join(" ")}<br />{rest[rest.length - 1]}
-        </span>
-      )}
-    </div>
-  );
-}
-
-/** The bank this ARI deployment serves. A fictional name in the demo environment. */
+/** The bank this CARE deployment serves. A fictional name in the demo environment. */
 export const CLIENT_BANK = "Meridian Valley Bank";

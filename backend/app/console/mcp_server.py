@@ -1,4 +1,4 @@
-"""ARI as an MCP server: how an agent - Nova's, or any other - asks for a
+"""CARE as an MCP server: how an agent - Nova's, or any other - asks for a
 recovery decision and reports what happened.
 
 Transport: Streamable HTTP, stateless, plain JSON responses. Every call stands
@@ -6,7 +6,7 @@ alone, so any MCP client (the Python SDK, Claude, an enterprise agent
 platform) can call it without session affinity. Served at /mcp, and at
 /api/mcp behind the production entrypoint.
 
-Auth: a bearer token. ARI_MCP_TOKEN in the environment wins; otherwise ARI
+Auth: a bearer token. ARI_MCP_TOKEN in the environment wins; otherwise CARE
 generates one on first use and keeps it in platform config, where an admin
 reveals or rotates it under API & Integrations. DNS-rebinding protection is
 left off: it exists for unauthenticated local servers, and a page in someone's
@@ -45,9 +45,9 @@ TOKEN_KEY = "_mcp_token"
 ENDPOINT_PATH = "/mcp"
 MAX_BATCH = 100
 
-INSTRUCTIONS = """ARI (Adaptive Recovery Intelligence) decides the recovery action for delinquent accounts.
+INSTRUCTIONS = """CARE (Collection and Recovery Agent) decides the recovery action for delinquent accounts.
 
-Send an account's context with get_recovery_strategy. ARI finds the live strategy that owns the account
+Send an account's context with get_recovery_strategy. CARE finds the live strategy that owns the account
 and holds a random share out as a control group. For the rest, consent, opt-outs and contact caps first
 decide which of the business-approved treatments the customer may receive; Thompson sampling, with a
 customer-fit adjustment, then chooses among those. Payment plans, deferrals and hardship offers wait for a
@@ -58,7 +58,7 @@ Two request shapes are accepted. `account` is the original flat payload (contrac
 `context` is RecoveryContext v1: request_id, as_of_timestamp, party, account, delinquency, arrangement,
 per-channel contact context, restrictions and freshness timestamps; under v1, missing or stale consent,
 contact history or restrictions block the affected treatments (fail closed). Every answer lists any fields
-ARI ignored and any values it had to assume.
+CARE ignored and any values it had to assume.
 
 Report every payment outcome with report_payment_outcome. Treated outcomes teach the model; control
 outcomes measure how much the strategy actually adds. Use preview_recovery_strategy to ask without
@@ -137,7 +137,7 @@ async def get_recovery_strategy(
 ) -> dict[str, Any]:
     """Decide what to do about one delinquent account, record the decision and act on it.
 
-    ARI routes the account to the live strategy whose audience includes it and splits a random control
+    CARE routes the account to the live strategy whose audience includes it and splits a random control
     share off. For treated accounts, consent, opt-outs and the 7-in-7 contact cap first remove the
     treatments the customer may not receive; Thompson sampling (with a customer-fit adjustment) then
     chooses among the rest, and the contact is scheduled. No channel gateway is connected yet, so the
@@ -162,7 +162,7 @@ async def preview_recovery_strategy(
         account: Annotated[NovaAccount | None, Field(description=ACCOUNT_HELP)] = None,
         context: Annotated[RecoveryContextV1 | None, Field(description=CONTEXT_HELP)] = None,
 ) -> dict[str, Any]:
-    """What ARI would do for this account, without recording, contacting or reserving anything.
+    """What CARE would do for this account, without recording, contacting or reserving anything.
 
     Same routing, eligibility and Thompson sampling as get_recovery_strategy, so it is the right call for
     "what if" questions. The action is would_contact, would_need_approval, would_be_blocked, control_bau,
@@ -212,7 +212,7 @@ async def get_recovery_strategies(
 @_tool("report_payment_outcome", "Report the payment outcome for a decision", idempotent=True)
 async def report_payment_outcome(
         paid: Annotated[bool, Field(description="Did the customer pay within the strategy's evaluation window?")],
-        decision_id: Annotated[str | None, Field(description="The decision_id ARI returned. Preferred.")] = None,
+        decision_id: Annotated[str | None, Field(description="The decision_id CARE returned. Preferred.")] = None,
         account_id: Annotated[str | None, Field(description="Or the Nova account: its latest decision is used.")] = None,
         amount: Annotated[float | None, Field(ge=0, description="Amount paid. Defaults to the amount_past_due "
                                                                "sent with the account.")] = None,
@@ -225,10 +225,10 @@ async def report_payment_outcome(
                                        "are added up; the same id sent again counts once; Reversed with an id "
                                        "removes that payment. Without an id, a report replaces the last one.")] = None,
         cure_flag: Annotated[bool | None, Field(
-            description="Nova's own view: is the account cured (arrears paid in full)? ARI records it next to its "
+            description="Nova's own view: is the account cured (arrears paid in full)? CARE records it next to its "
                         "own calculation and says when they disagree.")] = None,
 ) -> dict[str, Any]:
-    """Tell ARI how a decision turned out. This is how the model learns.
+    """Tell CARE how a decision turned out. This is how the model learns.
 
     A treated outcome updates the belief in that treatment for the strategy - the answer shows the belief
     before and after. A control outcome is kept as the comparison that measures uplift. Send each payment
@@ -245,7 +245,7 @@ async def report_payment_outcome(
 
 @_tool("get_decision", "Look up a decision", read_only=True)
 async def get_decision(
-        decision_id: Annotated[str | None, Field(description="A decision_id ARI returned.")] = None,
+        decision_id: Annotated[str | None, Field(description="A decision_id CARE returned.")] = None,
         account_id: Annotated[str | None, Field(description="Or a Nova account id: its latest decision.")] = None,
 ) -> dict[str, Any]:
     """Read a decision back: its current status (was the offer approved? was the contact sent?), the
@@ -276,7 +276,7 @@ async def list_live_strategies() -> dict[str, Any]:
 
 @_tool("list_treatments", "List the approved treatments", read_only=True)
 async def list_treatments() -> dict[str, Any]:
-    """The business-approved treatment playbook ARI chooses from: offer, channel, cost, who is eligible,
+    """The business-approved treatment playbook CARE chooses from: offer, channel, cost, who is eligible,
     and whether a person must approve each offer."""
     return await _call("list_treatments", lambda db: {"treatments": nova.treatments(db)},
                        lambda r: f"Listed {len(r['treatments'])} treatments")
@@ -342,7 +342,7 @@ class McpGateway:
             if not supplied or not hmac.compare_digest(supplied.encode(), expected.encode()):
                 await JSONResponse(
                     {"jsonrpc": "2.0", "id": None, "error": {
-                        "code": -32001, "message": "Unauthorized. Send 'Authorization: Bearer <token>'; an ARI "
+                        "code": -32001, "message": "Unauthorized. Send 'Authorization: Bearer <token>'; an CARE "
                                                    "admin finds the token under API & Integrations."}},
                     status_code=401, headers={"WWW-Authenticate": 'Bearer realm="ari-mcp"'})(scope, receive, send)
                 return

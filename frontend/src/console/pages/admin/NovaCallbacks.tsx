@@ -1,5 +1,5 @@
 /** Callbacks to Nova: when a person approves, rejects, cancels or overrides a decision Nova asked for,
- *  ARI posts a signed event to Nova's URL. The same events can be read with get_decision_updates. */
+ *  CARE posts a signed event to Nova's URL. The same events can be read with get_decision_updates. */
 import { Copy, Eye, EyeOff, RefreshCw, RotateCw } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
@@ -45,7 +45,7 @@ export function NovaCallbacks() {
 
   return (
     <Card title="Nova callbacks"
-      subtitle="When a person approves, rejects, cancels or overrides a decision Nova asked for, ARI posts a signed event so Nova can carry out or stop the treatment. Nova can also read the same events with the MCP tool get_decision_updates."
+      subtitle="When a person approves, rejects, cancels or overrides a decision Nova asked for, CARE posts a signed event so Nova can carry out or stop the treatment. Nova can also read the same events with the MCP tool get_decision_updates."
       actions={<Button size="sm" icon={<RefreshCw className="h-3.5 w-3.5" />} loading={busy === "retry"} disabled={!failed || !data.url}
         onClick={() => run("retry", () => api.post<{ delivered: number; failed: number }>("/admin/callbacks/retry"),
           (r) => `${r.delivered} delivered, ${r.failed} failed.`).then(() => reload())}>Retry undelivered</Button>}>

@@ -12,7 +12,7 @@ FIRST = ["Aisha", "Carlos", "Dana", "Ethan", "Fatima", "Grace", "Hiro", "Isabel"
 LAST = ["Okafor", "Nguyen", "Patel", "Brooks", "Silva", "Kim", "Rossi", "Haddad", "Fischer",
         "Novak", "Ali", "Dubois", "Santos", "Larsen", "Moreau", "Reyes", "Chen", "Walsh"]
 
-# What the client's collections system hands over. ARI does not recompute these.
+# What the client's collections system hands over. CARE does not recompute these.
 COHORTS = [
     dict(cohort_id="C1", name="Early arrears", dpd_bucket="1-29 DPD", client_risk_band="Low",
          expected_payment="3-5 days", sort_order=1, size=380,

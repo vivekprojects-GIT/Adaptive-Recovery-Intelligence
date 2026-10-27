@@ -1,14 +1,14 @@
-"""RecoveryContext: the integration contract between Nova and ARI.
+"""RecoveryContext: the integration contract between Nova and CARE.
 
 Nova (Vishal's platform) owns what is true about a customer and resolves it
-from the bank's source systems. ARI owns the decision. This module is the
+from the bank's source systems. CARE owns the decision. This module is the
 whole boundary between them: what Nova may send, how each version is read,
-and what ARI records about what it received. ARI keeps no copy of Nova's
+and what CARE records about what it received. CARE keeps no copy of Nova's
 source layers - only the context of each request, frozen with the decision.
 
 Two versions, both accepted:
 
-  v0  the flat account ARI has accepted since the first MCP release
+  v0  the flat account CARE has accepted since the first MCP release
       (NovaAccount, sent as `account`). Unchanged; nothing new is required.
       Freshness is measured and logged but never blocks a decision.
   v1  the nested RecoveryContext (RecoveryContextV1, sent as `context`):
@@ -17,7 +17,7 @@ Two versions, both accepted:
       Critical guardrail data that is missing or stale fails closed.
 
 Both are normalised to one NovaAccount, so the engine has a single input.
-What ARI cannot use is never silently lost: unknown fields, aliases used and
+What CARE cannot use is never silently lost: unknown fields, aliases used and
 values it had to assume are all recorded with the decision.
 """
 from __future__ import annotations
@@ -35,7 +35,7 @@ RESTRICTION_FLAGS = ("cease_communication", "bankruptcy", "attorney_represented"
                      "scra_protected", "dispute_pending", "agency_placed")
 
 # Accepted and stored with the decision, but not used to decide. Listed back
-# so nobody assumes ARI acted on them.
+# so nobody assumes CARE acted on them.
 LINEAGE_ONLY = ("customer_id", "risk_score", "account_status", "source_system", "party_segment",
                 "delinquency_bucket", "preferred_channel", "last_contact_at")
 
@@ -56,7 +56,7 @@ def _tz(v: str | None) -> str | None:
 
 
 class _Input(BaseModel):
-    """Keeps the raw input it was built from, so ARI can record exactly what
+    """Keeps the raw input it was built from, so CARE can record exactly what
     was sent, which aliases were used and which fields it ignored."""
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
     _raw: Any = PrivateAttr(default=None)
@@ -75,15 +75,15 @@ class _Input(BaseModel):
 # ---------------------------------------------------------------------------
 class Consent(_Input):
     sms: bool | None = Field(None, validation_alias=AliasChoices("sms", "sms_allowed"),
-                             description="May ARI send SMS? false blocks SMS and SMS + App treatments.")
+                             description="May CARE send SMS? false blocks SMS and SMS + App treatments.")
     email: bool | None = Field(None, validation_alias=AliasChoices("email", "email_allowed"),
-                               description="May ARI send email?")
+                               description="May CARE send email?")
     call: bool | None = Field(None, validation_alias=AliasChoices("call", "call_allowed"),
-                              description="May ARI call? false blocks agent-call treatments.")
+                              description="May CARE call? false blocks agent-call treatments.")
 
 
 class ContactCounts(_Input):
-    """Contacts in the last 7 days made by systems other than ARI, by channel."""
+    """Contacts in the last 7 days made by systems other than CARE, by channel."""
     sms: int | None = Field(None, ge=0, validation_alias=AliasChoices("sms", "recent_sms"))
     email: int | None = Field(None, ge=0, validation_alias=AliasChoices("email", "recent_email"))
     call: int | None = Field(None, ge=0, validation_alias=AliasChoices("call", "calls", "recent_calls"))
@@ -152,7 +152,7 @@ class NovaAccount(_Input):
     on_time_payment_ratio: float | None = Field(None, ge=0, le=1,
                                                 description="Share of the last 12 months' payments made on time (C4).")
     risk_segment: Literal["Low", "Medium", "High", "Very high"] | None = Field(
-        None, description="The bank's own risk band (C1). ARI does not recompute it.")
+        None, description="The bank's own risk band (C1). CARE does not recompute it.")
     risk_score: float | None = Field(None, ge=0, le=100,
                                      description="The bank's risk score on a 0-100 scale, higher is riskier. Stored, "
                                                  "not used to decide.")
@@ -161,11 +161,11 @@ class NovaAccount(_Input):
     sms_responsive: bool | None = Field(None, description="Has responded to SMS before (C5 outcomes).")
     hardship_flag: bool | None = Field(None, description="A hardship indicator is on file.")
     vulnerability_flag: bool | None = Field(None, description="C1. A vulnerable customer is never contacted by an "
-                                                              "automated treatment; ARI refers them to a person. In "
+                                                              "automated treatment; CARE refers them to a person. In "
                                                               "v0 a missing flag means not vulnerable.")
     consent: Consent | None = Field(None, description="C1 consent by channel.")
     contacts_last_7d: int | None = Field(None, ge=0, description="Contacts in the last 7 days made by systems other "
-                                                                 "than ARI (C5 counts). Counted against the contact cap.")
+                                                                 "than CARE (C5 counts). Counted against the contact cap.")
     last_contact_at: datetime | None = Field(None, description="When any system last contacted the customer. Kept "
                                                                "with the decision, not used to decide.")
     as_of_timestamp: datetime | None = Field(None, description="When the data was true in Nova.")

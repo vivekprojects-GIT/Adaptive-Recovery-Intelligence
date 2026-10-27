@@ -229,7 +229,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
           <div className="space-y-4">
             <Field label="Strategy name" required><input id="strategy-name" className={inputCls} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Medium-Risk Payment Plan Flow" /></Field>
             <Field label="Description"><textarea id="strategy-description" rows={2} className={`${inputCls} h-auto py-2`} value={form.description} onChange={(e) => set("description", e.target.value)} /></Field>
-            <Field label="Delinquency buckets" hint="The cohorts Meridian Valley Bank's collections system hands over. ARI does not re-segment them.">
+            <Field label="Delinquency buckets" hint="The cohorts Meridian Valley Bank's collections system hands over. CARE does not re-segment them.">
               <div className="grid gap-2 sm:grid-cols-2">
                 {cohorts.map((c) => (
                   <CheckCard key={c.cohort_id} checked={form.target_cohorts.includes(c.cohort_id)} onChange={() => toggle("target_cohorts", c.cohort_id)}
@@ -263,7 +263,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
           <div className="space-y-4">
             <p className="text-xs leading-5 text-fg-2">
               Pick the treatments this strategy may use. A treatment is one approved action from the playbook; the strategy
-              decides which customers are in it, and ARI learns which of these treatments works best for each of them.
+              decides which customers are in it, and CARE learns which of these treatments works best for each of them.
             </p>
             <div className="space-y-2">
               {offered.map((t) => (

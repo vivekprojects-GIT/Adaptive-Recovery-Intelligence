@@ -1,4 +1,4 @@
-"""Scorecards: is each part of ARI doing its job?
+"""Scorecards: is each part of CARE doing its job?
 
   strategy  what the strategy caused, against its own control group: incremental
             recoveries and dollars, what each one cost, and where learning stands

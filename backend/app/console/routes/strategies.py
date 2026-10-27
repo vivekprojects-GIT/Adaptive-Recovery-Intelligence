@@ -126,7 +126,7 @@ def form_recommendations(cohorts: str = "", editing: str = "", user: User = Depe
 # Registered before /strategies/{cid}, which would otherwise take "suggestions" as an id.
 @router.get("/strategies/suggestions")
 def strategy_suggestions(user: User = Depends(require("create_strategy")), db: Session = Depends(get_db)):
-    """Strategies ARI suggests from the decision log: audiences no live
+    """Strategies CARE suggests from the decision log: audiences no live
     strategy covers, and new versions of strategies that are falling short."""
     return suggest.suggestions(db)
 
@@ -151,7 +151,7 @@ def draft_from_suggestion(key: str, user: User = Depends(require("create_strateg
                      source="suggested", created_at=ts, updated_at=ts, seed=int(cid.split("-")[1]) * 7 + 3,
                      **{k: (json.dumps(v) if isinstance(v, list) else v) for k, v in body.model_dump().items()})
         db.add(c)
-        summary = f"Created {cid} {c.name} from an ARI suggestion"
+        summary = f"Created {cid} {c.name} from an CARE suggestion"
     else:
         if "edit_strategy" not in granted(db, user.role):
             raise HTTPException(403, f"{ROLES.get(user.role, user.role)} role does not have: Edit Strategy.")
@@ -164,8 +164,8 @@ def draft_from_suggestion(key: str, user: User = Depends(require("create_strateg
         for k, v in s["fields"].items():
             setattr(c, k, json.dumps(v) if isinstance(v, list) else v)
         c.source = "suggested"
-        c.description = ((c.description + "\n\n") if c.description else "") + "From an ARI suggestion: " + s["summary"]
-        summary = f"Created {c.campaign_id} as v{c.version} of {src.campaign_id} from an ARI suggestion"
+        c.description = ((c.description + "\n\n") if c.description else "") + "From an CARE suggestion: " + s["summary"]
+        summary = f"Created {c.campaign_id} as v{c.version} of {src.campaign_id} from an CARE suggestion"
     audit(db, user.user_id, "CREATE", "strategy", c.campaign_id, summary,
           {"suggestion": key, "why": s["why"], "caveats": s["caveats"]})
     db.commit()

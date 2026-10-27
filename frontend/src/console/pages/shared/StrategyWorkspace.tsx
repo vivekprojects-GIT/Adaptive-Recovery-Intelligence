@@ -102,7 +102,7 @@ function RecoveryTab({ product }: { product: string }) {
 
   const rows = all ? list.data?.rows : view.data?.population?.rows;
   const picked = useMemo(() => (rows ?? []).filter((r) => selected.includes(r.recovery_id)), [rows, selected]);
-  // Default to what ARI recommends for the selection.
+  // Default to what CARE recommends for the selection.
   useEffect(() => {
     if (!picked.length) return;
     const counts: Record<string, number> = {};
@@ -182,8 +182,8 @@ function RecoveryTab({ product }: { product: string }) {
             ))}
           </div>
           <div className="mt-3 min-h-[36px] text-xs leading-5 text-fg-2">
-            {one ? <>ARI recommends <span className="font-medium text-fg">{one.recommended.name}</span> for {one.account_number}: {one.recommended.reason}.</>
-              : picked.length ? <>{picked.length} accounts selected. The option chosen is what ARI recommends for most of them.</>
+            {one ? <>CARE recommends <span className="font-medium text-fg">{one.recommended.name}</span> for {one.account_number}: {one.recommended.reason}.</>
+              : picked.length ? <>{picked.length} accounts selected. The option chosen is what CARE recommends for most of them.</>
               : <>Select accounts in active collections or partial recovery. Accounts with a payment plan, a settlement or a treatment already assigned cannot be selected.</>}
           </div>
           <div className="mt-2 [&>button]:w-full [&>button]:justify-center">
@@ -248,7 +248,7 @@ function CollectionsTab({ product }: { product: string }) {
           )}
         </Card>
 
-        <Card title="Collection strategy" subtitle="The live strategies that decide treatments for delinquent accounts. ARI chooses the treatment for each customer.">
+        <Card title="Collection strategy" subtitle="The live strategies that decide treatments for delinquent accounts. CARE chooses the treatment for each customer.">
           <div className="space-y-2.5">
             {view.data.strategies.map((s) => (
               <OptionCard key={s.campaign_id} checked={picked?.campaign_id === s.campaign_id} onSelect={() => setChoice(s.campaign_id)}
@@ -300,7 +300,7 @@ export default function StrategyWorkspace() {
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary-500" />
           <p><span className="font-medium text-fg">Collections:</span> pre-charge-off reminders, calls and payment plans, under {meta.data.charge_off_days} days past due.
             <span className="mx-2 text-line-strong">|</span>
-            <span className="font-medium text-fg">Recovery:</span> post-charge-off settlements, one-time payments and outcomes. ARI places each account from its status.</p>
+            <span className="font-medium text-fg">Recovery:</span> post-charge-off settlements, one-time payments and outcomes. CARE places each account from its status.</p>
         </div>
       </Page>
     </>

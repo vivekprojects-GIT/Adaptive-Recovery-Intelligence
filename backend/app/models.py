@@ -32,10 +32,10 @@ class Customer(Base):
     missed_payments: Mapped[int] = mapped_column(Integer, default=0)   # prior 12 months
     payment_history: Mapped[float] = mapped_column(Float, default=0.8)  # 0-1 on-time ratio
     days_past_due: Mapped[int] = mapped_column(Integer, default=0)
-    # Provided by the client's existing risk model - not computed by ARI.
+    # Provided by the client's existing risk model - not computed by CARE.
     client_risk_band: Mapped[str] = mapped_column(String(20))
     client_risk_score: Mapped[float] = mapped_column(Float)
-    # ARI intervention-side scores.
+    # CARE intervention-side scores.
     nudge_score: Mapped[float] = mapped_column(Float, default=0.0)
     self_cure_score: Mapped[float] = mapped_column(Float, default=0.0)
     segment: Mapped[str] = mapped_column(String(40), default="Sure Thing")

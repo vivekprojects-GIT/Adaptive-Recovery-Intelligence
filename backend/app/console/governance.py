@@ -98,7 +98,7 @@ def human_in_the_loop(db: Session) -> dict:
             {"rule": "Vulnerable customer or legal restriction",
              "action": "No automated contact; referred to a person", "where": "Decision record",
              "configurable": False},
-            {"rule": "Changing ARI's choice", "action": "A person may override any decision, with a written reason",
+            {"rule": "Changing CARE's choice", "action": "A person may override any decision, with a written reason",
              "where": "Decision record", "configurable": False},
             {"rule": "Launching or changing a strategy",
              "action": "Approved by a leader who is not the author", "where": "Approvals", "configurable": False},

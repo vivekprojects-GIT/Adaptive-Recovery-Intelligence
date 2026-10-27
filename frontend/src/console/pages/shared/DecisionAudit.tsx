@@ -202,7 +202,7 @@ export default function DecisionAudit() {
                     ))}
                   </ul>
                 )}
-                {[["Assumed by ARI", data.context.assumed], ["Ignored (not in the contract)", data.context.ignored_fields],
+                {[["Assumed by CARE", data.context.assumed], ["Ignored (not in the contract)", data.context.ignored_fields],
                   ["Aliases used", data.context.aliases_used], ["Stored, not used to decide", data.context.lineage_only]]
                   .filter(([, v]) => (v as string[]).length > 0).map(([label, v]) => (
                     <div key={label as string} className="mt-3 border-t border-line pt-2 text-xs">

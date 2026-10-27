@@ -119,7 +119,7 @@ with TestClient(app) as api:
 
     print("\n2. Agency placements always wait for a person")
     pending = api.get("/console/placements?status=Proposed", headers=as_("u-james")).json()
-    check(len(pending) > 0, f"ARI's proposals are waiting for approval ({len(pending)})")
+    check(len(pending) > 0, f"CARE's proposals are waiting for approval ({len(pending)})")
     p = pending[0]
     r = api.post(f"/console/placements/{p['placement_id']}/review", json={"approve": True}, headers=as_("u-ravi"))
     check(r.status_code == 403, "a strategist cannot approve a placement")

@@ -229,7 +229,7 @@ export default function TreatmentsPage() {
   return (
     <>
       <PageHeader title="Treatment Playbook"
-        subtitle="The approved actions ARI may take. A strategy picks which of these it may use; ARI learns which works for whom."
+        subtitle="The approved actions CARE may take. A strategy picks which of these it may use; CARE learns which works for whom."
         actions={manage && <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => setEditing("new")}>New treatment</Button>} />
       <Page>
         <StrategyVsTreatment />
@@ -306,7 +306,7 @@ export default function TreatmentsPage() {
             </tbody>
           </Table>
           <p className="border-t border-line px-4 py-2.5 text-2xs leading-4 text-fg-3">
-            Track record is the bank's raw historical success rate. It includes customers who would have paid anyway, so ARI uses it only as a weak starting belief. A treatment without one is explored on equal terms.
+            Track record is the bank's raw historical success rate. It includes customers who would have paid anyway, so CARE uses it only as a weak starting belief. A treatment without one is explored on equal terms.
           </p>
         </Card>
       </Page>

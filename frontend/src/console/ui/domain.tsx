@@ -235,12 +235,12 @@ export function WaveButton({ s, onDone, size = "md" }: { s: Strategy; onDone: (r
 /** The two words people mix up, side by side. Shown wherever both appear. */
 export function StrategyVsTreatment({ compact }: { compact?: boolean }) {
   const items = [
-    { term: "Treatment", what: "One approved action ARI can take with a customer.",
+    { term: "Treatment", what: "One approved action CARE can take with a customer.",
       example: "A reminder SMS, an in-app nudge, a 3-instalment payment plan, an agent call.",
       who: "Defined once in the Treatment Playbook, with its eligibility rules and cost." },
     { term: "Strategy", what: "A plan that decides who gets which treatment, and measures the result.",
       example: "Payment Plan Offer: 30 DPD medium-risk customers, choosing between a plan, an SMS and an app nudge, with 20% kept as a control group.",
-      who: "Built by a strategist, approved by a leader. ARI learns which of its treatments works best." },
+      who: "Built by a strategist, approved by a leader. CARE learns which of its treatments works best." },
   ];
   return (
     <div className={compact ? "grid gap-3 sm:grid-cols-2" : "grid gap-3 rounded-lg border border-line bg-surface p-4 shadow-card sm:grid-cols-2"}>

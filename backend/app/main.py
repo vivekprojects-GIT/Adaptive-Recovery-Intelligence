@@ -1,4 +1,4 @@
-"""The ARI API: the console API under /console, the MCP endpoint agents call
+"""The CARE API: the console API under /console, the MCP endpoint agents call
 at /mcp, and a health check. The production entrypoint (server.py) mounts
 this app at /api and serves the built web app beside it."""
 from __future__ import annotations
@@ -54,7 +54,7 @@ async def lifespan(_app):
         yield
 
 
-app = FastAPI(title="ARI API", version="4.2.0", lifespan=lifespan)
+app = FastAPI(title="CARE API", version="4.2.0", lifespan=lifespan)
 if settings.cors_origins:
     app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_credentials=True,
                        allow_methods=["*"], allow_headers=["*"])

@@ -1,4 +1,4 @@
-"""Suggested strategies: ARI proposes complete strategies from the decision log.
+"""Suggested strategies: CARE proposes complete strategies from the decision log.
 
 Two kinds, both built from what has actually happened:
 
@@ -209,7 +209,7 @@ def _new_suggestions(db: Session, ev: Evidence) -> list[dict]:
         rate = max(best["score"], 0.05)
         fields = {
             "name": name,
-            "description": (f"Suggested by ARI from the decision log: covers {len(audience)} {cohort_id} accounts "
+            "description": (f"Suggested by CARE from the decision log: covers {len(audience)} {cohort_id} accounts "
                             f"no live strategy reaches."),
             "target_cohorts": [cohort_id], "risk_bands": [],
             "min_balance": None, "max_balance": None, "min_dpd": None, "max_dpd": None,

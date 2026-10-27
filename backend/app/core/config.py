@@ -21,10 +21,10 @@ class Settings:
     # Origins allowed to call the API from a browser. Empty: same origin only
     # (the Vite dev server proxies /api, and production serves one URL).
     cors_origins: list[str]
-    # Bearer token for the MCP endpoint. Empty: ARI generates one and keeps it
+    # Bearer token for the MCP endpoint. Empty: CARE generates one and keeps it
     # in platform configuration, where an admin can reveal or rotate it.
     mcp_token: str
-    # Signs callbacks to Nova (console/callbacks.py). Empty: ARI generates one
+    # Signs callbacks to Nova (console/callbacks.py). Empty: CARE generates one
     # and keeps it in platform configuration.
     callback_secret: str
 

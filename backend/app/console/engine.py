@@ -349,7 +349,7 @@ def selection_probabilities(arms: list[dict], customer, rng: np.random.Generator
 # Content
 # ---------------------------------------------------------------------------
 # Messages quote only figures the bank supplied. No card number is ever
-# written: ARI is not given one, and it must not make one up.
+# written: CARE is not given one, and it must not make one up.
 TEMPLATES = {
     ("S1", "Supportive"): "Hi {first}, a quick reminder that ${due} is past due on your account. "
                           "You can pay in seconds here: {link}. Reply STOP to opt out.",
@@ -420,7 +420,7 @@ def message_amount(dec: Decision | None, c) -> float | None:
 def render(code: str, tone: str, c, st=None, *, due: float | None) -> str:
     table = TEMPLATES if due is not None else {**TEMPLATES, **TEMPLATES_NO_AMOUNT}
     tpl = table.get((code, tone)) or table.get((code, None)) or _offer_template(st, due is not None)
-    cid = c.customer_id or 0  # a previewed account has no ARI id yet
+    cid = c.customer_id or 0  # a previewed account has no CARE id yet
     return tpl.format(first=first_name(c), due=f"{due:,.0f}" if due is not None else "",
                       link="ari.bank/p/" + hashlib.md5(str(cid).encode()).hexdigest()[:6],
                       dpd=c.days_past_due, inst=f"{due / 3:,.0f}" if due is not None else "")
@@ -458,8 +458,8 @@ def guard(db: Session, customer_id: int, channel: str, at: datetime,
 
 def latest_context(db: Session, dec: Decision) -> tuple[dict, str | None]:
     """The context to apply when a decision is executed after a wait (a person
-    approving an offer): what Nova told ARI most recently about the account,
-    over what it said at decision time. ARI cannot ask Nova for fresh data, so
+    approving an offer): what Nova told CARE most recently about the account,
+    over what it said at decision time. CARE cannot ask Nova for fresh data, so
     the newest request is the best it has. Returns (context, when that request
     arrived)."""
     ctx = jl(dec.snapshot, {})
@@ -918,7 +918,7 @@ def _execute(db: Session, camp: Campaign, dec, c, at: datetime,
     db.add(n)
     db.flush()  # written now: engagement events and follow-ups refer to it by foreign key
     if not failed:
-        db.add(ContactRecord(customer_id=c.customer_id, channel=channel, source="ARI",
+        db.add(ContactRecord(customer_id=c.customer_id, channel=channel, source="CARE",
                              nudge_id=n.nudge_id, at=iso(send_at), local_hour=send_local.hour))
     return n
 
@@ -964,7 +964,7 @@ def _observe(db: Session, camp: Campaign, dec: Decision, c, code: str | None, at
         for ev, ts in events:
             db.add(EngagementEvent(nudge_id=first.nudge_id, customer_id=c.customer_id, event=ev, at=iso(ts)))
             if ev == "OptOut":
-                db.add(ContactRecord(customer_id=c.customer_id, channel=first.channel, source="ARI",
+                db.add(ContactRecord(customer_id=c.customer_id, channel=first.channel, source="CARE",
                                      nudge_id=first.nudge_id, at=iso(ts), local_hour=ts.hour, opted_out=True))
         stages = jl(first.pipeline)
         stages.append({"stage": "Engagement tracking", "at": iso(events[-1][1]) if events else first.sent_at,

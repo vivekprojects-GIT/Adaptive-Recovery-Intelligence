@@ -20,7 +20,7 @@ export default function DraftFromBrief() {
   return (
     <div className="mx-auto grid max-w-5xl gap-4 lg:grid-cols-[1fr_1fr]">
       <Card title="Describe the recovery campaign"
-        subtitle="ARI drafts a complete strategy from your brief. Every setting is explained and you review it before it is submitted.">
+        subtitle="CARE drafts a complete strategy from your brief. Every setting is explained and you review it before it is submitted.">
         <div className="mb-3"><Field label="Start from a template">
           <Select value="" onChange={(v) => {
             const p = presets.presets.find((x) => x.label === v);

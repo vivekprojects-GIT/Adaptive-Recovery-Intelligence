@@ -1,10 +1,10 @@
-/** The sidebar: the bank, the signed-in role's sections with counts of work waiting, and Capgemini. */
+/** The sidebar: CARE, the signed-in role's sections with counts of work waiting, and the bank and Capgemini. */
 import clsx from "clsx";
 import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
 import { useSession } from "../lib/session";
-import { BankMark, BrandMark, PRODUCT_NAME } from "../ui/brand";
+import { BrandMark, CLIENT_BANK, CareLogo } from "../ui/brand";
 import { HOME, NAV } from "./nav";
 
 export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
@@ -15,7 +15,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   return (
     <aside className={clsx("flex shrink-0 flex-col bg-ink text-white transition-[width] duration-200", collapsed ? "w-[68px]" : "w-[248px]")}>
       <div className={clsx("flex h-16 shrink-0 items-center border-b border-white/10", collapsed ? "justify-center px-2" : "px-5")}>
-        <Link to={HOME[me.user.role]} className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-white/40"><BankMark compact={collapsed} /></Link>
+        <Link to={HOME[me.user.role]} className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-white/40"><CareLogo onDark compact={collapsed} /></Link>
       </div>
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         {groups.map((g, gi) => (
@@ -50,8 +50,8 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
       <div className={clsx("shrink-0 border-t border-white/10", collapsed ? "px-2 py-3" : "px-5 py-3.5")}>
         {!collapsed && (
           <div className="mb-3">
+            <p className="mb-1.5 text-2xs text-primary-200/80">{CLIENT_BANK}</p>
             <BrandMark onDark size="sm" />
-            <p className="mt-1 text-2xs text-primary-200/80">{PRODUCT_NAME}</p>
           </div>
         )}
         <button type="button" onClick={onToggle} aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}

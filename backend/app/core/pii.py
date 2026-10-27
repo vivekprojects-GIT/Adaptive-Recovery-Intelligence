@@ -9,7 +9,7 @@
     always gives the same token, so a trace can still be followed, but the
     token cannot be turned back into the identifier without the key.
 
-The key is ARI_PII_KEY (32 bytes, base64) in the environment. Without it, ARI
+The key is ARI_PII_KEY (32 bytes, base64) in the environment. Without it, CARE
 creates a local key file next to the backend so a developer machine works;
 production sets the environment variable from the bank's key vault.
 """

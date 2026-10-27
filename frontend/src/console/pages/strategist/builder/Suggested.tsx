@@ -1,4 +1,4 @@
-/** Suggested strategies: complete strategies ARI proposes from the decision log. */
+/** Suggested strategies: complete strategies CARE proposes from the decision log. */
 import { Check, FilePenLine } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -34,7 +34,7 @@ export default function Suggested() {
   return (
     <div className="mx-auto max-w-5xl space-y-4">
       <p className="max-w-3xl text-[13px] leading-5 text-fg-2">
-        Strategies ARI suggests from the decision log: audiences no live strategy covers, and new versions of strategies that are
+        Strategies CARE suggests from the decision log: audiences no live strategy covers, and new versions of strategies that are
         behind target or not beating their control group. Each suggestion shows the evidence behind it. Choosing one creates a draft
         you can change; it goes through approval like any other strategy.
       </p>

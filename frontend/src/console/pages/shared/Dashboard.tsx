@@ -375,7 +375,7 @@ export default function Dashboard() {
           {/* Flow and attention */}
           <div className="grid gap-3 xl:grid-cols-3">
             <Tile title="Account flow" metric="routing_share" className="xl:col-span-2"
-              subtitle="Each book, where its accounts went, and what happened to accounts in ARI strategies"
+              subtitle="Each book, where its accounts went, and what happened to accounts in CARE strategies"
               figure={<Figure value={num(data.flow.links.filter((l) => l.source === "c_book" || l.source === "r_book").reduce((t, l) => t + l.value, 0))} label="accounts" />}
               table={{ columns: ["From", "To", "Accounts"], rows: data.flow.links.map((l) => [
                 data.flow.nodes.find((n) => n.id === l.source)?.label ?? l.source, data.flow.nodes.find((n) => n.id === l.target)?.label ?? l.target, l.value]) }}>

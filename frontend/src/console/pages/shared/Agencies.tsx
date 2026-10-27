@@ -73,7 +73,7 @@ export default function Agencies() {
         actions={can("override_decisions") && (
           <Button variant="primary" icon={<ScanSearch className="h-3.5 w-3.5" />} loading={busy === "scan"}
             onClick={() => run("scan", () => api.post<{ proposed: number }>("/placements/scan"),
-              (r) => r.proposed ? `ARI proposed ${r.proposed} accounts for placement. Each waits for approval.` : "No more accounts are eligible for placement.")
+              (r) => r.proposed ? `CARE proposed ${r.proposed} accounts for placement. Each waits for approval.` : "No more accounts are eligible for placement.")
               .then((r) => { if (r) { refresh(); setTab("Proposed"); } })}>
             Find accounts to place
           </Button>
@@ -115,7 +115,7 @@ export default function Agencies() {
         </Card>
 
         <Card title="Placements" flush
-          subtitle="ARI proposes; a person approves every placement, and never their own proposal. A placed account is not contacted by ARI.">
+          subtitle="CARE proposes; a person approves every placement, and never their own proposal. A placed account is not contacted by CARE.">
           <div className="px-4 pt-1">
             <Tabs<Tab> active={tab} onChange={setTab} tabs={[
               { id: "Proposed", label: "Waiting for approval", count: count("Proposed") },

@@ -1,4 +1,4 @@
-/** Security and governance: how personal data is protected, what ARI decides
+/** Security and governance: how personal data is protected, what CARE decides
  *  on, which decisions always wait for a person, and how every decision can
  *  be traced. Every figure is read from the live system. */
 import { type ReactNode } from "react";
@@ -50,7 +50,7 @@ export default function Governance() {
   return (
     <>
       <PageHeader title="Security and governance"
-        subtitle="How customer data is protected, what ARI decides on, where a person decides, and how every decision can be traced" />
+        subtitle="How customer data is protected, what CARE decides on, where a person decides, and how every decision can be traced" />
       <Page>
         <div className="grid gap-4 xl:grid-cols-2 [&>*]:min-w-0">
           <Card title="Encryption" subtitle="Inbound customer data is encrypted before it is stored">
@@ -88,7 +88,7 @@ export default function Governance() {
         <Card title="Fair treatment" subtitle={fair.policy}>
           <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
             <div>
-              <p className="label mb-2">What ARI decides on</p>
+              <p className="label mb-2">What CARE decides on</p>
               <Table>
                 <thead><tr><Th>Data</Th><Th>Used for</Th></tr></thead>
                 <tbody>{fair.features_used.map((f) => (
@@ -131,7 +131,7 @@ export default function Governance() {
             <tbody>{hr.policies.map((p) => (
               <Tr key={p.rule}>
                 <Td className="font-medium">{p.rule}</Td><Td className="text-fg-2">{p.action}</Td><Td className="text-fg-2">{p.where}</Td>
-                <Td className="text-fg-2">{p.configurable ? "Platform configuration" : "Fixed in ARI"}</Td>
+                <Td className="text-fg-2">{p.configurable ? "Platform configuration" : "Fixed in CARE"}</Td>
               </Tr>))}</tbody>
           </Table>
           <div className="grid gap-4 border-t border-line px-4 py-3 text-xs text-fg-2 sm:grid-cols-2">

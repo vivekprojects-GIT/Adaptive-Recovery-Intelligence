@@ -24,7 +24,7 @@ from .models import Campaign, Decision, Outcome, Placement, RecoveryAccount, Rec
 UTC = timezone.utc
 WEEKS = 12
 MIN_WEEK = 10   # a weekly payment rate on fewer treated accounts is not shown
-ROUTES = [("strategy", "In ARI strategies"), ("bau", "Business as usual"), ("hardship", "Hardship team"),
+ROUTES = [("strategy", "In CARE strategies"), ("bau", "Business as usual"), ("hardship", "Hardship team"),
           ("suppress", "Do not contact")]
 
 
@@ -215,7 +215,7 @@ def dashboard(db: Session, user, product: str | None, process: str, period: int,
             else:
                 unpaid += 1
         undecided = max(0, route.get("strategy", 0) - paid - unpaid - waiting)
-        src = ("route_strategy", "In ARI strategies", "collections")
+        src = ("route_strategy", "In CARE strategies", "collections")
         link(src, ("out_paid", "Paid", "outcome"), paid)
         link(src, ("out_unpaid", "Not paid in window", "outcome"), unpaid)
         link(src, ("out_waiting", "Awaiting outcome", "outcome"), waiting)

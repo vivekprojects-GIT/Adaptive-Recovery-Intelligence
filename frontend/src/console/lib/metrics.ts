@@ -6,7 +6,7 @@ export interface MetricDef { label: string; group: string; meaning: string; form
 export const METRICS: Record<string, MetricDef> = {
   accounts_imported: {
     label: "Accounts imported", group: "Intake",
-    meaning: "Delinquent accounts the bank's collections system has handed over to ARI.",
+    meaning: "Delinquent accounts the bank's collections system has handed over to CARE.",
     formula: "Count of accounts received across all handoffs",
     read: "Grows with each handoff. Broken down by product and delinquency bucket.",
   },
@@ -20,7 +20,7 @@ export const METRICS: Record<string, MetricDef> = {
     label: "Routing share", group: "Intake",
     meaning: "Where the Propensity Router sent each account.",
     formula: "Accounts on a route ÷ all routed accounts",
-    read: "Only accounts a contact is likely to help go to ARI strategies. The rest go to business as usual, the hardship team, or are not contacted.",
+    read: "Only accounts a contact is likely to help go to CARE strategies. The rest go to business as usual, the hardship team, or are not contacted.",
   },
   payment_rate: {
     label: "Payment rate", group: "Recovery",
@@ -108,7 +108,7 @@ export const METRICS: Record<string, MetricDef> = {
   },
   placement_approval: {
     label: "Placements waiting for approval", group: "Governance",
-    meaning: "Accounts ARI has proposed for an agency that a person has not yet approved.",
+    meaning: "Accounts CARE has proposed for an agency that a person has not yet approved.",
     formula: "Placements with status proposed",
     read: "Nothing is sent to an agency until approved. Over 24 hours is flagged as an exception.",
   },

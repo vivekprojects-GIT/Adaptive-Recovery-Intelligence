@@ -1,6 +1,6 @@
 """Propensity Router: every customer passes through it before any strategy.
 
-ARI classifies each customer from two propensity scores (scoring.py): how
+CARE classifies each customer from two propensity scores (scoring.py): how
 likely a treatment is to change what they do, and how likely they are to pay
 without help. The fit group decides the route:
 

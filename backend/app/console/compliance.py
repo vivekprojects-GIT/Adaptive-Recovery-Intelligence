@@ -1,7 +1,7 @@
 """Compliance monitoring: detection of what slipped through.
 
-The engine's guard PREVENTS ARI from breaching contact rules. This module
-DETECTS breaches across everything the customer experienced - ARI's nudges and
+The engine's guard PREVENTS CARE from breaching contact rules. This module
+DETECTS breaches across everything the customer experienced - CARE's nudges and
 the bank's business-as-usual dialler and letters - because the rules are about
 the customer's experience, not about which system sent the message.
 
@@ -43,7 +43,7 @@ def _next_id(db: Session) -> int:
 
 
 def _attribute(nudges_by_customer: dict, customer_id: int, at: datetime) -> str | None:
-    """Pin a BAU-caused breach to the ARI strategy that was also contacting the
+    """Pin a BAU-caused breach to the CARE strategy that was also contacting the
     customer that week - that is the strategy whose contact plan has to change."""
     best = None
     for n in nudges_by_customer.get(customer_id, []):
@@ -90,7 +90,7 @@ def scan(db: Session, until: datetime | None = None) -> int:
         if r.local_hour < start_h or r.local_hour >= end_h:
             at = _parse(r.at)
             camp = (next((n.campaign_id for n in by_customer[r.customer_id] if n.nudge_id == r.nudge_id), None)
-                    if r.source == "ARI" else _attribute(by_customer, r.customer_id, at))
+                    if r.source == "CARE" else _attribute(by_customer, r.customer_id, at))
             add("FDCPA Hours & Frequency", "Contact outside permitted hours", "High",
                 f"{r.source} {r.channel.lower()} to {customer_ref(db, r.customer_id)} at "
                 f"{r.local_hour:02d}:00 local time (permitted {start_h:02d}:00-{end_h:02d}:00).",
@@ -107,7 +107,7 @@ def scan(db: Session, until: datetime | None = None) -> int:
             if len(window) > call_cap and since < last <= until:
                 add("CFPB Contact Rules", "More than 7 call attempts in 7 days", "High",
                     f"{customer_ref(db, cust)} received {len(window)} call attempts between "
-                    f"{t:%d %b} and {last:%d %b} across ARI and the BAU dialler.",
+                    f"{t:%d %b} and {last:%d %b} across CARE and the BAU dialler.",
                     last, _attribute(by_customer, cust, last), cust)
                 break
 
@@ -131,7 +131,7 @@ def scan(db: Session, until: datetime | None = None) -> int:
                     r_at, _attribute(by_customer, o.customer_id, r_at), o.customer_id, r.nudge_id)
                 break
 
-    # Content checks on ARI messages.
+    # Content checks on CARE messages.
     for n in all_nudges:
         sent = _parse(n.sent_at)
         if not (since < sent <= until):

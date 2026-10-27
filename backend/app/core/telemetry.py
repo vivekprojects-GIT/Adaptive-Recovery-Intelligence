@@ -1,4 +1,4 @@
-"""OpenTelemetry for ARI: traces, metrics, events and logs (MELT).
+"""OpenTelemetry for CARE: traces, metrics, events and logs (MELT).
 
 Every API request, every decision and every step inside it is a span: the
 Propensity Router, the rules, Thompson sampling, the review gate and the send.
@@ -106,7 +106,7 @@ set_logger_provider(_logger_provider)
 tracer = trace.get_tracer("ari.engine", VERSION)
 meter = metrics.get_meter("ari.engine", VERSION)
 
-# The application's own log, correlated with traces. Only ARI's loggers, not every library's.
+# The application's own log, correlated with traces. Only CARE's loggers, not every library's.
 log = logging.getLogger("ari")
 log.setLevel(logging.INFO)
 if not any(isinstance(h, LoggingHandler) for h in log.handlers):

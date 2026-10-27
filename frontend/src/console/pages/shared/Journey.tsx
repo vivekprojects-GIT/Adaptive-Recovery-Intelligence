@@ -65,7 +65,7 @@ export default function Journey() {
         <StrategyFlow flows={data.flows} />
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className="min-w-0 space-y-4">
-            <Card title="Recovery timeline" subtitle="Newest first. Everything ARI decided and sent, what the customer did, and the bank's own contacts."
+            <Card title="Recovery timeline" subtitle="Newest first. Everything CARE decided and sent, what the customer did, and the bank's own contacts."
               actions={<label className="flex items-center gap-1.5 text-xs text-fg-2"><input type="checkbox" checked={showBau} onChange={(e) => setShowBau(e.target.checked)} className="h-3.5 w-3.5 rounded border-line-strong" />Show BAU contacts</label>}>
               <ol className="relative">
                 {events.map((e, i) => {
@@ -94,7 +94,7 @@ export default function Journey() {
             </Card>
 
             <div className="grid gap-4 lg:grid-cols-2">
-              <Card title="Intervention fit" subtitle="ARI's scores. Delinquency risk comes from Meridian Valley Bank's risk model.">
+              <Card title="Intervention fit" subtitle="CARE's scores. Delinquency risk comes from Meridian Valley Bank's risk model.">
                 <div className="mb-3 grid grid-cols-2 gap-3">
                   <div><p className="label">Nudge propensity</p><p className="num text-xl font-semibold">{data.nudge_profile.score}</p></div>
                   <div><p className="label">Self-cure likelihood</p><p className="num text-xl font-semibold">{data.nudge_profile.self_cure_score}</p></div>

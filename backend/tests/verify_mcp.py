@@ -1,4 +1,4 @@
-"""End-to-end check of ARI's MCP server, over the real protocol, on a
+"""End-to-end check of CARE's MCP server, over the real protocol, on a
 throwaway database: the official MCP Python client plays the Nova agent.
 
     cd backend

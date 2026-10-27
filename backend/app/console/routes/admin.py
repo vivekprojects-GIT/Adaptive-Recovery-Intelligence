@@ -205,7 +205,7 @@ def put_config(body: ConfigIn, user: User = Depends(require("configure_platform"
             if not (u.startswith("https://") or local):
                 raise HTTPException(400, "The Nova callback URL must start with https:// (http:// only for localhost).")
         if k == "shadow_mode" and v != "true":
-            raise HTTPException(409, "Shadow mode stays on: no channel gateway is connected, so ARI records "
+            raise HTTPException(409, "Shadow mode stays on: no channel gateway is connected, so CARE records "
                                      "contacts but cannot deliver them. It can be turned off once a channel "
                                      "gateway is integrated.")
         row = db.get(PlatformConfig, k)

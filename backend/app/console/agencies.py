@@ -1,9 +1,9 @@
 """Outsourced collections: the bank's agency panel, placements and their results.
 
-Late-stage accounts that ARI's own treatments have not recovered can be
-placed with an external collection agency. ARI matches the account to an
+Late-stage accounts that CARE's own treatments have not recovered can be
+placed with an external collection agency. CARE matches the account to an
 agency on the panel and proposes the placement; a person always approves it.
-Once placed, ARI stops contacting the account (the agency now owns contact)
+Once placed, CARE stops contacting the account (the agency now owns contact)
 until it is recovered, returned at the end of the placement, or recalled.
 
 Agencies are paid a contingency fee on what they recover, so the measure that
@@ -46,7 +46,7 @@ PRIOR_NET, PRIOR_DOLLARS = 0.15, 25_000.0
 _TRUE_RATE = {"AGY-01": 0.17, "AGY-02": 0.26, "AGY-03": 0.13}
 
 POLICY = ("An account can be placed when it is at least the agency's minimum days past due, has no hardship "
-          "on file, has not paid in the last 30 days, and is not already with an agency. ARI proposes; a person "
+          "on file, has not paid in the last 30 days, and is not already with an agency. CARE proposes; a person "
           "approves every placement, and nobody approves a placement they proposed.")
 
 
@@ -60,7 +60,7 @@ def _next_id(db: Session) -> str:
 
 
 def open_customer_ids(db: Session) -> set[int]:
-    """Accounts proposed to or held by an agency. ARI does not treat them."""
+    """Accounts proposed to or held by an agency. CARE does not treat them."""
     return {cid for (cid,) in db.query(Placement.customer_id).filter(Placement.status.in_(OPEN))}
 
 
@@ -148,7 +148,7 @@ def propose(db: Session, c, actor: str, at: datetime | None = None, reason: str 
 
 
 def propose_batch(db: Session, actor: str, limit: int = 10, at: datetime | None = None) -> list[Placement]:
-    """ARI's scan: eligible late-stage accounts its treatments have not recovered."""
+    """CARE's scan: eligible late-stage accounts its treatments have not recovered."""
     at = at or datetime.now(UTC)
     held = open_customer_ids(db)
     treated = {cid for (cid,) in db.query(Decision.customer_id)}
@@ -159,8 +159,8 @@ def propose_batch(db: Session, actor: str, limit: int = 10, at: datetime | None 
             break
         if not eligibility(db, c, at, held)[0] or match(db, c)[0] is None:
             continue
-        note = ("ARI's treatments have not recovered this account." if c.customer_id in treated
-                else f"Not in an ARI strategy and still unpaid at {c.days_past_due} days past due.")
+        note = ("CARE's treatments have not recovered this account." if c.customer_id in treated
+                else f"Not in an CARE strategy and still unpaid at {c.days_past_due} days past due.")
         out.append(propose(db, c, actor, at, note))
         held.add(c.customer_id)
     return out
@@ -210,7 +210,7 @@ def _row(db: Session, p: Placement, names: dict[str, str], customers: dict[int, 
             "days_past_due": c.days_past_due if c else None, "agency_id": p.agency_id,
             "agency": agencies[p.agency_id].name, "fee_rate": agencies[p.agency_id].fee_rate, "status": p.status,
             "amount": p.amount, "recovered": p.recovered, "fee": p.fee, "net": round(p.recovered - p.fee, 2),
-            "reason": p.reason, "proposed_by": names.get(p.proposed_by, "ARI"), "proposed_by_id": p.proposed_by,
+            "reason": p.reason, "proposed_by": names.get(p.proposed_by, "CARE"), "proposed_by_id": p.proposed_by,
             "proposed_at": p.proposed_at, "reviewed_by": names.get(p.reviewed_by or "", None),
             "reviewed_at": p.reviewed_at, "review_note": p.review_note, "placed_at": p.placed_at,
             "closed_at": p.closed_at, "first_payment_days": p.first_payment_days}
@@ -224,7 +224,7 @@ def placements(db: Session, status: str | None = None, agency_id: str | None = N
         q = q.filter(Placement.agency_id == agency_id)
     rows = q.order_by(Placement.proposed_at.desc()).all()
     names = {u.user_id: u.name for u in db.query(User)}
-    names["system"] = "ARI"
+    names["system"] = "CARE"
     ids = {p.customer_id for p in rows}
     customers = {c.customer_id: c for c in db.query(models.Customer).filter(models.Customer.customer_id.in_(ids))}
     agencies = {a.agency_id: a for a in db.query(Agency)}
@@ -287,7 +287,7 @@ def seed_panel(db: Session, at: datetime) -> None:
 def seed_history(db: Session, now_: datetime) -> None:
     """Placements made since the accounts arrived, approved by the leadership
     team, with what each agency has recovered so far. Then a fresh batch from
-    ARI's scan, waiting for approval."""
+    CARE's scan, waiting for approval."""
     rng = random.Random(3_303)
     seed_panel(db, now_)
     pool = [c for c in db.query(models.Customer).filter(models.Customer.days_past_due >= 60)
@@ -303,7 +303,7 @@ def seed_history(db: Session, now_: datetime) -> None:
         agency, _ = match(db, c)
         if agency is None:
             continue
-        p = propose(db, c, "system", at, "ARI's treatments have not recovered this account.")
+        p = propose(db, c, "system", at, "CARE's treatments have not recovered this account.")
         p.status, p.reviewed_by, p.reviewed_at, p.placed_at = "Placed", "u-james", _iso(at + timedelta(hours=20)), \
             _iso(at + timedelta(hours=20))
         audit(db, "u-james", "APPROVE", "placement", p.placement_id,

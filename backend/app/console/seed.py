@@ -2,12 +2,12 @@
 
 History is produced by running the real engine week by week with the clock
 set back, so every dashboard reads genuine decisions. Two things are injected
-around the engine, because they come from outside ARI:
+around the engine, because they come from outside CARE:
 
   * BAU contacts - the bank's existing dialler and letters keep running
-    alongside ARI. Compliance has to count them.
+    alongside CARE. Compliance has to count them.
   * Three manual messages typed by a strategist - the realistic source of
-    content breaches, since ARI's own templates are pre-approved.
+    content breaches, since CARE's own templates are pre-approved.
 """
 from __future__ import annotations
 
@@ -262,9 +262,9 @@ def seed_console(db: Session, force: bool = False) -> dict:
                      risk_bands="[]", steps_completed=f.pop("steps_completed", 6), **f)
         db.add(c)
         camps[cid] = c
-        if cid == "STR-025":   # drafted from one of ARI's suggestions
+        if cid == "STR-025":   # drafted from one of CARE's suggestions
             c.source = "suggested"
-            audit(db, owner, "CREATE", "strategy", cid, f"Drafted {cid} {name} from an ARI suggestion", at=_iso(created))
+            audit(db, owner, "CREATE", "strategy", cid, f"Drafted {cid} {name} from an CARE suggestion", at=_iso(created))
         audit(db, owner, "CREATE", "strategy", cid, f"Created strategy {cid} {name}", at=_iso(created))
         if status in ("Live", "Paused", "In review"):
             c.submitted_at = _iso(created + timedelta(days=1))
@@ -311,7 +311,7 @@ def seed_console(db: Session, force: bool = False) -> dict:
         engine.run_wave(db, camps[cid], at=now - timedelta(hours=20), realise=False)
     db.commit()
 
-    # Late-stage accounts placed with the agency panel, and ARI's latest proposals waiting for approval.
+    # Late-stage accounts placed with the agency panel, and CARE's latest proposals waiting for approval.
     agencies.seed_history(db, now)
     db.commit()
     # Charged-off accounts for the Recovery side (placeholders until the bank's workbook is loaded).
@@ -365,7 +365,7 @@ def _corporate_accounts(db: Session, at: datetime) -> None:
 
 
 def _bau_contacts(db: Session, rng: random.Random, now: datetime) -> None:
-    """The bank's existing dialler and letters, running alongside ARI."""
+    """The bank's existing dialler and letters, running alongside CARE."""
     decisions = db.query(Decision).all()
     optouts = {e.customer_id: datetime.fromisoformat(e.at)
                for e in db.query(EngagementEvent).filter(EngagementEvent.event == "OptOut")}

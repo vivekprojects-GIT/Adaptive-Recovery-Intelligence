@@ -1,9 +1,9 @@
-"""Fair treatment: what ARI decides on, and what it refuses to see.
+"""Fair treatment: what CARE decides on, and what it refuses to see.
 
-ARI decides from repayment behaviour and engagement only. Attributes that are
+CARE decides from repayment behaviour and engagement only. Attributes that are
 protected under fair-lending law (ECOA / Regulation B, the Fair Housing Act)
 and the usual proxies for them - ZIP or postcode, address, date of birth - are
-never used. If an upstream system sends one, ARI drops it before anything is
+never used. If an upstream system sends one, CARE drops it before anything is
 stored or scored, and records that it did, so the data owner can stop sending it.
 """
 from __future__ import annotations
@@ -30,7 +30,7 @@ PROTECTED: dict[str, str] = {
     "firstlanguage": "Language", "primarylanguage": "Language",
 }
 
-# Identifiers ARI never needs and must never hold: dropped on arrival like the
+# Identifiers CARE never needs and must never hold: dropped on arrival like the
 # protected attributes, and reported separately.
 SENSITIVE: dict[str, str] = {
     "ssn": "Social Security number", "socialsecuritynumber": "Social Security number", "sin": "Social insurance number",

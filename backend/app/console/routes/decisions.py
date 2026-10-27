@@ -117,8 +117,8 @@ def decision_audit(did: str, user: User = Depends(require("view_ai_decisions")),
          "ok": True,
          "detail": f"{snap.get('client_risk_band')} risk · score {snap.get('client_risk_score')} · "
                    f"{snap.get('days_past_due')} DPD. "
-                   + (f"Sent by Nova for account {snap.get('account_id')}; ARI asked for the decision in real time."
-                      if from_agent else "Supplied by the bank, not computed by ARI.")},
+                   + (f"Sent by Nova for account {snap.get('account_id')}; CARE asked for the decision in real time."
+                      if from_agent else "Supplied by the bank, not computed by CARE.")},
         {"step": "Intervention fit", "agent": "Nudge & self-cure scoring", "ok": True,
          "detail": f"Nudge propensity {snap.get('nudge_score')} · self-cure {snap.get('self_cure_score')} "
                    f"→ {snap.get('segment')}"},

@@ -1,4 +1,4 @@
-"""Observability: the OpenTelemetry traces, metrics, events and logs ARI records (MELT)."""
+"""Observability: the OpenTelemetry traces, metrics, events and logs CARE records (MELT)."""
 from __future__ import annotations
 
 from collections import defaultdict
@@ -103,7 +103,7 @@ def trace_detail(trace_id: str, user: User = Depends(require("view_system_health
 
 @router.get("/observability/metrics")
 def metrics(user: User = Depends(require("view_system_health"))):
-    """Current values of ARI's metrics, by attribute set."""
+    """Current values of CARE's metrics, by attribute set."""
     data = telemetry.metric_reader.get_metrics_data()
     out = []
     for rm in (data.resource_metrics if data else []):

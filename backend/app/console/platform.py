@@ -31,7 +31,7 @@ CONFIG_DEFAULTS: list[tuple[str, str, str, str, str, str]] = [
      "router can be scored. Never taught to Thompson sampling and kept out of strategy results. Do not contact "
      "is never included. At most 10%."),
     ("contact_cap_7d", "7", "Max contacts per customer per 7 days", "Contact policy", "number",
-     "All channels, ARI and business-as-usual combined. Aligned to Reg F's 7-in-7."),
+     "All channels, CARE and business-as-usual combined. Aligned to Reg F's 7-in-7."),
     ("call_cap_7d", "7", "Max call attempts per 7 days", "Contact policy", "number",
      "Reg F presumption: 7 call attempts in 7 days per debt."),
     ("contact_hour_start", "8", "Earliest contact (local hour)", "Contact policy", "hour",
@@ -78,7 +78,7 @@ CONFIG_DEFAULTS: list[tuple[str, str, str, str, str, str]] = [
      "When a strategy's audience is too small for a full wave, pull the next cohort handoff from the "
      "collections system before the wave runs."),
     ("nova_callback_url", "", "Nova callback URL", "Integrations", "text",
-     "Where ARI posts a signed event when a person approves, rejects, cancels or overrides a decision Nova "
+     "Where CARE posts a signed event when a person approves, rejects, cancels or overrides a decision Nova "
      "asked for. HTTPS only (http is allowed for localhost). Empty: Nova reads the same events with the MCP "
      "tool get_decision_updates."),
     ("model_version", "ARI-v4.2.1", "Decision model version", "Operations", "text",

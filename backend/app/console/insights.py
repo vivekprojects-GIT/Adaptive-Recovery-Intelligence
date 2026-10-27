@@ -172,7 +172,7 @@ def ideas_for(db: Session, area: dict) -> list[dict]:
         out.append({
             "title": "Sync opt-outs to the BAU dialler within 1 hour",
             "body": "The breaches are contacts from the bank's existing systems after a customer "
-                    "opted out through an ARI message. ARI suppresses immediately; the BAU feed does "
+                    "opted out through an CARE message. CARE suppresses immediately; the BAU feed does "
                     "not. This is a process fix for the integration, not a strategy change.",
             "evidence": area["evidence"]["example"], "priority": "Critical", "change": {}})
     elif kind == "review_backlog":
