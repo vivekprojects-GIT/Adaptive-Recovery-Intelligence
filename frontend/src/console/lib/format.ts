@@ -82,11 +82,6 @@ export const SEGMENT_LABEL: Record<string, string> = {
   "Sleeping Dog": "Do not contact",
 };
 
-/** The account number as people see and search it, e.g. 7051000517. Format to be confirmed with the bank;
- *  it must match ACCOUNT_NUMBER_BASE in backend console/platform.py. */
-export const ACCOUNT_NUMBER_BASE = 7051000000;
-export const customerRef = (id: number) => String(ACCOUNT_NUMBER_BASE + id);
-
 /** A stored code such as "CREATE" or "in_window", as words in sentence case. */
 export const sentence = (code: string) => {
   const s = code.replace(/_/g, " ").toLowerCase();

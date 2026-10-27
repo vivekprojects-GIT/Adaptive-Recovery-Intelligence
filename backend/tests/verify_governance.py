@@ -16,6 +16,7 @@ Exits non-zero if any check fails.
 from __future__ import annotations
 
 import os
+import re
 import sys
 import tempfile
 
@@ -65,12 +66,43 @@ with TestClient(app) as api:
     check(d["intake"]["accounts"] == n, f"accounts imported ({d['intake']['accounts']}) match the customer count ({n})")
     check(sum(x["accounts"] for x in d["intake"]["by_product"]) == n, "the product split adds up to every account")
     check({x["product"] for x in d["intake"]["by_product"]} == {"Consumer Credit Card", "Small Business Card",
-                                                                "Retail Card", "Co-brand Card"},
+                                                                "Retail Card", "Co-Brand Card"},
           "the book holds exactly the bank's four card businesses")
     check(sum(x["accounts"] for x in d["routing"]) == n, "every account has a route")
     check(all(s["state"] in ("on_track", "watch", "off_track", None) for s in d["deviations"]["strategies"]),
           "each live strategy is compared with its target")
     check(any(x["kind"] == "reviews" or x["kind"] == "violations" for x in d["exceptions"]), "exceptions are listed")
+
+    # The bank's workbook: its sample accounts load exactly as written, and every
+    # other account follows its ranges and account ID format.
+    from app import cards
+    for acct, product, total, behind, dpd, limit in cards.COLLECTIONS_SAMPLE:
+        rows = api.get(f"/console/customers?q={acct}", headers=as_("u-james")).json()["rows"]
+        got = [(x["account_number"], x["product"], x["balance"], x["arrears"], x["days_past_due"], x["credit_limit"])
+               for x in rows]
+        if got != [(acct, product, total, behind, dpd, limit)]:
+            check(False, f"{acct} reads as the workbook has it ({got})")
+            break
+    else:
+        check(True, f"the workbook's {len(cards.COLLECTIONS_SAMPLE)} collections accounts read exactly as written")
+    with SessionLocal() as db:
+        accts = db.query(models.Customer).all()
+    pattern = {p: re.compile(rf"^{t['prefix']}{t['series']}\d{{4}}$") for p, t in cards.TERMS.items()}
+    check(all(c.account_number and (pattern[c.product].match(c.account_number) or c.account_number.startswith("NOVA"))
+              for c in accts) and len({c.account_number for c in accts}) == len(accts),
+          "every collections account has its own ID in the bank's format (CC10001, SB20001, RP30001, RC40001)")
+    check(all(cards.TERMS[c.product]["typical"][0] <= c.balance <= cards.TERMS[c.product]["maximum"]
+              and c.days_past_due < 180 for c in accts),
+          "every balance sits inside its card business's range, under 180 days past due")
+    rec = [x for p in cards.TERMS for x in api.get(f"/console/workspace/recovery/accounts?product={p}&page_size=5",
+                                                    headers=as_("u-james")).json()["rows"]]
+    want = {a: (p, b, r, s) for a, p, b, r, s in cards.RECOVERY_SAMPLE}
+    got = {x["account_number"]: (x["product"], x["charge_off_balance"], x["recovered"], x["status"]) for x in rec
+           if x["account_number"] in want}
+    check(got == want, f"the workbook's {len(want)} recovery accounts read exactly as written")
+    r20004 = next(x for x in rec if x["account_number"] == "REC20004")
+    check(r20004["remaining"] == 36_000 and r20004["recovery_rate"] == 0.7,
+          "REC20004: $36,000 current recovery balance, 70% recovery rate, as in the workbook")
 
     r = api.get("/console/customers?product=Retail Card&page_size=500", headers=as_("u-james")).json()
     check(bool(r["rows"]) and all(x["product"] == "Retail Card" for x in r["rows"]), f"the card filter returns only Retail Card ({r['total']})")
@@ -125,7 +157,7 @@ with TestClient(app) as api:
     check(r.status_code == 409, "admin cannot grant itself customer access")
     log = api.get("/console/admin/audit?entity=placement", headers=as_("u-priya")).json()
     check(log["restricted"] and log["rows"] and all(x["entity_id"] == "Restricted" and "restricted" in x["summary"]
-                                                    and "70510" not in x["summary"] for x in log["rows"]),
+                                                    and not re.search(r"\b(CC|SB|RP|RC|REC)\d{5}\b", x["summary"]) for x in log["rows"]),
           f"the audit log shows admin what happened to placements, not which accounts ({len(log['rows'])} rows)")
     log = api.get("/console/admin/audit?entity=strategy", headers=as_("u-priya")).json()
     check(log["rows"] and all(x["entity_id"] != "Restricted" for x in log["rows"]),

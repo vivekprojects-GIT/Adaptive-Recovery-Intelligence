@@ -40,7 +40,7 @@ LINEAGE_ONLY = ("customer_id", "risk_score", "account_status", "source_system", 
                 "delinquency_bucket", "preferred_channel", "last_contact_at")
 
 
-PRODUCT_HELP = ("The card business: Consumer Credit Card, Small Business Card, Retail Card or Co-brand Card. Used: "
+PRODUCT_HELP = ("The card business: Consumer Credit Card, Small Business Card, Retail Card or Co-Brand Card. Used: "
                 "it sets how arrears are counted when no amount_past_due is sent, and which collection agencies "
                 "may take the account.")
 

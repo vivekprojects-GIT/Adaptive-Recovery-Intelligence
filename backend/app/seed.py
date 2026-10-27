@@ -3,7 +3,7 @@ from __future__ import annotations
 import random
 
 from .core.database import Base, engine, SessionLocal
-from . import models
+from . import cards, models
 from .scoring import nudge_score, self_cure_score, segment_for
 
 FIRST = ["Aisha", "Carlos", "Dana", "Ethan", "Fatima", "Grace", "Hiro", "Isabel", "Jamal", "Kara",
@@ -65,11 +65,26 @@ STRATEGIES = [
 ]
 
 
-# The bank's four card businesses, named as in the bank's reference workbook.
-# Placeholder mix until the workbook's Data Example values are loaded.
-PRODUCT_MIX = [("Consumer Credit Card", 0.45), ("Retail Card", 0.25), ("Co-brand Card", 0.18),
+# The bank's four card businesses, named as in its reference workbook. Their
+# balance ranges, account IDs and sample accounts are in cards.py.
+PRODUCT_MIX = [("Consumer Credit Card", 0.45), ("Retail Card", 0.25), ("Co-Brand Card", 0.18),
                ("Small Business Card", 0.12)]
 PRODUCTS = [p for p, _ in PRODUCT_MIX]
+
+
+def sample_cohort(days_past_due: int) -> str:
+    """The handoff cohort for one of the workbook's sample accounts."""
+    return "C2" if days_past_due < 45 else "C3" if days_past_due < 90 else "C4"
+
+
+def fill_account(c: models.Customer, rng: random.Random) -> None:
+    """Credit limit, total balance and delinquent amount for a generated
+    account, inside its card business's ranges. Small business cards are
+    mostly held in a business's name."""
+    c.credit_limit, c.balance = cards.limit_and_balance(c.product, c.utilization, rng)
+    c.delinquent_amount = cards.delinquent_amount(c.product, c.balance, c.days_past_due, rng.uniform(0.85, 1.15))
+    if c.product == "Small Business Card" and rng.random() < 0.6:
+        c.name = rng.choice(cards.SMALL_BUSINESSES)
 
 
 def draw_product(rng: random.Random) -> str:
@@ -144,7 +159,8 @@ def seed(reset: bool = True) -> dict:
 
         rows: list[models.Customer] = []
         for p in PERSONAS:
-            rows.append(models.Customer(cohort_id="C2", client_risk_band="Medium", is_persona=True, **p))
+            rows.append(models.Customer(cohort_id="C2", client_risk_band="Medium", is_persona=True,
+                                        product=cards.DEFAULT_PRODUCT, **p))
 
         for co in COHORTS:
             n = co["size"] - (len(PERSONAS) if co["cohort_id"] == "C2" else 0)
@@ -158,12 +174,10 @@ def seed(reset: bool = True) -> dict:
             for target in targets:
                 for _ in range(60):  # rejection-sample until the profile lands in its group
                     f = _draw(target, rng)
-                    limit = rng.choice([2000, 3000, 5000, 8000, 12000, 15000])
+                    rng.choice((2_000, 3_000, 5_000, 8_000, 12_000, 15_000))  # the credit-limit draw before the bank's ranges, kept so every behavioural profile stays as it was
                     cand = models.Customer(
                         cohort_id=co["cohort_id"],
                         name=f"{rng.choice(FIRST)} {rng.choice(LAST)}",
-                        balance=round(limit * f["utilization"], 2),
-                        credit_limit=float(limit),
                         days_past_due=rng.randint(*co["dpd"]),
                         client_risk_band=co["client_risk_band"],
                         client_risk_score=round(rng.uniform(*co["risk"]), 1),
@@ -173,10 +187,29 @@ def seed(reset: bool = True) -> dict:
                         break
                 rows.append(cand)
 
-        prng = random.Random(1_042)
+        # The workbook's sample accounts, exactly as the bank wrote them.
+        by_id = {co["cohort_id"]: co for co in COHORTS}
+        srng = random.Random(4_242)
+        for acct, product, total, behind, dpd, limit in cards.COLLECTIONS_SAMPLE:
+            co = by_id[sample_cohort(dpd)]
+            f = _draw(srng.choices(list(co["mix"]), list(co["mix"].values()))[0], srng)
+            f["utilization"] = round(total / limit, 3)
+            name = (srng.choice(cards.SMALL_BUSINESSES) if product == "Small Business Card"
+                    else f"{srng.choice(FIRST)} {srng.choice(LAST)}")
+            rows.append(models.Customer(cohort_id=co["cohort_id"], name=name, product=product, account_number=acct,
+                                        balance=float(total), credit_limit=float(limit),
+                                        delinquent_amount=float(behind), days_past_due=dpd,
+                                        client_risk_band=co["client_risk_band"],
+                                        client_risk_score=round(srng.uniform(*co["risk"]), 1), **f))
+
+        prng, brng = random.Random(1_042), random.Random(2_042)
         for c in rows:
-            if not c.is_persona:
+            if not c.is_persona and c.account_number is None:
                 c.product = draw_product(prng)
+                fill_account(c, brng)
+            elif c.delinquent_amount is None:
+                c.delinquent_amount = cards.delinquent_amount(c.product, c.balance, c.days_past_due)
+        cards.assign_account_numbers(db, rows)
         for c in rows:
             c.nudge_score = nudge_score(c)
             c.self_cure_score = self_cure_score(c)

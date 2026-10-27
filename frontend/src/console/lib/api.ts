@@ -271,7 +271,7 @@ export interface InsightRow {
 }
 
 export interface CustomerRow {
-  customer_id: number; name: string; cohort_id: string; balance: number; arrears: number;
+  customer_id: number; account_number: string; name: string; cohort_id: string; balance: number; arrears: number; credit_limit: number;
   days_past_due: number; risk_score: number; risk_band: string; segment: string; route: string | null; route_validation: boolean; product: string;
   status: string; progress: number; strategy: string | null; campaign_id: string | null;
   treatment: string | null; last_contact: string | null;
@@ -279,7 +279,7 @@ export interface CustomerRow {
 
 export interface DecisionRow {
   decision_id: string; campaign_id: string; strategy: string | null; customer_id: number;
-  customer: string | null; wave: number; group: string; treatment_code: string | null;
+  customer: string | null; account_number: string | null; wave: number; group: string; treatment_code: string | null;
   treatment: string | null; selection_probability: number | null; review_policy: string;
   review_status: string; overridden: boolean; decided_at: string; latency_ms: number;
   outcome: string | null; amount: number | null;

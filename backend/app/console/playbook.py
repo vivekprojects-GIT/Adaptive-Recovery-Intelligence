@@ -253,7 +253,8 @@ def ingest_handoff(db: Session, actor: str = "system", trigger: str = "manual",
                    sizes: dict[str, int] | None = None, seed: int | None = None) -> dict:
     """Generate the next cycle's delinquent accounts, cohort by cohort, with the
     same behavioural mix as the original handoff."""
-    from ..seed import COHORTS, FIRST, LAST, _draw, draw_product  # same generator as the initial data
+    from ..seed import COHORTS, FIRST, LAST, _draw, draw_product, fill_account  # same generator as the initial data
+    from ..cards import assign_account_numbers
     sizes = sizes or HANDOFF_SIZES
     n_prev = db.query(func.count(Handoff.handoff_id)).scalar() or 0
     rng = random.Random(seed if seed is not None else 7_000 + n_prev)
@@ -273,21 +274,22 @@ def ingest_handoff(db: Session, actor: str = "system", trigger: str = "manual",
         for target in targets[:n]:
             for _ in range(60):
                 f = _draw(target, rng)
-                limit = rng.choice([2000, 3000, 5000, 8000, 12000, 15000])
+                rng.choice((2_000, 3_000, 5_000, 8_000, 12_000, 15_000))  # the credit-limit draw before the bank's ranges, kept so every behavioural profile stays as it was
                 cand = models.Customer(
                     cohort_id=co["cohort_id"], name=f"{rng.choice(FIRST)} {rng.choice(LAST)}",
-                    balance=round(limit * f["utilization"], 2), credit_limit=float(limit),
                     days_past_due=rng.randint(*co["dpd"]), client_risk_band=co["client_risk_band"],
                     client_risk_score=round(rng.uniform(*co["risk"]), 1), **f)
                 if segment_for(cand) == target:
                     break
             cand.product = draw_product(prng)
+            fill_account(cand, prng)
             cand.nudge_score = nudge_score(cand)
             cand.self_cure_score = self_cure_score(cand)
             cand.segment = segment_for(cand)
-            db.add(cand)
             arrived.append(cand)
             counts[co["cohort_id"]] = counts.get(co["cohort_id"], 0) + 1
+    assign_account_numbers(db, arrived)
+    db.add_all(arrived)
     total = sum(counts.values())
     db.flush()
     at = datetime.now(timezone.utc)

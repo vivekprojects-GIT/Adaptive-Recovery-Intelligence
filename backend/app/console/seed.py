@@ -19,12 +19,12 @@ import numpy as np
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from .. import models
+from .. import cards, models
 from ..seed import COHORTS
 from . import agencies, compliance, engine, governance, insights, playbook, recovery, router
 from .models import (
     AlertRule, Campaign, ContactRecord, Decision, EngagementEvent, FeatureSnapshot, Handoff, Insight, Nudge, Outcome,
-    PlatformConfig, RolePermission, User,
+    PlatformConfig, RecoveryAccount, RolePermission, User, Agency,
 )
 from .platform import CONFIG_DEFAULTS, audit, customer_ref
 from .rbac import DATA_PERMISSIONS, DEFAULT_GRANTS, PERMISSION_KEYS
@@ -119,7 +119,10 @@ def ensure_console(db: Session) -> None:
                      ("decisions", "context_as_of", "VARCHAR(32)"),
                      ("decisions", "feature_snapshot_id", "INTEGER"),
                      ("outcomes", "reward_policy", "VARCHAR(40)"),
-                     ("payment_records", "nova_cure_flag", "BOOLEAN")]
+                     ("payment_records", "nova_cure_flag", "BOOLEAN"),
+                     ("customers", "account_number", "VARCHAR(64)"),
+                     ("customers", "delinquent_amount", "FLOAT"),
+                     ("recovery_accounts", "account_number", "VARCHAR(64)")]
     try:
         for table, column, ddl in added_columns:
             cols = {r[1] for r in db.execute(text(f"PRAGMA table_info({table})"))}
@@ -140,6 +143,7 @@ def ensure_console(db: Session) -> None:
                      ("Small-business loan", "Small Business Card")):
         db.query(models.Customer).filter(models.Customer.product == old).update(
             {models.Customer.product: new}, synchronize_session=False)
+    _bank_workbook(db)
     have = {(r.role, r.permission) for r in db.query(RolePermission)}
     for role, grants in DEFAULT_GRANTS.items():
         for p in PERMISSION_KEYS:
@@ -167,6 +171,25 @@ def ensure_console(db: Session) -> None:
     recovery.seed(db, datetime.now(UTC))
     db.commit()
     governance.encrypt_existing(db)   # rows stored before encryption at rest was switched on
+
+
+def _bank_workbook(db: Session) -> None:
+    """Bring a database loaded before the bank's workbook in line with it: the
+    workbook's spelling of Co-Brand Card, account IDs and delinquent amounts on
+    every collections account, and the bank's recovery statuses."""
+    for table in (models.Customer, RecoveryAccount):
+        db.query(table).filter(table.product == "Co-brand Card").update(
+            {table.product: "Co-Brand Card"}, synchronize_session=False)
+    for a in db.query(Agency).filter(Agency.products.like('%Co-brand Card%')):
+        a.products = a.products.replace("Co-brand Card", "Co-Brand Card")
+    missing = db.query(models.Customer).filter(models.Customer.account_number.is_(None)).order_by(
+        models.Customer.customer_id).all()
+    cards.assign_account_numbers(db, missing)
+    for c in db.query(models.Customer).filter(models.Customer.delinquent_amount.is_(None)):
+        c.delinquent_amount = cards.delinquent_amount(c.product, c.balance, c.days_past_due,
+                                                      0.85 + 0.3 * (c.customer_id * 7_919 % 100) / 100)
+    recovery.adopt_workbook(db)
+    db.commit()
 
 
 def _backfill_snapshots(db: Session) -> None:
@@ -215,9 +238,10 @@ def seed_console(db: Session, force: bool = False) -> dict:
                          severity=sev, notify=notify, enabled=True, created_by="u-priya",
                          updated_at=_iso(now - timedelta(days=30))))
     # The accounts already loaded arrived as the first handoff.
+    arrived = {co["cohort_id"]: db.query(models.Customer).filter(models.Customer.cohort_id == co["cohort_id"]).count()
+               for co in COHORTS}
     db.add(Handoff(at=_iso(now - timedelta(weeks=6)), by="system", trigger="initial",
-                   counts=json.dumps({co["cohort_id"]: co["size"] for co in COHORTS}),
-                   total=sum(co["size"] for co in COHORTS)))
+                   counts=json.dumps(arrived), total=sum(arrived.values())))
     db.commit()
     # Every account goes through the Propensity Router as it arrives.
     router.route_unrouted(db, at=now - timedelta(weeks=6))
@@ -327,7 +351,9 @@ def _corporate_accounts(db: Session, at: datetime) -> None:
                             sms_responsive=True, app_user=True, hardship_flag=True, missed_payments=1,
                             payment_history=0.93, days_past_due=dpd, client_risk_band=band,
                             client_risk_score=risk,
+                            delinquent_amount=cards.delinquent_amount("Small Business Card", balance, dpd),
                             persona_note="Small business card. Short-term cash-flow squeeze.")
+        cards.assign_account_numbers(db, [c])
         db.add(c)
         db.flush()
         router.record(db, c, origin="handoff", at=at, simulate=True)
@@ -386,7 +412,7 @@ def _manual_nudges(db: Session, camps: dict, now: datetime) -> None:
         rng = np.random.default_rng(900 + i)
         engine.execute(db, camps[cid], d, c, at, rng, seq, touch=9, manual_text=message, code="S1")
         audit(db, "u-ravi" if cid == "STR-031" else "u-maya", "CREATE", "nudge", d.decision_id,
-              f"Sent manual nudge to {customer_ref(d.customer_id)}", at=_iso(at))
+              f"Sent manual nudge to {customer_ref(db, d.customer_id)}", at=_iso(at))
 
 
 def _insights(db: Session, now: datetime) -> None:

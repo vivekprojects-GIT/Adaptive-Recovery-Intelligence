@@ -47,7 +47,7 @@ with TestClient(app) as api:
         db.commit()
 
     customer = api.get("/console/customers?page_size=1", headers=as_("u-ravi")).json()["rows"][0]
-    ref = str(7051000000 + customer["customer_id"])
+    ref = customer["account_number"]
     strategy = api.get("/console/strategies", headers=as_("u-ravi")).json()[0]
     decision = api.get("/console/decisions?page_size=1", headers=as_("u-ravi")).json()["rows"][0]
 

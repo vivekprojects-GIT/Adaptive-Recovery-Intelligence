@@ -3,7 +3,7 @@ import { Fragment, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { api, type DecisionRow } from "../../lib/api";
-import { ago, customerRef, money, pct } from "../../lib/format";
+import { ago, money, pct } from "../../lib/format";
 import { useApi, useSession } from "../../lib/session";
 import { Banner, Button, Card, Empty, ErrorState, Field, Modal, Page, PageHeader, Select, Spinner, Table, Td, Th, Tr, inputCls, useAction } from "../../ui/ui";
 
@@ -58,7 +58,7 @@ export default function ReviewQueue() {
                 <Fragment key={d.decision_id}>
                   <Tr>
                     <Td><button onClick={() => toggle(d.decision_id)} className="font-mono text-xs font-medium text-primary-500 hover:underline">{d.decision_id}</button></Td>
-                    <Td><Link to={`/journeys/${d.customer_id}`} className="hover:text-primary-500">{d.customer}</Link><span className="block text-2xs text-fg-3">{customerRef(d.customer_id)} · {d.product}</span></Td>
+                    <Td><Link to={`/journeys/${d.customer_id}`} className="hover:text-primary-500">{d.customer}</Link><span className="block text-2xs text-fg-3">{d.account_number} · {d.product}</span></Td>
                     <Td align="right">{d.balance !== null ? money(d.balance) : "—"}</Td>
                     <Td className="text-xs">{d.campaign_id}</Td>
                     <Td><span className="block font-medium">{d.treatment}</span><span className="block text-2xs text-fg-3">chosen {pct(d.selection_probability, 0)} of the time</span></Td>

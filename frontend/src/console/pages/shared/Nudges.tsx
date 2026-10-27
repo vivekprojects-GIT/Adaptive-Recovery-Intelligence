@@ -1,10 +1,10 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
 
-import { customerRef, dateTime } from "../../lib/format";
+import { dateTime } from "../../lib/format";
 import { useApi } from "../../lib/session";
 import { Card, Chip, Empty, ErrorState, Page, PageHeader, Pager, Pills, Spinner, StatusChip, Table, Td, Th, Tr } from "../../ui/ui";
 
-interface Row { nudge_id: string; decision_id: string; campaign_id: string; customer_id: number; customer: string; channel: string;
+interface Row { nudge_id: string; decision_id: string; campaign_id: string; customer_id: number; customer: string; account_number: string | null; channel: string;
   treatment_code: string; status: string; touch: number; escalation: boolean; manual: boolean; scheduled_at: string; sent_at: string | null }
 
 export default function Nudges() {
@@ -35,7 +35,7 @@ export default function Nudges() {
                 {data?.rows.map((n) => (
                   <Tr key={n.nudge_id} onClick={() => navigate(`/nudges/${n.nudge_id}`)}>
                     <Td mono className="font-medium text-primary-500">{n.nudge_id}</Td>
-                    <Td>{n.customer}<span className="block text-2xs text-fg-3">{customerRef(n.customer_id)}</span></Td>
+                    <Td>{n.customer}<span className="block text-2xs text-fg-3">{n.account_number}</span></Td>
                     <Td className="text-xs">{n.campaign_id}</Td>
                     <Td>{n.channel}</Td>
                     <Td>{n.manual ? <Chip tone="warn">manual</Chip> : n.escalation ? <Chip tone="serious">escalation</Chip> : <Chip tone="neutral">touch {n.touch}</Chip>}</Td>

@@ -29,7 +29,7 @@ router = APIRouter()
 
 
 def _decision_row(d: Decision, o: Outcome | None, names: dict, camps: dict, t: dict, cust: dict,
-                  threshold: float = 10000.0) -> dict:
+                  threshold: float = 10000.0, accts: dict | None = None) -> dict:
     snap = json.loads(d.snapshot or "{}")
     balance = snap.get("balance")
     review_reason = None
@@ -38,7 +38,8 @@ def _decision_row(d: Decision, o: Outcome | None, names: dict, camps: dict, t: d
                          else "Payment plan, deferral or hardship offer")
     return {"balance": balance, "product": snap.get("product") or "Consumer Credit Card", "review_reason": review_reason,
             "decision_id": d.decision_id, "campaign_id": d.campaign_id, "strategy": camps.get(d.campaign_id),
-            "customer_id": d.customer_id, "customer": cust.get(d.customer_id), "wave": d.wave,
+            "customer_id": d.customer_id, "customer": cust.get(d.customer_id),
+            "account_number": (accts or {}).get(d.customer_id), "wave": d.wave,
             "group": d.group, "treatment_code": d.treatment_code,
             "treatment": t[d.treatment_code].name if d.treatment_code in t else None,
             "selection_probability": d.selection_probability, "review_policy": d.review_policy,
@@ -79,11 +80,12 @@ def decisions(campaign: str = "", group: str = "", review: str = "", q: str = ""
     rows = query.order_by(Decision.decided_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
     names, t = _user_names(db), _treatments(db)
     camps = {c.campaign_id: c.name for c in db.query(Campaign)}
-    cust = {c.customer_id: c.name for c in db.query(models.Customer).filter(
-        models.Customer.customer_id.in_([d.customer_id for d, _ in rows]))}
+    shown = db.query(models.Customer).filter(models.Customer.customer_id.in_([d.customer_id for d, _ in rows])).all()
+    cust = {c.customer_id: c.name for c in shown}
+    accts = {c.customer_id: c.account_number for c in shown}
     return {"total": total, "page": page, "page_size": page_size,
             "products": [{"product": p, "decisions": by_product.get(p, 0)} for p in PRODUCTS],
-            "rows": [_decision_row(d, o, names, camps, t, cust, cfg_float(db, "human_review_balance_threshold"))
+            "rows": [_decision_row(d, o, names, camps, t, cust, cfg_float(db, "human_review_balance_threshold"), accts)
                      for d, o in rows]}
 
 
@@ -185,7 +187,7 @@ def decision_audit(did: str, user: User = Depends(require("view_ai_decisions")),
     return {
         "history": history,
         "decision": _decision_row(d, o, _user_names(db), {camp.campaign_id: camp.name}, t,
-                                  {c.customer_id: c.name}),
+                                  {c.customer_id: c.name}, accts={c.customer_id: c.account_number}),
         "explanation": d.explanation, "exclusion_reason": d.exclusion_reason,
         "blocked_arms": blocked,
         "evaluations": [{"arm_id": e.arm_id, "arm": t[e.arm_id].name if e.arm_id in t else e.arm_id,
@@ -289,13 +291,15 @@ def nudges(status: str = "", campaign: str = "", page: int = 1, page_size: int =
         q = q.filter(Nudge.campaign_id == campaign)
     total = q.count()
     rows = q.order_by(Nudge.scheduled_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
-    cust = {c.customer_id: c.name for c in db.query(models.Customer).filter(
-        models.Customer.customer_id.in_([n.customer_id for n in rows]))}
+    shown = db.query(models.Customer).filter(models.Customer.customer_id.in_([n.customer_id for n in rows])).all()
+    cust = {c.customer_id: c.name for c in shown}
+    accts = {c.customer_id: c.account_number for c in shown}
     counts = dict(db.query(Nudge.status, func.count()).filter(Nudge.scheduled_at <= now())
                   .group_by(Nudge.status).all())
     return {"total": total, "counts": counts, "rows": [
         {"nudge_id": n.nudge_id, "decision_id": n.decision_id, "campaign_id": n.campaign_id,
-         "customer_id": n.customer_id, "customer": cust.get(n.customer_id), "channel": n.channel,
+         "customer_id": n.customer_id, "customer": cust.get(n.customer_id),
+         "account_number": accts.get(n.customer_id), "channel": n.channel,
          "treatment_code": n.treatment_code, "status": n.status, "touch": n.touch_number,
          "escalation": n.is_escalation, "manual": n.manual, "scheduled_at": n.scheduled_at,
          "sent_at": n.sent_at} for n in rows]}
@@ -316,7 +320,8 @@ def nudge_detail(nid: str, user: User = Depends(require("view_ai_decisions")), d
     violations = db.query(ComplianceViolation).filter(ComplianceViolation.nudge_id == nid).all()
     return {
         "nudge": {"nudge_id": n.nudge_id, "decision_id": n.decision_id, "campaign_id": n.campaign_id,
-                  "customer_id": n.customer_id, "customer": c.name, "channel": n.channel,
+                  "customer_id": n.customer_id, "customer": c.name, "account_number": c.account_number,
+                  "channel": n.channel,
                   "treatment_code": n.treatment_code, "status": n.status, "touch": n.touch_number,
                   "escalation": n.is_escalation, "manual": n.manual, "scheduled_at": n.scheduled_at,
                   "sent_at": n.sent_at, "failure_reason": n.failure_reason, "content": n.content},

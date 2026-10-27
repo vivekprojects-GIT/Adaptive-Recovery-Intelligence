@@ -130,7 +130,7 @@ def dashboard(db: Session, user, product: str | None, process: str, period: int,
     recovered_prev = round(sum(p.amount for p in pays if before < p.paid_at <= since), 2)
     charged_now = sum(1 for a in raccts if a.created_at <= now_s)
     charged_prev = sum(1 for a in raccts if a.created_at <= since)
-    remaining_now = round(sum(0.0 if a.status in ("Settled", "Paid in Full") else max(0.0, a.charge_off_balance - a.recovered)
+    remaining_now = round(sum(max(0.0, a.charge_off_balance - a.recovered)
                               for a in raccts), 2)
     w_cash_r, w_new_co = [0.0] * WEEKS, [0] * WEEKS
     for p in pays:
@@ -148,7 +148,7 @@ def dashboard(db: Session, user, product: str | None, process: str, period: int,
     placed = {p.customer_id for p in db.query(Placement).filter(Placement.status == "Placed")} & set(customers)
     stages = [{"stage": label, "accounts": route.get(key, 0), "process": "collections"} for key, label in ROUTES]
     stages.append({"stage": "With collection agencies", "accounts": len(placed), "process": "collections"})
-    stages.append({"stage": "Charged off, in recovery", "accounts": sum(a.status not in ("Settled", "Paid in Full")
+    stages.append({"stage": "Charged off, in recovery", "accounts": sum(a.status != "Paid in Full"
                                                                           for a in raccts), "process": "recovery"})
     status = Counter(a.status for a in raccts)
 
@@ -165,7 +165,7 @@ def dashboard(db: Session, user, product: str | None, process: str, period: int,
                                    and since < o.observed_at <= now_s), 2),
             "charged_off_accounts": len(ra),
             "recovered": round(sum(p.amount for p in pays if p.recovery_id in rset and since < p.paid_at <= now_s), 2),
-            "remaining": round(sum(0.0 if a.status in ("Settled", "Paid in Full") else max(0.0, a.charge_off_balance - a.recovered)
+            "remaining": round(sum(max(0.0, a.charge_off_balance - a.recovered)
                                    for a in ra), 2)})
 
     strategies = []

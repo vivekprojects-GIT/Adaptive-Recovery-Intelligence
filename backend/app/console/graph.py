@@ -33,7 +33,6 @@ from .engine import arrears
 from .models import (
     Agency, Campaign, Decision, KgEdge, KgNode, Outcome, Placement, PlatformConfig, TreatmentMeta,
 )
-from .platform import customer_ref
 
 UTC = timezone.utc
 
@@ -48,7 +47,7 @@ TAXONOMY: list[tuple[str, str | None, str]] = [
     ("Consumer Credit Card", "Card", "General-purpose consumer credit card"),
     ("Small Business Card", "Card", "Card issued to a small business"),
     ("Retail Card", "Card", "Store or private-label card for one retailer"),
-    ("Co-brand Card", "Card", "Card issued with a partner brand"),
+    ("Co-Brand Card", "Card", "Card issued with a partner brand"),
     ("Segment", "Thing", "A way the book is divided"),
     ("Delinquency bucket", "Segment", "How far behind the account is, from the bank's collections system"),
     ("Risk band", "Segment", "The bank's own risk rating"),
@@ -183,7 +182,7 @@ def _extract(db: Session) -> tuple[list[dict], list[tuple[str, str, str]]]:
             edges.append((f"strategy:{c.campaign_id}", "ESCALATES_TO", f"treatment:{c.escalate_to}"))
 
     for c in db.query(models.Customer):
-        ref = customer_ref(c.customer_id)
+        ref = c.account_number or f"account {c.customer_id}"
         product = c.product or "Consumer Credit Card"
         nid = node(f"customer:{c.customer_id}", "Customer", ref, customer_ref=ref,
                    token=pii.token(c.customer_id, "customer"), balance=round(c.balance, 2), arrears=arrears(c),

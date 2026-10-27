@@ -526,17 +526,20 @@ class RecoveryAccount(Base):
 
     recovery_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     external_ref: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)   # Nova account_id
+    account_number: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)  # REC10001...
     name: Mapped[str] = mapped_column(String(80))
     product: Mapped[str] = mapped_column(String(20), index=True)        # card business
     charge_off_date: Mapped[str] = mapped_column(String(10))
     charge_off_balance: Mapped[float] = mapped_column(Float)
     recovered: Mapped[float] = mapped_column(Float, default=0.0)
-    # In Recovery | Settlement Review | Specialist Review | Payment Arranged | Settled | Paid in Full | With Agency | Legal
-    status: Mapped[str] = mapped_column(String(20), default="In Recovery", index=True)
+    # The bank's recovery statuses: Active Collections | Partial Recovery | Payment Plan |
+    # Settlement Agreement | Paid in Full; and, while a treatment waits on a person or
+    # the customer: Settlement Review | Specialist Review | Payment Arranged.
+    status: Mapped[str] = mapped_column(String(20), default="Active Collections", index=True)
     assigned_treatment: Mapped[str | None] = mapped_column(String(10), nullable=True)
     assigned_by: Mapped[str | None] = mapped_column(String(20), nullable=True)
     assigned_at: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    source: Mapped[str] = mapped_column(String(12), default="placeholder")   # placeholder | workbook | nova
+    source: Mapped[str] = mapped_column(String(12), default="generated")   # workbook | generated | nova
     created_at: Mapped[str] = mapped_column(String(32), index=True)
 
 

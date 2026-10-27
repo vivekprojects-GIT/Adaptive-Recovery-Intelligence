@@ -29,7 +29,7 @@ OPEN = ("Proposed", "Placed")
 # Fictional panel. Fees are contingency rates on recoveries.
 PANEL = [
     dict(agency_id="AGY-01", name="Harbor Point Recovery", fee_rate=0.22,
-         products=["Consumer Credit Card", "Co-brand Card"], min_dpd=90, capacity=120, placement_days=90,
+         products=["Consumer Credit Card", "Co-Brand Card"], min_dpd=90, capacity=120, placement_days=90,
          contract_ref="MSA-2025-114"),
     dict(agency_id="AGY-02", name="Summit Ridge Collections", fee_rate=0.18,
          products=["Retail Card", "Consumer Credit Card"], min_dpd=90, capacity=80, placement_days=120,
@@ -143,7 +143,7 @@ def propose(db: Session, c, actor: str, at: datetime | None = None, reason: str 
     db.add(p)
     db.flush()
     audit(db, actor, "CREATE", "placement", p.placement_id,
-          f"Proposed {customer_ref(c.customer_id)} for placement with {agency.name}", at=_iso(at))
+          f"Proposed {customer_ref(db, c.customer_id)} for placement with {agency.name}", at=_iso(at))
     return p
 
 
@@ -183,7 +183,7 @@ def review(db: Session, placement_id: str, approve: bool, actor: str, note: str 
         p.placed_at = at
     agency = db.get(Agency, p.agency_id)
     audit(db, actor, "APPROVE" if approve else "REJECT", "placement", p.placement_id,
-          f"{'Approved' if approve else 'Declined'} placement of {customer_ref(p.customer_id)} with {agency.name}"
+          f"{'Approved' if approve else 'Declined'} placement of {customer_ref(db, p.customer_id)} with {agency.name}"
           + (f": {note.strip()}" if note.strip() else ""))
     return p
 
@@ -198,14 +198,14 @@ def recall(db: Session, placement_id: str, actor: str, note: str) -> Placement:
         raise ValueError("Say why the account is recalled")
     p.status, p.closed_at, p.review_note = "Recalled", now(), note.strip()
     audit(db, actor, "UPDATE", "placement", p.placement_id,
-          f"Recalled {customer_ref(p.customer_id)} from {db.get(Agency, p.agency_id).name}: {note.strip()}")
+          f"Recalled {customer_ref(db, p.customer_id)} from {db.get(Agency, p.agency_id).name}: {note.strip()}")
     return p
 
 
 def _row(db: Session, p: Placement, names: dict[str, str], customers: dict[int, models.Customer],
          agencies: dict[str, Agency]) -> dict:
     c = customers.get(p.customer_id)
-    return {"placement_id": p.placement_id, "customer_id": p.customer_id, "customer_ref": customer_ref(p.customer_id),
+    return {"placement_id": p.placement_id, "customer_id": p.customer_id, "customer_ref": customer_ref(db, p.customer_id),
             "customer_name": c.name if c else None, "product": (c.product if c else None) or "Consumer Credit Card",
             "days_past_due": c.days_past_due if c else None, "agency_id": p.agency_id,
             "agency": agencies[p.agency_id].name, "fee_rate": agencies[p.agency_id].fee_rate, "status": p.status,
@@ -307,7 +307,7 @@ def seed_history(db: Session, now_: datetime) -> None:
         p.status, p.reviewed_by, p.reviewed_at, p.placed_at = "Placed", "u-james", _iso(at + timedelta(hours=20)), \
             _iso(at + timedelta(hours=20))
         audit(db, "u-james", "APPROVE", "placement", p.placement_id,
-              f"Approved placement of {customer_ref(c.customer_id)} with {agency.name}", at=p.reviewed_at)
+              f"Approved placement of {customer_ref(db, c.customer_id)} with {agency.name}", at=p.reviewed_at)
         age = (now_ - at).days
         if rng.random() < _TRUE_RATE[agency.agency_id] * 2.4 and age > 6:
             p.first_payment_days = rng.randint(4, age - 1)

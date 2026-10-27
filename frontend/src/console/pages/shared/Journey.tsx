@@ -7,7 +7,7 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { api } from "../../lib/api";
-import { customerRef, dateTime, money, num, pct } from "../../lib/format";
+import { dateTime, money, num, pct } from "../../lib/format";
 import { useApi, useSession } from "../../lib/session";
 import { BarList } from "../../ui/charts";
 import { SegmentChip } from "../../ui/domain";
@@ -57,7 +57,7 @@ export default function Journey() {
 
   return (
     <>
-      <PageHeader title="Recovery Journey" subtitle={`${c.name} · ${customerRef(Number(c.customer_id))}`}
+      <PageHeader title="Recovery Journey" subtitle={`${c.name} · ${c.account_number}`}
         crumbs={[{ label: "Journeys", to: "/journeys" }, { label: String(c.name) }]}
         meta={<><StatusChip status={data.summary.status} />{data.flows[0] && <Link to={`/strategies/${data.flows[0].campaign_id}`} className="text-xs text-primary-500 hover:underline">In {data.flows[0].campaign_id} · {data.flows[0].campaign_name}</Link>}<SegmentChip segment={String(c.segment)} />{data.routing && data.routing.route_label !== data.summary.status && <span className="text-xs text-fg-2" title={data.routing.reason}>→ {data.routing.validation ? "Strategy (validation share)" : data.routing.route_label}</span>}<Chip tone="neutral">{String(c.cohort_id)} · {c.days_past_due} DPD</Chip>
           <Chip tone="neutral">Client risk {String(c.client_risk_band)} ({Number(c.client_risk_score).toFixed(0)})</Chip></>} />

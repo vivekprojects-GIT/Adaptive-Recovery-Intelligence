@@ -47,8 +47,9 @@ def customers(view: str = "all", q: str = "", cohort: str = "", product: str = "
     rows = []
     for c in all_rows:
         s = states.get(c.customer_id)
-        rows.append({"customer_id": c.customer_id, "name": c.name, "cohort_id": c.cohort_id,
-                     "balance": c.balance, "arrears": arrears(c), "days_past_due": c.days_past_due,
+        rows.append({"customer_id": c.customer_id, "account_number": c.account_number, "name": c.name,
+                     "cohort_id": c.cohort_id, "balance": c.balance, "arrears": arrears(c),
+                     "credit_limit": c.credit_limit, "days_past_due": c.days_past_due,
                      "risk_score": c.client_risk_score, "risk_band": c.client_risk_band,
                      "segment": c.segment, "route": c.route, "route_validation": bool(c.route_validation),
                      "product": c.product or "Consumer Credit Card",
@@ -114,7 +115,7 @@ def customer_action(customer_id: int, body: CustomerAction,
             n = engine.execute(db, camp, d, c, datetime.now(UTC), np.random.default_rng(),
                                engine.Seq(db), touch=9, manual_text=body.message, code="S1")
         audit(db, user.user_id, "CREATE", "nudge", n.nudge_id,
-              f"Sent manual nudge to {customer_ref(customer_id)}", {"status": n.status})
+              f"Sent manual nudge to {customer_ref(db, customer_id)}", {"status": n.status})
         db.commit()
         compliance.scan(db)
         return {"nudge_id": n.nudge_id, "status": n.status, "note": n.failure_reason}
@@ -123,6 +124,6 @@ def customer_action(customer_id: int, body: CustomerAction,
     label = {"pause_journey": "Paused journey", "resume_journey": "Resumed journey",
              "skip_next_step": "Skipped next step"}[body.action]
     audit(db, user.user_id, "UPDATE", "journey", str(customer_id),
-          f"{label} for {customer_ref(customer_id)}: {body.reason}")
+          f"{label} for {customer_ref(db, customer_id)}: {body.reason}")
     db.commit()
     return {"ok": True, "message": f"{label}. Recorded in the audit log."}

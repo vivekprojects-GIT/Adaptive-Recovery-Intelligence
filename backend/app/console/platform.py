@@ -97,15 +97,11 @@ def cfg_float(db: Session, key: str) -> float:
     return float(cfg(db, key))
 
 
-# Accounts are shown as a 10-digit account number: ACCOUNT_NUMBER_BASE plus the
-# internal id (frontend lib/format customerRef). The format is to be confirmed
-# with Rajesh and Kumar; change it here and in format.ts.
-ACCOUNT_NUMBER_BASE = 7051000000
-
-
-def customer_ref(customer_id: int) -> str:
-    """The account number as people see and search it, e.g. 7051000517."""
-    return str(ACCOUNT_NUMBER_BASE + customer_id)
+def customer_ref(db: Session, customer_id: int) -> str:
+    """The bank's account ID as people see and search it, e.g. CC10003 (app/cards.py)."""
+    from ..models import Customer
+    ref = db.query(Customer.account_number).filter(Customer.customer_id == customer_id).scalar()
+    return ref or f"account {customer_id}"
 
 
 def now() -> str:

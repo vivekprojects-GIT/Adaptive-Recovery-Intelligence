@@ -50,7 +50,7 @@ def encryption(db: Session) -> dict:
 
 def tokenisation(db: Session) -> dict:
     sample = db.query(models.Customer.customer_id).order_by(models.Customer.customer_id).first()
-    ref = customer_ref(sample[0] if sample else 1)
+    ref = customer_ref(db, sample[0] if sample else 1)
     return {"method": "Keyed hash (HMAC-SHA256), separate key from encryption",
             "example": {"identifier": ref, "token": pii.token(sample[0] if sample else 1, "customer")},
             "applied_to": ["Decision and routing traces (OpenTelemetry spans)", "Application logs",

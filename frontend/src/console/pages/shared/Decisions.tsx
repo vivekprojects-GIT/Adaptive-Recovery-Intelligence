@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import type { DecisionRow } from "../../lib/api";
-import { customerRef, dateTime, money, pct } from "../../lib/format";
+import { dateTime, money, pct } from "../../lib/format";
 import { useApi } from "../../lib/session";
 import { Card, Chip, Empty, ErrorState, Page, PageHeader, Pager, Pills, Select, Spinner, StatusChip, Table, Td, Th, Tr, inputCls } from "../../ui/ui";
 
@@ -51,7 +51,7 @@ export default function Decisions() {
                     <Td mono className="font-medium text-primary-500">
                       <span className="flex items-center gap-1.5">{d.decision_id}{d.origin === "mcp" && <Chip tone="info" title="Asked for by Nova's agent over MCP">Nova</Chip>}</span>
                     </Td>
-                    <Td>{d.customer}<span className="block text-2xs text-fg-3">{customerRef(d.customer_id)}</span></Td>
+                    <Td>{d.customer}<span className="block text-2xs text-fg-3">{d.account_number}</span></Td>
                     <Td className="text-xs">{d.campaign_id}</Td><Td>{d.wave}</Td>
                     <Td><StatusChip status={d.group} /></Td>
                     <Td>{d.treatment ?? <span className="text-fg-3">—</span>}{d.overridden && <Chip tone="warn" className="ml-1">override</Chip>}</Td>

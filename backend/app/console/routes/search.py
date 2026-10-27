@@ -39,15 +39,15 @@ def search(q: str = "", user: User = Depends(current_user), db: Session = Depend
 
     if "customers" in scopes:
         rows = db.query(models.Customer).filter(customer_match(q)).order_by(models.Customer.name).limit(LIMIT)
-        out["customers"] = [{"customer_id": c.customer_id, "name": c.name, "ref": customer_ref(c.customer_id),
+        out["customers"] = [{"customer_id": c.customer_id, "name": c.name, "ref": c.account_number,
                              "cohort_id": c.cohort_id, "days_past_due": c.days_past_due} for c in rows]
 
     if "decisions" in scopes:
         rows = (db.query(Decision).filter(Decision.decision_id.ilike(like))
                 .order_by(Decision.decision_id.desc()).limit(LIMIT))
         out["decisions"] = [{"decision_id": d.decision_id, "campaign_id": d.campaign_id,
-                             "customer": customer_ref(d.customer_id), "group": d.group} for d in rows]
+                             "customer": customer_ref(db, d.customer_id), "group": d.group} for d in rows]
         rows = db.query(Nudge).filter(Nudge.nudge_id.ilike(like)).order_by(Nudge.nudge_id.desc()).limit(LIMIT)
         out["messages"] = [{"nudge_id": n.nudge_id, "channel": n.channel, "status": n.status,
-                            "customer": customer_ref(n.customer_id)} for n in rows]
+                            "customer": customer_ref(db, n.customer_id)} for n in rows]
     return out

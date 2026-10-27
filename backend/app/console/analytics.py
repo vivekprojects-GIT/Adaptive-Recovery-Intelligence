@@ -496,7 +496,7 @@ def journey(db: Session, customer_id: int) -> dict:
             "customer_id", "name", "cohort_id", "balance", "credit_limit", "days_past_due",
             "client_risk_band", "client_risk_score", "segment", "nudge_score", "self_cure_score",
             "sms_responsive", "app_user", "hardship_flag", "missed_payments", "payment_history",
-            "tenure_years", "utilization", "product")} | {"arrears": arrears(c)},
+            "tenure_years", "utilization", "product", "account_number")} | {"arrears": arrears(c)},
         "events": events,
         "summary": {"days_active": days_active, "nudges_sent": sum(1 for n in nudges if n.sent_at),
                     "decisions": len(decisions), "engagement_events": eng,

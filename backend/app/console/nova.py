@@ -91,7 +91,9 @@ def _apply(rec: NovaAccount, c: models.Customer) -> list[str]:
     assumed: list[str] = []
     c.cohort_id = cohort_for(rec.days_past_due)
     c.days_past_due = rec.days_past_due
+    c.account_number = rec.account_id
     c.balance = round(rec.current_balance, 2)
+    c.delinquent_amount = rec.amount_past_due
     if rec.credit_limit:
         c.credit_limit = float(rec.credit_limit)
     else:
@@ -143,7 +145,7 @@ def product_name(raw: str | None) -> str:
     """Nova's product code, read into the bank's four card businesses."""
     t = (raw or "").lower().replace("-", " ").replace("_", " ")
     if "co brand" in t or "cobrand" in t:
-        return "Co-brand Card"
+        return "Co-Brand Card"
     if any(w in t for w in ("business", "sme", "corp", "commercial")):
         return "Small Business Card"
     if "retail" in t or "store" in t or "private label" in t:
@@ -434,10 +436,11 @@ def _to_recovery(db: Session, rec: NovaAccount, record: bool) -> dict:
     existing = db.query(RecoveryAccount).filter_by(external_ref=rec.account_id).first()
     if record:
         if existing is None:
-            existing = RecoveryAccount(external_ref=rec.account_id, name=(rec.customer_name or rec.account_id)[:80],
+            existing = RecoveryAccount(external_ref=rec.account_id, account_number=rec.account_id,
+                                       name=(rec.customer_name or rec.account_id)[:80],
                                        product=product_name(rec.product), charge_off_date=date.today().isoformat(),
                                        charge_off_balance=float(rec.current_balance), recovered=0.0,
-                                       status="In Recovery", source="nova", created_at=now())
+                                       status="Active Collections", source="nova", created_at=now())
             db.add(existing)
             audit(db, ACTOR, "CREATE", "recovery", rec.account_id,
                   f"Filed {rec.account_id} for recovery: charged off ({rec.days_past_due} days past due)")
@@ -445,7 +448,7 @@ def _to_recovery(db: Session, rec: NovaAccount, record: bool) -> dict:
     why = ("the account is charged off" if rec.account_status and "charge" in rec.account_status.lower()
            else f"{rec.days_past_due} days past due is at or past charge-off ({recovery.CHARGE_OFF_DPD} days)")
     return {"account_id": rec.account_id, "action": "recovery", "decision_id": None,
-            "process": "recovery", "recovery_account": recovery.account_number(existing.recovery_id) if existing else None,
+            "process": "recovery", "recovery_account": existing.account_number if existing else None,
             "summary": f"Recovery, not collections: {why}. No collections treatment is chosen; recovery "
                        f"treatments (settlement, one-time payment, specialist review) are assigned in the "
                        f"Strategy Workspace."}

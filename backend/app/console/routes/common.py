@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import re
 from datetime import timezone
 
 
@@ -15,7 +14,7 @@ from ... import models
 from .. import analytics, engine
 from ..engine import jl
 from ..models import AlertRule, Campaign, ComplianceViolation, Decision, ExternalCustomer, Insight, TreatmentMeta, User
-from ..platform import ACCOUNT_NUMBER_BASE, METRICS, audit, now
+from ..platform import METRICS, audit, now
 
 
 UTC = timezone.utc
@@ -198,14 +197,11 @@ def fired_alerts(db: Session) -> list[dict]:
 
 def customer_match(q: str):
     """A filter for the customers matching what a person types into a search box:
-    part of the name, the account number as shown on screen (7051001342), or
+    part of the name, the bank's account ID as shown on screen (CC10003), or
     the account id an upstream system such as Nova uses. Case does not matter."""
     q = q.strip()
     conds = [models.Customer.name.ilike(f"%{q}%"),
              models.Customer.customer_id.in_(select(ExternalCustomer.customer_id)
                                              .where(ExternalCustomer.external_ref.ilike(f"%{q}%")))]
-    m = re.fullmatch(r"\d{6,}", q.replace(" ", ""))
-    if m:
-        n = int(m.group(0))
-        conds.append(models.Customer.customer_id.in_([n - ACCOUNT_NUMBER_BASE, n]))
+    conds.append(models.Customer.account_number.ilike(f"%{q.replace(' ', '')}%"))
     return or_(*conds)

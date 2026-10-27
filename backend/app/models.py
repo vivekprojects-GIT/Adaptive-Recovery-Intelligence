@@ -43,8 +43,12 @@ class Customer(Base):
     route: Mapped[str | None] = mapped_column(String(12), nullable=True, index=True)
     # Sent to a strategy against its group's route, so the router itself can be scored.
     route_validation: Mapped[bool] = mapped_column(Boolean, default=False)
-    # The card business: Consumer Credit Card | Small Business Card | Retail Card | Co-brand Card.
+    # The card business: Consumer Credit Card | Small Business Card | Retail Card | Co-Brand Card.
     product: Mapped[str] = mapped_column(String(20), default="Consumer Credit Card")
+    # The bank's account ID (CC10001, SB20001, RP30001, RC40001; Nova's account_id for accounts it sends).
+    account_number: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    # The amount the account is behind by, as the bank sends it (app/cards.py).
+    delinquent_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
     is_persona: Mapped[bool] = mapped_column(Boolean, default=False)
     persona_note: Mapped[str] = mapped_column(Text, default="")
 

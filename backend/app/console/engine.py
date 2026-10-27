@@ -97,18 +97,22 @@ def as_of_decision(snap: dict) -> SimpleNamespace:
     return SimpleNamespace(**{k: snap.get(k) for k in (
         "customer_id", "name", "segment", "balance", "utilization", "tenure_years", "sms_responsive", "app_user",
         "hardship_flag", "missed_payments", "payment_history", "days_past_due", "nudge_score", "cohort_id",
-        "client_risk_band", "client_risk_score", "self_cure_score")})
+        "client_risk_band", "client_risk_score", "self_cure_score")}, product=snap.get("product"),
+        delinquent_amount=snap.get("arrears"))
 
 
 # Minimum payment due each cycle, as a share of the balance, by card business.
-DUE_PER_CYCLE = {"Consumer Credit Card": 0.03, "Retail Card": 0.04, "Co-brand Card": 0.03,
+DUE_PER_CYCLE = {"Consumer Credit Card": 0.03, "Retail Card": 0.04, "Co-Brand Card": 0.03,
                  "Small Business Card": 0.035}
 DEFAULT_PRODUCT = "Consumer Credit Card"
 
 
 def arrears(c) -> float:
-    """Amount past due. The handoff carries balance and DPD; arrears is one
-    minimum payment per missed cycle."""
+    """Amount past due: the delinquent amount the bank sent with the account.
+    A record without one (Nova sent no amount_past_due) counts one minimum
+    payment per missed cycle."""
+    if getattr(c, "delinquent_amount", None) is not None:
+        return round(float(c.delinquent_amount), 2)
     product = getattr(c, "product", None) or DEFAULT_PRODUCT
     cycles = max(1, round(c.days_past_due / 30))
     return round(max(35.0, c.balance * DUE_PER_CYCLE.get(product, 0.03)) * cycles, 2)

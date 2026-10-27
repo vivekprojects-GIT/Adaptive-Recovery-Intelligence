@@ -14,7 +14,6 @@ from ...seed import PRODUCTS
 from .. import analytics, recovery
 from ..engine import arrears, jl
 from ..models import Campaign, Decision, Outcome, User
-from ..platform import customer_ref
 from ..rbac import granted, require
 
 router = APIRouter()
@@ -82,8 +81,9 @@ def collections(product: str = "", user: User = Depends(require("view_kpi_dashbo
         names = {c.campaign_id: c.name for c in db.query(Campaign)}
         top = sorted(custs, key=lambda c: -c.days_past_due)[:5]
         out["population"] = {"total": len(custs), "rows": [{
-            "customer_id": c.customer_id, "account_number": customer_ref(c.customer_id), "name": c.name,
+            "customer_id": c.customer_id, "account_number": c.account_number, "name": c.name,
             "product": c.product, "days_past_due": c.days_past_due, "balance": c.balance, "past_due": arrears(c),
+            "credit_limit": c.credit_limit,
             "status": (names.get(latest[c.customer_id].campaign_id, "In strategy") if c.customer_id in latest
                        else ROUTE_STATUS.get(c.route or "", "Awaiting strategy"))} for c in top]}
     return out

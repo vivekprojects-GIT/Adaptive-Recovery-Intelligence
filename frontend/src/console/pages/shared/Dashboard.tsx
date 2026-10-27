@@ -471,7 +471,7 @@ export default function Dashboard() {
 
           {/* Matrices */}
           <Tile title="Card business summary" subtitle={`Flows for the ${periodLabel}; balances as they stand today. Select a row to filter the page`}
-            table={{ columns: ["Card business", "Collections accounts", "Balance", "Past due", "Collected", "Charged off", "Recovered", "Remaining"],
+            table={{ columns: ["Card business", "Collections accounts", "Balance", "Delinquent amount", "Collected", "Charged off", "Recovered", "Remaining"],
               rows: data.businesses.map((b) => [b.business, b.collections_accounts, Math.round(b.collections_balance), Math.round(b.past_due), Math.round(b.collected),
                 b.charged_off_accounts, Math.round(b.recovered), Math.round(b.remaining)]) }}>
             <div className="-mx-4 -mb-3 overflow-x-auto">
@@ -479,7 +479,7 @@ export default function Dashboard() {
                 <thead><tr>
                   <th scope="col" className={clsx(TH, "text-left")}>Card business</th>
                   {showC && <><th scope="col" className={clsx(TH, "text-right")}>Collections accounts</th><th scope="col" className={clsx(TH, "text-right")}>Balance</th>
-                    <th scope="col" className={clsx(TH, "text-right")}>Past due</th><th scope="col" className={clsx(TH, "text-right")}>Collected</th></>}
+                    <th scope="col" className={clsx(TH, "text-right")}>Delinquent amount</th><th scope="col" className={clsx(TH, "text-right")}>Collected</th></>}
                   {showR && <><th scope="col" className={clsx(TH, "text-right")}>Charged off</th><th scope="col" className={clsx(TH, "text-right")}>Recovered</th>
                     <th scope="col" className={clsx(TH, "text-right")}>Remaining</th></>}
                 </tr></thead>

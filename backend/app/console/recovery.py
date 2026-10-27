@@ -11,9 +11,9 @@ ARI decides which process an account belongs to from its status, so nobody
 classifies accounts by hand: charged off, or 180 days past due or more, means
 recovery; anything else is collections.
 
-The accounts generated here are placeholders until the bank's reference
-workbook (Data Example tab) is loaded; their ranges follow its business
-categories.
+The book holds the bank's sample recovery accounts exactly as its reference
+workbook gives them, and further accounts inside the same ranges and statuses
+(app/cards.py).
 """
 from __future__ import annotations
 
@@ -23,16 +23,17 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from .. import cards
 from .models import RecoveryAccount, RecoveryPayment, User
 from .platform import audit, now
 
 UTC = timezone.utc
 CHARGE_OFF_DPD = 180
-RECOVERY_NUMBER_BASE = 7051500000   # recovery account numbers, apart from collections accounts
 
-STATUSES = ["In Recovery", "Settlement Review", "Specialist Review", "Payment Arranged", "Settled", "Paid in Full",
-            "With Agency", "Legal"]
-OPEN = ("In Recovery", "Settlement Review", "Specialist Review", "Payment Arranged")
+# The bank's recovery statuses, from its workbook.
+BANK_STATUSES = ["Active Collections", "Partial Recovery", "Payment Plan", "Settlement Agreement", "Paid in Full"]
+# Accounts with no arrangement yet, which a strategist can assign a treatment to.
+ELIGIBLE = ("Active Collections", "Partial Recovery")
 
 # The recovery treatments a strategist can assign. Settlements change what
 # the customer owes, so they wait for a reviewer (Settlement Review).
@@ -46,20 +47,26 @@ TREATMENTS = [
 ]
 TREATMENT_BY_CODE = {t["code"]: t for t in TREATMENTS}
 
-# Placeholder ranges by card business until the workbook's values are loaded:
-# (share of accounts, charge-off balance range).
+# Charge-off balances by card business, around the workbook's sample accounts:
+# (share of accounts, lowest, highest, most common).
 MIX = {
-    "Consumer Credit Card": (0.42, (1500, 24000)),
-    "Small Business Card": (0.18, (8000, 65000)),
-    "Retail Card": (0.22, (400, 6500)),
-    "Co-brand Card": (0.18, (1800, 21000)),
+    "Consumer Credit Card": (0.42, 1_000, 25_000, 10_000),
+    "Small Business Card": (0.18, 5_000, 120_000, 50_000),
+    "Retail Card": (0.22, 500, 15_000, 5_000),
+    "Co-Brand Card": (0.18, 1_000, 35_000, 15_000),
 }
+# How the book splits across the statuses, and the share of the charge-off
+# balance recovered so far in each. Settlement Review accounts have just been
+# offered a settlement that waits for a reviewer.
+STATUS_MIX = [("Active Collections", 0.36, (0.0, 0.0)), ("Partial Recovery", 0.20, (0.10, 0.60)),
+              ("Payment Plan", 0.18, (0.05, 0.50)), ("Settlement Agreement", 0.10, (0.40, 0.85)),
+              ("Paid in Full", 0.08, (1.0, 1.0)), ("Settlement Review", 0.08, (0.0, 0.0))]
+INSTALMENTS = {"Partial Recovery": (1, 3), "Payment Plan": (3, 8), "Settlement Agreement": (2, 4),
+               "Paid in Full": (1, 3)}
 FIRST = ["Aisha", "Carlos", "Dana", "Ethan", "Fatima", "Grace", "Hiro", "Isabel", "Jamal", "Kara", "Liam", "Maya",
          "Noah", "Olivia", "Pablo", "Quinn", "Rosa", "Sam", "Tara", "Umar", "Vera", "Wyatt", "Yusuf", "Zoe"]
 LAST = ["Okafor", "Nguyen", "Patel", "Brooks", "Silva", "Kim", "Rossi", "Haddad", "Fischer", "Novak", "Ali", "Dubois",
         "Santos", "Larsen", "Moreau", "Reyes", "Chen", "Walsh"]
-BUSINESSES = ["Harbour Line Logistics", "Cedar & Pine Interiors", "Northfield Dental Group", "Brightway Print Co.",
-              "Summit Peak Outfitters", "Riverbend Bakery", "Ironclad Auto Repair", "Bluefin Seafood Supply"]
 
 
 def classify(account_status: str | None, days_past_due: int | None) -> str:
@@ -69,10 +76,6 @@ def classify(account_status: str | None, days_past_due: int | None) -> str:
     if days_past_due is not None and days_past_due >= CHARGE_OFF_DPD:
         return "recovery"
     return "collections"
-
-
-def account_number(recovery_id: int) -> str:
-    return str(RECOVERY_NUMBER_BASE + recovery_id)
 
 
 def recommend(a: RecoveryAccount) -> dict:
@@ -91,54 +94,98 @@ def _iso(dt: datetime) -> str:
     return dt.isoformat(timespec="seconds")
 
 
+def _name(product: str, rng: random.Random) -> str:
+    if product == "Small Business Card" and rng.random() < 0.6:
+        return rng.choice(cards.SMALL_BUSINESSES)
+    return f"{rng.choice(FIRST)} {rng.choice(LAST)}"
+
+
+def _pay(db: Session, a: RecoveryAccount, amount: float, charged: datetime, age: int, parts: int,
+         rng: random.Random) -> None:
+    """Payments since charge-off that add up to the amount recovered, oldest first."""
+    if amount <= 0:
+        return
+    days = sorted(rng.randint(15, max(16, age - 1)) for _ in range(parts))
+    left = round(amount, 2)
+    for k, day in enumerate(days):
+        amt = left if k == parts - 1 else round(amount / parts, 2)
+        db.add(RecoveryPayment(recovery_id=a.recovery_id, amount=amt, paid_at=_iso(charged + timedelta(days=day))))
+        left = round(left - amt, 2)
+    a.recovered = round(amount, 2)
+
+
+def _next_numbers(db: Session) -> dict[str, int]:
+    seqs = {p: 0 for p in cards.TERMS}
+    for product, acct in db.query(RecoveryAccount.product, RecoveryAccount.account_number).filter(
+            RecoveryAccount.account_number.like("REC%")):
+        seqs[product] = max(seqs.get(product, 0), cards.sequence(acct))
+    return seqs
+
+
 def seed(db: Session, now_: datetime, n: int = 920) -> None:
-    """Placeholder charged-off accounts and their recovery payments."""
+    """The bank's sample recovery accounts, then the rest of the charged-off
+    book inside the same ranges, with the payments received since charge-off."""
     if db.query(RecoveryAccount).count():
         return
     rng = random.Random(5_505)
-    products = list(MIX)
-    weights = [MIX[p][0] for p in products]
-    for _ in range(n):
-        product = rng.choices(products, weights)[0]
-        lo, hi = MIX[product][1]
-        balance = round(rng.uniform(lo, hi) / 10) * 10
-        charged = now_ - timedelta(days=rng.randint(5, 540))
-        name = rng.choice(BUSINESSES) if product == "Small Business Card" and rng.random() < 0.6 else \
-            f"{rng.choice(FIRST)} {rng.choice(LAST)}"
-        a = RecoveryAccount(name=name, product=product, charge_off_date=charged.date().isoformat(),
-                            charge_off_balance=float(balance), recovered=0.0, status="In Recovery",
-                            source="placeholder", created_at=_iso(charged))
+    for acct, product, balance, recovered, status in cards.RECOVERY_SAMPLE:
+        age = rng.randint(90, 420)
+        charged = now_ - timedelta(days=age)
+        a = RecoveryAccount(account_number=acct, name=_name(product, rng), product=product,
+                            charge_off_date=charged.date().isoformat(), charge_off_balance=float(balance),
+                            recovered=0.0, status=status, source="workbook", created_at=_iso(charged))
         db.add(a)
         db.flush()
-        # Payments since charge-off: most pay nothing, some pay in parts, a few settle.
-        age = (now_ - charged).days
-        roll = rng.random()
-        if roll < 0.45 and age > 20:
-            parts = rng.randint(1, 5)
-            share = rng.uniform(0.08, 0.6)
-            for k in range(parts):
-                paid_on = charged + timedelta(days=rng.randint(15, max(16, age - 1)))
-                amt = round(balance * share / parts, 2)
-                db.add(RecoveryPayment(recovery_id=a.recovery_id, amount=amt, paid_at=_iso(paid_on)))
-                a.recovered = round(a.recovered + amt, 2)
-        if roll > 0.93 and age > 60:
-            a.status = rng.choice(["Settled", "Paid in Full"])
-            rest = round(a.charge_off_balance * (0.55 if a.status == "Settled" else 1.0) - a.recovered, 2)
-            if rest > 0:
-                db.add(RecoveryPayment(recovery_id=a.recovery_id, amount=rest,
-                                       paid_at=_iso(charged + timedelta(days=rng.randint(30, age)))))
-                a.recovered = round(a.recovered + rest, 2)
-        elif roll > 0.86:
-            a.status = rng.choice(["With Agency", "Legal"])
-        elif roll > 0.74:
-            a.status = "Settlement Review"
+        _pay(db, a, float(recovered), charged, age, rng.randint(*INSTALMENTS.get(status, (1, 1))), rng)
+
+    seqs = _next_numbers(db)
+    products = list(MIX)
+    weights = [MIX[p][0] for p in products]
+    statuses = [s for s, _, _ in STATUS_MIX]
+    for _ in range(n - len(cards.RECOVERY_SAMPLE)):
+        product = rng.choices(products, weights)[0]
+        _, lo, hi, mode = MIX[product]
+        balance = round(rng.triangular(lo, hi, mode) / 50) * 50
+        age = rng.randint(5, 540)
+        charged = now_ - timedelta(days=age)
+        status = rng.choices(statuses, [w for _, w, _ in STATUS_MIX])[0]
+        if age < 60 and status not in ("Active Collections", "Settlement Review"):
+            status = "Active Collections"   # too soon after charge-off for payments to have come in
+        seqs[product] += 1
+        a = RecoveryAccount(account_number=cards.account_id(product, seqs[product], recovery=True),
+                            name=_name(product, rng), product=product, charge_off_date=charged.date().isoformat(),
+                            charge_off_balance=float(balance), recovered=0.0, status=status, source="generated",
+                            created_at=_iso(charged))
+        db.add(a)
+        db.flush()
+        share = rng.uniform(*dict((s, r) for s, _, r in STATUS_MIX)[status])
+        _pay(db, a, round(balance * share, 2), charged, age, rng.randint(*INSTALMENTS.get(status, (1, 1))), rng)
+        if status == "Settlement Review":
             a.assigned_treatment, a.assigned_by, a.assigned_at = "R1", "u-maya", _iso(now_ - timedelta(days=rng.randint(1, 9)))
     db.flush()
 
 
+def adopt_workbook(db: Session) -> None:
+    """Move recovery accounts stored before the bank's workbook onto its
+    statuses and account IDs."""
+    old = {"In Recovery": None, "Settled": "Settlement Agreement", "With Agency": "Active Collections",
+           "Legal": "Active Collections"}
+    for a in db.query(RecoveryAccount).filter(RecoveryAccount.status.in_(list(old))):
+        a.status = old[a.status] or ("Partial Recovery" if a.recovered > 0 else "Active Collections")
+    seqs = _next_numbers(db)
+    for a in db.query(RecoveryAccount).filter(RecoveryAccount.account_number.is_(None)).order_by(
+            RecoveryAccount.recovery_id):
+        if a.external_ref:
+            a.account_number = a.external_ref
+            continue
+        seqs[a.product] = seqs.get(a.product, 0) + 1
+        a.account_number = cards.account_id(a.product, seqs[a.product], recovery=True)
+    db.query(RecoveryAccount).filter(RecoveryAccount.source == "placeholder").update(
+        {RecoveryAccount.source: "generated"}, synchronize_session=False)
+
+
 def _remaining(a: RecoveryAccount) -> float:
-    if a.status in ("Settled", "Paid in Full"):
-        return 0.0
+    """The current recovery balance: charged off, less what has come in."""
     return round(max(0.0, a.charge_off_balance - a.recovered), 2)
 
 
@@ -176,8 +223,8 @@ def summary(db: Session, product: str | None = None) -> dict:
         "charge_off_balance": {"value": cur["balance"], "delta": delta(cur["balance"], prev["balance"])},
         "amount_recovered": {"value": cur["recovered"], "delta": delta(cur["recovered"], prev["recovered"])},
         "remaining_balance": {"value": round(remaining, 2), "delta": delta(remaining, prev_remaining)},
+        "recovery_rate": round(cur["recovered"] / cur["balance"], 4) if cur["balance"] else None,
         "by_status": dict(q.with_entities(RecoveryAccount.status, func.count()).group_by(RecoveryAccount.status).all()),
-        "source": "placeholder" if q.filter(RecoveryAccount.source == "placeholder").count() else "bank",
     }
 
 
@@ -189,24 +236,25 @@ def accounts(db: Session, product: str | None = None, status: str | None = None,
     if status:
         q = q.filter(RecoveryAccount.status == status)
     total = q.count()
-    rows = (q.order_by(RecoveryAccount.charge_off_date.desc(), RecoveryAccount.recovery_id.desc()).offset((max(1, page) - 1) * page_size)
+    rows = (q.order_by(RecoveryAccount.account_number, RecoveryAccount.recovery_id).offset((max(1, page) - 1) * page_size)
             .limit(page_size).all())
     names = {u.user_id: u.name for u in db.query(User)}
     out = []
     for a in rows:
         rec = recommend(a)
-        out.append({"recovery_id": a.recovery_id, "account_number": account_number(a.recovery_id), "name": a.name,
+        out.append({"recovery_id": a.recovery_id, "account_number": a.account_number, "name": a.name,
                     "product": a.product, "charge_off_date": a.charge_off_date,
                     "charge_off_balance": a.charge_off_balance, "recovered": a.recovered, "remaining": _remaining(a),
+                    "recovery_rate": round(a.recovered / a.charge_off_balance, 4) if a.charge_off_balance else 0.0,
                     "status": a.status, "recommended": {**TREATMENT_BY_CODE[rec["code"]], "reason": rec["reason"]},
                     "assigned": TREATMENT_BY_CODE.get(a.assigned_treatment or "", None),
                     "assigned_by": names.get(a.assigned_by or ""), "assigned_at": a.assigned_at,
-                    "eligible": a.status == "In Recovery"})
+                    "eligible": a.status in ELIGIBLE and not a.assigned_treatment})
     return {"total": total, "page": page, "page_size": page_size, "rows": out}
 
 
 def assign(db: Session, recovery_ids: list[int], code: str, actor: str) -> dict:
-    """Assign a recovery treatment. Only open accounts not already assigned can take one."""
+    """Assign a recovery treatment. Only accounts with no arrangement and no treatment yet can take one."""
     t = TREATMENT_BY_CODE.get(code)
     if t is None:
         raise ValueError(f"Unknown recovery treatment {code}.")
@@ -214,11 +262,11 @@ def assign(db: Session, recovery_ids: list[int], code: str, actor: str) -> dict:
         raise ValueError("Select at least one account.")
     done, skipped = [], []
     for a in db.query(RecoveryAccount).filter(RecoveryAccount.recovery_id.in_(recovery_ids)):
-        if a.status != "In Recovery":
-            skipped.append(account_number(a.recovery_id))
+        if a.status not in ELIGIBLE or a.assigned_treatment:
+            skipped.append(a.account_number)
             continue
         a.assigned_treatment, a.assigned_by, a.assigned_at, a.status = code, actor, now(), t["status"]
-        done.append(account_number(a.recovery_id))
+        done.append(a.account_number)
     if done:
         audit(db, actor, "UPDATE", "recovery", t["code"], f"Assigned {t['name']} to {len(done)} recovery accounts",
               {"accounts": done})

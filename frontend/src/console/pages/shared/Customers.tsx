@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import type { CustomerRow } from "../../lib/api";
-import { ROUTE_LABEL, ago, customerRef, money } from "../../lib/format";
+import { ROUTE_LABEL, ago, money } from "../../lib/format";
 import { useApi } from "../../lib/session";
 import { SegmentChip } from "../../ui/domain";
 import { Avatar, Card, Empty, ErrorState, Page, PageHeader, Pager, Pills, Progress, Select, Spinner, StatusChip, Table, Td, Th, Tr, inputCls } from "../../ui/ui";
@@ -59,16 +59,17 @@ export default function Customers({ journeys }: { journeys?: boolean }) {
         <Card flush>
           {loading && !data ? <Spinner /> : (
             <Table>
-              <thead><tr><Th>Customer</Th><Th>Account number</Th><Th align="right">Balance</Th>
+              <thead><tr><Th>Customer</Th><Th>Account ID</Th><Th align="right">Total balance</Th><Th align="right">Delinquent amount</Th>
                 <Th>Client risk</Th><Th>Fit group</Th><Th>Strategy</Th><Th>Status</Th><Th w="110px">Progress</Th><Th>Last contact</Th></tr></thead>
               <tbody>
                 {data?.rows.map((r) => (
                   <Tr key={r.customer_id} onClick={() => navigate(`/journeys/${r.customer_id}`)}>
                     <Td><span className="flex items-center gap-2"><Avatar name={r.name} size="sm" />
                       <span className="min-w-0"><span className="block whitespace-nowrap font-medium">{r.name}</span>
-                        <span className="block whitespace-nowrap text-2xs text-fg-3">{r.product} · {r.cohort_id} · {r.days_past_due} DPD</span></span></span></Td>
-                    <Td mono className="whitespace-nowrap text-primary-500">{customerRef(r.customer_id)}</Td>
-                    <Td align="right"><span className="block">{money(r.balance)}</span><span className="block text-2xs text-fg-3">{money(r.arrears)} due</span></Td>
+                        <span className="block whitespace-nowrap text-2xs text-fg-3">{r.product} · {r.cohort_id}</span></span></span></Td>
+                    <Td mono className="whitespace-nowrap text-primary-500">{r.account_number}</Td>
+                    <Td align="right"><span className="block">{money(r.balance)}</span><span className="block whitespace-nowrap text-2xs text-fg-3">limit {money(r.credit_limit)}</span></Td>
+                    <Td align="right"><span className="block">{money(r.arrears)}</span><span className="block whitespace-nowrap text-2xs text-fg-3">{r.days_past_due} days past due</span></Td>
                     <Td><RiskBar score={r.risk_score} /></Td>
                     <Td><SegmentChip segment={r.segment} /><span className="block text-2xs text-fg-3">→ {r.route_validation ? "Strategy (validation)" : ROUTE_LABEL[r.route ?? ""] ?? "Not routed"}</span></Td>
                     <Td className="text-xs">{r.treatment ?? <span className="text-fg-3">—</span>}{r.campaign_id && <span className="block font-mono text-2xs text-fg-3">{r.campaign_id}</span>}</Td>
@@ -77,7 +78,7 @@ export default function Customers({ journeys }: { journeys?: boolean }) {
                     <Td className="whitespace-nowrap text-xs text-fg-3">{ago(r.last_contact)}</Td>
                   </Tr>
                 ))}
-                {!data?.rows.length && <Empty cols={9}>No customers match.</Empty>}
+                {!data?.rows.length && <Empty cols={10}>No customers match.</Empty>}
               </tbody>
             </Table>
           )}

@@ -18,12 +18,12 @@ interface RTreatment { code: string; name: string; tag: string; description: str
 interface Delta { value: number; delta: number | null }
 interface RecoveryRow {
   recovery_id: number; account_number: string; name: string; product: string; charge_off_date: string;
-  charge_off_balance: number; recovered: number; remaining: number; status: string;
+  charge_off_balance: number; recovered: number; remaining: number; recovery_rate: number; status: string;
   recommended: RTreatment & { reason: string }; assigned: RTreatment | null; assigned_by: string | null; eligible: boolean;
 }
 interface RecoveryView {
   summary: { charged_off_accounts: Delta; charge_off_balance: Delta; amount_recovered: Delta; remaining_balance: Delta;
-    by_status: Record<string, number>; source: string };
+    by_status: Record<string, number>; recovery_rate: number | null };
   treatments: RTreatment[];
   population: { total: number; rows: RecoveryRow[] } | null;
 }
@@ -32,7 +32,7 @@ interface CollectionsView {
   strategies: { campaign_id: string; name: string; status: string; description: string; treatments: string[];
     payment_rate: number | null; lift: number | null; target: number; cohorts: string[] }[];
   population: { total: number; rows: { customer_id: number; account_number: string; name: string; product: string;
-    days_past_due: number; balance: number; past_due: number; status: string }[] } | null;
+    days_past_due: number; balance: number; past_due: number; credit_limit: number; status: string }[] } | null;
 }
 
 const TAG_VARIANT: Record<string, "secondary" | "outline" | "warning"> = {
@@ -126,7 +126,8 @@ function RecoveryTab({ product }: { product: string }) {
         <Tile label="Charged-off accounts" value={num(s.charged_off_accounts.value)} delta={s.charged_off_accounts.delta} icon={<Users className="h-5 w-5" />} />
         <Tile label="Charge-off balance" value={money(s.charge_off_balance.value)} delta={s.charge_off_balance.delta} icon={<Database className="h-5 w-5" />} />
         <Tile label="Amount recovered" value={money(s.amount_recovered.value)} delta={s.amount_recovered.delta} icon={<BarChart3 className="h-5 w-5" />} />
-        <Tile label="Remaining recovery balance" value={money(s.remaining_balance.value)} delta={s.remaining_balance.delta} icon={<PieChart className="h-5 w-5" />} />
+        <Tile label="Current recovery balance" value={money(s.remaining_balance.value)} delta={s.remaining_balance.delta}
+          sub={s.recovery_rate !== null ? `${pct(s.recovery_rate)} of the charge-off balance recovered` : undefined} icon={<PieChart className="h-5 w-5" />} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.75fr)_minmax(320px,1fr)]">
@@ -139,7 +140,8 @@ function RecoveryTab({ product }: { product: string }) {
             <>
               <Table maxHeight={all ? "560px" : undefined}>
                 <thead><tr><Th w="36px"> </Th><Th>Account ID</Th><Th>Card business</Th><Th align="right">Charge-off balance</Th>
-                  <Th align="right">Recovered</Th><Th align="right">Remaining balance</Th><Th>Status</Th></tr></thead>
+                  <Th align="right">Amount recovered</Th><Th align="right">Current recovery balance</Th>
+                  <Th>Recovery status</Th></tr></thead>
                 <tbody>
                   {(rows ?? []).map((r) => {
                     const on = selected.includes(r.recovery_id);
@@ -148,11 +150,13 @@ function RecoveryTab({ product }: { product: string }) {
                         <Td><input type="checkbox" aria-label={`Select ${r.account_number}`} disabled={!r.eligible} checked={on}
                           onChange={() => setSelected((x) => (on ? x.filter((i) => i !== r.recovery_id) : [...x, r.recovery_id]))}
                           className="h-4 w-4 accent-[hsl(var(--primary))] disabled:opacity-40" /></Td>
-                        <Td><span className="font-mono text-xs">{r.account_number}</span>
-                          <span className="block text-2xs text-fg-3">{r.name} · charged off {dateOnly(r.charge_off_date)}</span></Td>
-                        <Td className="whitespace-nowrap text-fg-2">{r.product}</Td>
+                        <Td className="whitespace-nowrap"><span className="font-mono text-xs">{r.account_number}</span>
+                          <span className="block text-2xs text-fg-3">{r.name}</span>
+                          <span className="block text-2xs text-fg-3">Charged off {dateOnly(r.charge_off_date)}</span></Td>
+                        <Td className="min-w-[96px] text-xs text-fg-2">{r.product}</Td>
                         <Td align="right">{money(r.charge_off_balance)}</Td>
-                        <Td align="right">{money(r.recovered)}</Td>
+                        <Td align="right" className="whitespace-nowrap">{money(r.recovered)}
+                          <span className="block text-2xs text-fg-3">{pct(r.recovery_rate, 0)} recovery rate</span></Td>
                         <Td align="right" className="font-medium">{money(r.remaining)}</Td>
                         <Td><RecoveryStatus s={r.status} />
                           {r.assigned && <span className="block text-2xs text-fg-3">{r.assigned.name}{r.assigned_by ? ` · ${r.assigned_by}` : ""}</span>}</Td>
@@ -180,7 +184,7 @@ function RecoveryTab({ product }: { product: string }) {
           <div className="mt-3 min-h-[36px] text-xs leading-5 text-fg-2">
             {one ? <>ARI recommends <span className="font-medium text-fg">{one.recommended.name}</span> for {one.account_number}: {one.recommended.reason}.</>
               : picked.length ? <>{picked.length} accounts selected. The option chosen is what ARI recommends for most of them.</>
-              : <>Select one or more accounts in recovery. Accounts already assigned, settled or with an agency cannot be selected.</>}
+              : <>Select accounts in active collections or partial recovery. Accounts with a payment plan, a settlement or a treatment already assigned cannot be selected.</>}
           </div>
           <div className="mt-2 [&>button]:w-full [&>button]:justify-center">
             <Button variant="primary" disabled={!picked.length || !can("edit_strategy")} loading={busy === "assign"} onClick={assign}
@@ -190,9 +194,6 @@ function RecoveryTab({ product }: { product: string }) {
           </div>
         </Card>
       </div>
-      {s.source === "placeholder" && (
-        <p className="text-2xs text-fg-3">Recovery accounts use placeholder ranges until the bank's reference workbook values are loaded.</p>
-      )}
     </div>
   );
 }
@@ -214,8 +215,8 @@ function CollectionsTab({ product }: { product: string }) {
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Tile label="Delinquent accounts" value={num(k.delinquent_accounts)} sub={`${num(k.in_strategies)} in a strategy`} icon={<Users className="h-5 w-5" />} />
-        <Tile label="Balance in collections" value={money(k.balance)} sub="before charge-off" icon={<Database className="h-5 w-5" />} />
-        <Tile label="Amount past due" value={money(k.past_due)} sub="arrears to collect" icon={<CircleDollarSign className="h-5 w-5" />} />
+        <Tile label="Total balance" value={money(k.balance)} sub="before charge-off" icon={<Database className="h-5 w-5" />} />
+        <Tile label="Delinquent amount" value={money(k.past_due)} sub="past due, to collect" icon={<CircleDollarSign className="h-5 w-5" />} />
         <Tile label="Collected, last 30 days" value={money(k.collected_30d.value)} sub="payments on accounts in a strategy" icon={<Coins className="h-5 w-5" />} />
       </div>
 
@@ -226,21 +227,22 @@ function CollectionsTab({ product }: { product: string }) {
             <Link to="/customers" className="inline-flex items-center gap-1 font-medium text-primary-500 hover:underline">View all <ArrowRight className="h-3 w-3" /></Link></div>}>
           {!pop ? <p className="px-4 py-6 text-sm text-fg-2">Account lists are available to strategists and leaders.</p> : (
             <Table>
-              <thead><tr><Th>Account ID</Th><Th>Card business</Th><Th align="right">Days past due</Th><Th align="right">Balance</Th>
-                <Th align="right">Past due</Th><Th>Status</Th></tr></thead>
+              <thead><tr><Th>Account ID</Th><Th>Card business</Th><Th align="right">Total balance</Th>
+                <Th align="right">Delinquent amount</Th><Th align="right">Days past due</Th><Th align="right">Credit limit</Th><Th>Status</Th></tr></thead>
               <tbody>
                 {pop.rows.map((r) => (
                   <Tr key={r.customer_id}>
                     <Td><Link to={`/journeys/${r.customer_id}`} className="font-mono text-xs hover:underline">{r.account_number}</Link>
                       <span className="block text-2xs text-fg-3">{r.name}</span></Td>
                     <Td className="whitespace-nowrap text-fg-2">{r.product}</Td>
-                    <Td align="right">{r.days_past_due}</Td>
                     <Td align="right">{money(r.balance)}</Td>
                     <Td align="right">{money(r.past_due)}</Td>
+                    <Td align="right">{r.days_past_due}</Td>
+                    <Td align="right">{money(r.credit_limit)}</Td>
                     <Td className="text-xs text-fg-2">{r.status}</Td>
                   </Tr>
                 ))}
-                {!pop.rows.length && <Empty cols={6}>No delinquent accounts for this card business.</Empty>}
+                {!pop.rows.length && <Empty cols={7}>No delinquent accounts for this card business.</Empty>}
               </tbody>
             </Table>
           )}

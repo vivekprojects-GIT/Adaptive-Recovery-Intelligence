@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 
+from ... import models
 from ...core.database import get_db
 from .. import compliance
 from ..models import ComplianceViolation, User
@@ -37,6 +38,8 @@ def compliance_view(severity: str = "", status: str = "", area: str = "",
     res_days = [(datetime.fromisoformat(v.resolved_at) - datetime.fromisoformat(v.detected_at)).total_seconds() / 86400
                 for v in resolved]
     scores = compliance.area_scores(db, month)
+    accts = dict(db.query(models.Customer.customer_id, models.Customer.account_number).filter(
+        models.Customer.customer_id.in_({v.customer_id for v in rows if v.customer_id})).all())
     return {
         "kpis": {"open": len(open_v), "open_critical": sum(v.severity == "Critical" for v in open_v),
                  "open_high": sum(v.severity == "High" for v in open_v),
@@ -51,7 +54,7 @@ def compliance_view(severity: str = "", status: str = "", area: str = "",
         "violations": [{k: getattr(v, k) for k in (
             "violation_id", "policy_area", "rule", "severity", "campaign_id", "customer_id", "nudge_id",
             "description", "detected_at", "status", "resolved_by", "resolved_at", "resolution_note")}
-            for v in rows],
+            | {"account_number": accts.get(v.customer_id)} for v in rows],
     }
 
 

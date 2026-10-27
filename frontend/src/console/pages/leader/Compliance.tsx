@@ -4,14 +4,14 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "../../lib/api";
-import { customerRef, dateTime, pct } from "../../lib/format";
+import { dateTime, pct } from "../../lib/format";
 import { useApi, useSession } from "../../lib/session";
 import { BarList, StackedWeekly } from "../../ui/charts";
 import {
   Banner, Button, Card, Drawer, Empty, ErrorState, Field, Kpi, Page, PageHeader, Pills, Progress, Spinner, StatusChip, Table, Td, Th, Tr, inputCls, useAction,
 } from "../../ui/ui";
 
-interface V { violation_id: string; policy_area: string; rule: string; severity: string; campaign_id: string | null; customer_id: number | null;
+interface V { violation_id: string; policy_area: string; rule: string; severity: string; campaign_id: string | null; customer_id: number | null; account_number: string | null;
   nudge_id: string | null; description: string; detected_at: string; status: string; resolved_by: string | null; resolved_at: string | null; resolution_note: string | null }
 interface Data {
   kpis: { open: number; open_critical: number; open_high: number; month_total: number; score: number; weakest: string; avg_resolution_days: number | null };
@@ -87,7 +87,7 @@ export default function Compliance() {
                   <Td className="text-xs">{v.policy_area}<span className="block text-2xs text-fg-3">{v.rule}</span></Td>
                   <Td className="max-w-md text-xs text-fg-2">{v.description}</Td>
                   <Td className="text-xs">{v.campaign_id ?? <span className="text-fg-3">BAU only</span>}</Td>
-                  <Td>{v.customer_id ? <Link onClick={(e) => e.stopPropagation()} to={`/journeys/${v.customer_id}`} className="text-xs text-primary-500 hover:underline">{customerRef(v.customer_id)}</Link> : "—"}</Td>
+                  <Td>{v.customer_id ? <Link onClick={(e) => e.stopPropagation()} to={`/journeys/${v.customer_id}`} className="text-xs text-primary-500 hover:underline">{v.account_number}</Link> : "—"}</Td>
                   <Td className="text-xs text-fg-3">{dateTime(v.detected_at)}</Td><Td><StatusChip status={v.status} /></Td>
                 </Tr>
               ))}
