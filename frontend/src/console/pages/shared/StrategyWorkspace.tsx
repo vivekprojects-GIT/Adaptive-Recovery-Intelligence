@@ -123,7 +123,7 @@ function RecoveryTab({ product }: { product: string }) {
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Tile label="Charged-off accounts" value={num(s.charged_off_accounts.value)} delta={s.charged_off_accounts.delta} icon={<Users className="h-5 w-5" />} />
+        <Tile label="Recovery accounts" value={num(s.charged_off_accounts.value)} delta={s.charged_off_accounts.delta} icon={<Users className="h-5 w-5" />} />
         <Tile label="Charge-off balance" value={money(s.charge_off_balance.value)} delta={s.charge_off_balance.delta} icon={<Database className="h-5 w-5" />} />
         <Tile label="Amount recovered" value={money(s.amount_recovered.value)} delta={s.amount_recovered.delta} icon={<BarChart3 className="h-5 w-5" />} />
         <Tile label="Current recovery balance" value={money(s.remaining_balance.value)} delta={s.remaining_balance.delta}
@@ -163,7 +163,7 @@ function RecoveryTab({ product }: { product: string }) {
                       </Tr>
                     );
                   })}
-                  {!(rows ?? []).length && <Empty cols={7}>No charged-off accounts for this card business.</Empty>}
+                  {!(rows ?? []).length && <Empty cols={7}>No recovery accounts for this card business.</Empty>}
                 </tbody>
               </Table>
               {all && list.data && list.data.total > list.data.page_size && (

@@ -24,8 +24,8 @@ from .models import Campaign, Decision, Outcome, Placement, RecoveryAccount, Rec
 UTC = timezone.utc
 WEEKS = 12
 MIN_WEEK = 10   # a weekly payment rate on fewer treated accounts is not shown
-ROUTES = [("strategy", "In CARE strategies"), ("bau", "Business as usual"), ("hardship", "Hardship team"),
-          ("suppress", "Do not contact")]
+ROUTES = [("strategy", "Accounts in a strategy"), ("bau", "Business as usual"), ("hardship", "Sent to the hardship team"),
+          ("suppress", "Not contacted")]
 
 
 def _iso(d: datetime) -> str:
@@ -148,7 +148,7 @@ def dashboard(db: Session, user, product: str | None, process: str, period: int,
     placed = {p.customer_id for p in db.query(Placement).filter(Placement.status == "Placed")} & set(customers)
     stages = [{"stage": label, "accounts": route.get(key, 0), "process": "collections"} for key, label in ROUTES]
     stages.append({"stage": "With collection agencies", "accounts": len(placed), "process": "collections"})
-    stages.append({"stage": "Charged off, in recovery", "accounts": sum(a.status != "Paid in Full"
+    stages.append({"stage": "In recovery", "accounts": sum(a.status != "Paid in Full"
                                                                           for a in raccts), "process": "recovery"})
     status = Counter(a.status for a in raccts)
 
@@ -196,7 +196,7 @@ def dashboard(db: Session, user, product: str | None, process: str, period: int,
         links.append({"source": src[0], "target": dst[0], "value": value})
 
     if show_c:
-        book = ("c_book", "Collections book", "collections")
+        book = ("c_book", "Collections accounts", "collections")
         for key, label in ROUTES:
             link(book, (f"route_{key}", label, "collections"), route.get(key, 0))
         latest: dict[int, Decision] = {}
@@ -215,13 +215,13 @@ def dashboard(db: Session, user, product: str | None, process: str, period: int,
             else:
                 unpaid += 1
         undecided = max(0, route.get("strategy", 0) - paid - unpaid - waiting)
-        src = ("route_strategy", "In CARE strategies", "collections")
+        src = ("route_strategy", "Accounts in a strategy", "collections")
         link(src, ("out_paid", "Paid", "outcome"), paid)
         link(src, ("out_unpaid", "Not paid in window", "outcome"), unpaid)
-        link(src, ("out_waiting", "Awaiting outcome", "outcome"), waiting)
-        link(src, ("out_undecided", "Not yet decided", "outcome"), undecided)
+        link(src, ("out_waiting", "Waiting for the outcome", "outcome"), waiting)
+        link(src, ("out_undecided", "Waiting for a decision", "outcome"), undecided)
     if show_r:
-        book = ("r_book", "Charged-off book", "recovery")
+        book = ("r_book", "Recovery accounts", "recovery")
         for st, n in status.most_common():
             link(book, (f"status_{st}", st, "recovery"), n)
 

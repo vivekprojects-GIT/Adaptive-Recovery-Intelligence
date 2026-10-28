@@ -20,7 +20,7 @@ export const METRICS: Record<string, MetricDef> = {
     label: "Routing share", group: "Intake",
     meaning: "Where the Propensity Router sent each account.",
     formula: "Accounts on a route ÷ all routed accounts",
-    read: "Only accounts a contact is likely to help go to CARE strategies. The rest go to business as usual, the hardship team, or are not contacted.",
+    read: "Only accounts a contact is likely to help are put in a strategy. The rest go to business as usual, the hardship team, or are not contacted.",
   },
   payment_rate: {
     label: "Payment rate", group: "Recovery",

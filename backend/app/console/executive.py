@@ -23,8 +23,8 @@ from .engine import arrears
 from .models import Campaign, ComplianceViolation, Decision, Handoff, Nudge, Outcome, Placement
 
 UTC = timezone.utc
-ROUTES = [("strategy", "CARE strategies"), ("bau", "Business as usual"), ("hardship", "Hardship team"),
-          ("suppress", "Do not contact")]
+ROUTES = [("strategy", "Accounts in a strategy"), ("bau", "Business as usual"), ("hardship", "Sent to the hardship team"),
+          ("suppress", "Not contacted")]
 REVIEW_SLA_HOURS = 24
 
 

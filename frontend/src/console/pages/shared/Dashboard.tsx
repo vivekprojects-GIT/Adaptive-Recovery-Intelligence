@@ -214,7 +214,7 @@ function Narrative({ d, showC, showR, periodLabel }: { d: Data; showC: boolean; 
   }
   if (showR && d.kpis.recovered && d.kpis.remaining) {
     const dl = d.kpis.recovered.delta;
-    lines.push(<><b>{fmtK(d.kpis.recovered.value ?? 0)}</b> recovered on charged-off accounts
+    lines.push(<><b>{fmtK(d.kpis.recovered.value ?? 0)}</b> recovered on recovery accounts
       {dl !== null && dl !== undefined ? <> ({dl >= 0 ? "up" : "down"} {pct(Math.abs(dl), 0)} on the prior period)</> : null}; <b>{fmtK(d.kpis.remaining.value ?? 0)}</b> remains to recover.</>);
   }
   if (!lines.length) return null;
@@ -359,7 +359,7 @@ export default function Dashboard() {
                 trend={data.kpis.payment_rate.trend} />
             )}
             {showR && data.kpis.charged_off && (
-              <KpiTile label="Charged-off accounts" value={data.kpis.charged_off.value ?? 0} format={fmtNum} color={REC}
+              <KpiTile label="Recovery accounts" value={data.kpis.charged_off.value ?? 0} format={fmtNum} color={REC}
                 foot={<DeltaPill d={data.kpis.charged_off.delta} goodWhenUp={null} />} trend={data.kpis.charged_off.trend} />
             )}
             {showR && data.kpis.recovered && (
@@ -375,7 +375,7 @@ export default function Dashboard() {
           {/* Flow and attention */}
           <div className="grid gap-3 xl:grid-cols-3">
             <Tile title="Account flow" metric="routing_share" className="xl:col-span-2"
-              subtitle="Each book, where its accounts went, and what happened to accounts in CARE strategies"
+              subtitle="Each book, where its accounts went, and what happened to the accounts in a strategy. Every number is a count of accounts."
               figure={<Figure value={num(data.flow.links.filter((l) => l.source === "c_book" || l.source === "r_book").reduce((t, l) => t + l.value, 0))} label="accounts" />}
               table={{ columns: ["From", "To", "Accounts"], rows: data.flow.links.map((l) => [
                 data.flow.nodes.find((n) => n.id === l.source)?.label ?? l.source, data.flow.nodes.find((n) => n.id === l.target)?.label ?? l.target, l.value]) }}>
@@ -420,7 +420,7 @@ export default function Dashboard() {
             {showR && (() => {
               const w = weekly("recovery");
               return (
-                <Tile title="Recovered by week" subtitle="Payments on charged-off accounts" figure={<Figure value={fmtK(w.total)} label="12 weeks" />}
+                <Tile title="Recovered by week" subtitle="Payments on recovery accounts" figure={<Figure value={fmtK(w.total)} label="12 weeks" />}
                   table={{ columns: ["Week of", "Recovered"], rows: data.cash_by_week.map((x) => [weekLabel(x.week), money(x.recovery ?? 0)]) }}>
                   <TimeSeries weeks={data.weeks} format={fmtK} hover={hoverWeek} onHover={onHover} emptyText="No payments in these 12 weeks"
                     reference={w.avg ? { label: "Weekly average", value: w.avg } : undefined}
@@ -471,7 +471,7 @@ export default function Dashboard() {
 
           {/* Matrices */}
           <Tile title="Card business summary" subtitle={`Flows for the ${periodLabel}; balances as they stand today. Select a row to filter the page`}
-            table={{ columns: ["Card business", "Collections accounts", "Balance", "Delinquent amount", "Collected", "Charged off", "Recovered", "Remaining"],
+            table={{ columns: ["Card business", "Collections accounts", "Balance", "Delinquent amount", "Collected", "Recovery accounts", "Recovered", "Remaining"],
               rows: data.businesses.map((b) => [b.business, b.collections_accounts, Math.round(b.collections_balance), Math.round(b.past_due), Math.round(b.collected),
                 b.charged_off_accounts, Math.round(b.recovered), Math.round(b.remaining)]) }}>
             <div className="-mx-4 -mb-3 overflow-x-auto">
@@ -480,7 +480,7 @@ export default function Dashboard() {
                   <th scope="col" className={clsx(TH, "text-left")}>Card business</th>
                   {showC && <><th scope="col" className={clsx(TH, "text-right")}>Collections accounts</th><th scope="col" className={clsx(TH, "text-right")}>Balance</th>
                     <th scope="col" className={clsx(TH, "text-right")}>Delinquent amount</th><th scope="col" className={clsx(TH, "text-right")}>Collected</th></>}
-                  {showR && <><th scope="col" className={clsx(TH, "text-right")}>Charged off</th><th scope="col" className={clsx(TH, "text-right")}>Recovered</th>
+                  {showR && <><th scope="col" className={clsx(TH, "text-right")}>Recovery accounts</th><th scope="col" className={clsx(TH, "text-right")}>Recovered</th>
                     <th scope="col" className={clsx(TH, "text-right")}>Remaining</th></>}
                 </tr></thead>
                 <tbody>

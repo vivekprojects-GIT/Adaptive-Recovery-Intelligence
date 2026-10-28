@@ -18,7 +18,7 @@ from ..rbac import granted, require
 
 router = APIRouter()
 UTC = timezone.utc
-ROUTE_STATUS = {"bau": "Business as usual", "hardship": "Hardship team", "suppress": "Do not contact"}
+ROUTE_STATUS = {"bau": "Business as usual", "hardship": "Hardship team", "suppress": "Not contacted"}
 
 
 def _product(p: str) -> str | None:

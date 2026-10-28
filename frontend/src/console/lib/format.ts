@@ -68,7 +68,7 @@ export const initials = (name: string) =>
 
 /** Where the Propensity Router sends each customer. */
 export const ROUTE_LABEL: Record<string, string> = {
-  strategy: "Strategy", bau: "Business as usual", hardship: "Hardship team", suppress: "Suppressed",
+  strategy: "In a strategy", bau: "Business as usual", hardship: "Hardship team", suppress: "Not contacted",
 };
 export const SEGMENTS = ["Persuadable", "Sure Thing", "Lost Cause", "Sleeping Dog"];
 /** The colour that identifies each fit group in charts and their legends. */

@@ -17,7 +17,7 @@ interface Props {
   reviewPolicy: string; reviewStatus: string; reviewReason: string | null; outcome: string | null; amount: number | null;
 }
 
-const ROUTE = { strategy: "Strategy", bau: "Business as usual", hardship: "Hardship team", suppress: "Suppressed" } as Record<string, string>;
+const ROUTE = { strategy: "In a strategy", bau: "Business as usual", hardship: "Hardship team", suppress: "Not contacted" } as Record<string, string>;
 
 function Node({ title, detail, tone = "neutral", children }: { title: ReactNode; detail?: ReactNode; tone?: "neutral" | "chosen" | "blocked" | "muted"; children?: ReactNode }) {
   return (

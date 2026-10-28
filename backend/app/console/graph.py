@@ -92,7 +92,7 @@ RELATIONSHIPS: list[tuple[str, str, str, str]] = [
 
 GROUP_LABEL = {"Persuadable": "Likely responsive", "Sure Thing": "Likely self-cure", "Lost Cause": "Needs support",
                "Sleeping Dog": "Do not contact"}
-ROUTE_LABEL = {"strategy": "CARE strategies", "bau": "Business as usual", "hardship": "Hardship team",
+ROUTE_LABEL = {"strategy": "Accounts in a strategy", "bau": "Business as usual", "hardship": "Sent to the hardship team",
                "suppress": "Do not contact"}
 
 

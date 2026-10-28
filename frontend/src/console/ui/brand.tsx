@@ -31,13 +31,14 @@ export function BrandMark({ onDark, size = "md" }: { onDark?: boolean; size?: "s
 export const PRODUCT_NAME = "CARE";
 export const PRODUCT_FULL_NAME = "Collection and Recovery Agent";
 
-/** CARE's mark: an open C holding a payment coming back. Same drawing as public/favicon.svg. */
+/** CARE's mark: one C in two parts, collections (white) and recovery (blue), with the
+ *  hand-off between them as the gap. Same drawing as public/favicon.svg. */
 export function CareMark({ size = 32, className }: { size?: number; className?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden className={clsx("shrink-0", className)}>
-      <rect width="32" height="32" rx="8" fill="#12ABDB" />
-      <path d="M21.2 10.3A7.6 7.6 0 1 0 21.2 21.7" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" />
-      <circle cx="23.1" cy="16" r="2.2" fill="#fff" />
+      <rect width="32" height="32" rx="8" fill="#1D365A" />
+      <path d="M23 10.1A9 9 0 0 0 7.3 14.4" fill="none" stroke="#12ABDB" strokeWidth="3.6" strokeLinecap="round" />
+      <path d="M7.6 19.2A9 9 0 0 0 23 21.9" fill="none" stroke="#fff" strokeWidth="3.6" strokeLinecap="round" />
     </svg>
   );
 }

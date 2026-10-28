@@ -71,7 +71,7 @@ export default function Customers({ journeys }: { journeys?: boolean }) {
                     <Td align="right"><span className="block">{money(r.balance)}</span><span className="block whitespace-nowrap text-2xs text-fg-3">limit {money(r.credit_limit)}</span></Td>
                     <Td align="right"><span className="block">{money(r.arrears)}</span><span className="block whitespace-nowrap text-2xs text-fg-3">{r.days_past_due} days past due</span></Td>
                     <Td><RiskBar score={r.risk_score} /></Td>
-                    <Td><SegmentChip segment={r.segment} /><span className="block text-2xs text-fg-3">→ {r.route_validation ? "Strategy (validation)" : ROUTE_LABEL[r.route ?? ""] ?? "Not routed"}</span></Td>
+                    <Td><SegmentChip segment={r.segment} /><span className="block text-2xs text-fg-3">→ {r.route_validation ? "In a strategy (validation)" : ROUTE_LABEL[r.route ?? ""] ?? "Not routed"}</span></Td>
                     <Td className="text-xs">{r.treatment ?? <span className="text-fg-3">—</span>}{r.campaign_id && <span className="block font-mono text-2xs text-fg-3">{r.campaign_id}</span>}</Td>
                     <Td className="whitespace-nowrap"><StatusChip status={r.status} /></Td>
                     <Td><span className="flex items-center gap-2"><Progress value={r.progress} tone={r.progress >= 100 ? "good" : "primary"} /><span className="num w-8 text-2xs text-fg-3">{r.progress}%</span></span></Td>
