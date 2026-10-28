@@ -425,7 +425,7 @@ function Journey({ data, account, onAccount }: { data: Data; account: Account; o
                     : `${byCode[current.code].name} ${current.outcome === "paid" ? "worked" : "did not work"} this time, so CARE adds ${current.outcome === "paid" ? "a success" : "a failure"} to its record for this segment.`}</Lead>
                   <BeliefCurves name={current.code === CONTROL ? "no contact" : byCode[current.code].name} before={before[current.code]} after={beliefs[current.code]} />
                   <div data-rise>
-                    <p className="mb-2 text-2xs font-medium uppercase tracking-[0.08em] text-fg-3">Uplift over no contact, in percentage points</p>
+                    <p className="mb-2 text-2xs font-medium uppercase tracking-[0.08em] text-fg-3">Uplift over no contact, in points (extra payers per 100 customers)</p>
                     <UpliftBars treatments={data.treatments.filter((x) => codes.includes(x.code))} before={before} after={beliefs} />
                   </div>
                   <div data-rise>
@@ -827,7 +827,7 @@ function BeliefCurves({ name, before, after }: { name: string; before: Belief; a
   );
 }
 
-const points = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v * 100).toFixed(1)} pts`;
+const points = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v * 100).toFixed(1)} points`;
 
 /** What happens with no contact: the line every treatment is measured against. */
 function Baseline({ control, share, hold }: { control: Belief; share: number; hold: boolean }) {

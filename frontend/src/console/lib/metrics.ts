@@ -60,7 +60,7 @@ export const METRICS: Record<string, MetricDef> = {
   },
   lift: {
     label: "Lift over control", group: "Experiment",
-    meaning: "The extra payment rate the strategy caused.",
+    meaning: "The extra payment rate the strategy caused, in points: +11 points means 11 more customers in every 100 paid than with no contact.",
     formula: "Experiment payment rate − control payment rate, with a 95% range (Agresti-Caffo)",
     read: "If the whole range is above zero, the strategy is proven to help. A range that crosses zero is not proven yet.",
   },

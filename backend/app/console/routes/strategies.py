@@ -489,7 +489,7 @@ def build_recommendations(db: Session, cohorts: set[str], family: set[str]) -> d
         o, s = best
         out.append({"kind": "clone", "title": "Segment match found",
                     "body": f"{o.campaign_id} {o.name} targets the same cohort with "
-                            f"{s['recovery_rate']:.0%} recovery and {s['uplift'] * 100:+.1f} pp over its "
+                            f"{s['recovery_rate']:.0%} recovery and {s['uplift'] * 100:+.1f} points over its "
                             f"control ({'significant' if s['significant'] else 'not yet significant'}, "
                             f"{s['treated']} vs {s['control']} customers). Clone it as a starting point?",
                     "campaign_id": o.campaign_id})

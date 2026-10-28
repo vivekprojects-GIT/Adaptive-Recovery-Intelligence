@@ -123,7 +123,7 @@ async def main(url: str, token: str) -> None:
             print("\n4. The live strategies, as Nova sees them")
             for st in out(await s.call_tool("list_live_strategies", {}))["strategies"]:
                 res, lead = st["results"], st["leading_treatment"]
-                up = f"{res['uplift'] * 100:+.1f} pp vs control" if res["uplift"] is not None else "no control yet"
+                up = f"{res['uplift'] * 100:+.1f} points vs no contact" if res["uplift"] is not None else "no control yet"
                 print(f"  {st['strategy_id']} {st['name']}: {res['treated']} treated, {up}"
                       + (f"; most likely best: {lead['code']} ({lead['probability_best']:.0%})" if lead else ""))
     print("\nOpen the ARI Console: Decisions (Nova's are marked), Review Queue, API & Integrations.")

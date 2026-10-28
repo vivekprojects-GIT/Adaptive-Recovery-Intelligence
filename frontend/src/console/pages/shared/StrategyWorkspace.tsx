@@ -254,7 +254,7 @@ function CollectionsTab({ product }: { product: string }) {
               <OptionCard key={s.campaign_id} checked={picked?.campaign_id === s.campaign_id} onSelect={() => setChoice(s.campaign_id)}
                 title={s.name} tag={s.status === "Paused" ? "Paused" : undefined}>
                 {s.treatments.map(name).join(" · ")}
-                <span className="mt-0.5 block text-fg-3">Payment rate {pct(s.payment_rate)} · target {pct(s.target, 0)}{s.lift !== null ? ` · lift ${s.lift >= 0 ? "+" : ""}${(s.lift * 100).toFixed(1)} pp` : ""}</span>
+                <span className="mt-0.5 block text-fg-3">Payment rate {pct(s.payment_rate)} · target {pct(s.target, 0)}{s.lift !== null ? ` · ${s.lift >= 0 ? "+" : ""}${(s.lift * 100).toFixed(1)} points over no contact` : ""}</span>
               </OptionCard>
             ))}
           </div>

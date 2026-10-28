@@ -103,15 +103,15 @@ def _verdict(group: str, diff: dict, tn: int, cn: int) -> tuple[str, str]:
     lo, hi = diff["ci"]
     if group == "Persuadable":
         if lo > 0:
-            return "Confirmed", f"Treatment adds {diff['value'] * 100:+.1f} pp, and the 95% range is above zero."
+            return "Confirmed", f"Treatment adds {diff['value'] * 100:+.1f} points, and the 95% range is above zero."
         if hi < 0:
             return "Contradicted", "Treated customers pay less than untreated ones: the group is not responsive."
-        return "Not proven yet", f"{diff['value'] * 100:+.1f} pp so far; the 95% range still includes zero."
+        return "Not proven yet", f"{diff['value'] * 100:+.1f} points so far; the 95% range still includes zero."
     if lo > 0:
-        return "Contradicted", (f"Treatment adds {diff['value'] * 100:+.1f} pp for a group the router keeps off "
+        return "Contradicted", (f"Treatment adds {diff['value'] * 100:+.1f} points for a group the router keeps off "
                                 f"strategies: it may be leaving recoveries on the table.")
-    return "Consistent", (f"Treatment makes no measurable difference ({diff['value'] * 100:+.1f} pp, range "
-                          f"{lo * 100:+.0f} to {hi * 100:+.0f} pp), as the router assumes.")
+    return "Consistent", (f"Treatment makes no measurable difference ({diff['value'] * 100:+.1f} points, range "
+                          f"{lo * 100:+.0f} to {hi * 100:+.0f} points), as the router assumes.")
 
 
 def _band(x: float, edges: list[float], labels: list[str]) -> str:

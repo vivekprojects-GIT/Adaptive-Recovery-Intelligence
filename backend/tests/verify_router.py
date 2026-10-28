@@ -97,7 +97,7 @@ with TestClient(app) as api:
     eng = sc["engine"]
     check(eng["available"] and 0 <= eng["overall"]["picked_best"] <= 1 and eng["overall"]["regret"] >= 0,
           f"engine: picked the truly best treatment {eng['overall']['picked_best']:.0%} of the time, "
-          f"average miss {eng['overall']['regret'] * 100:.1f} pp")
+          f"average miss {eng['overall']['regret'] * 100:.1f} points")
     s = api.get("/console/strategies/STR-021", headers=JAMES).json()
     card, st = s["scorecard"], s["stats"]
     check(card["treated"] == st["treated"] and abs(card["incremental_recoveries"] - st["uplift"] * st["treated"]) < 0.06,

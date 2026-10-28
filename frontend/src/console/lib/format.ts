@@ -12,8 +12,12 @@ export const money = (v: number | null | undefined, compact = false) => {
 export const pct = (v: number | null | undefined, d = 1) =>
   v === null || v === undefined ? "—" : `${(v * 100).toFixed(d)}%`;
 
-export const pp = (v: number | null | undefined, d = 1) =>
-  v === null || v === undefined ? "—" : `${v >= 0 ? "+" : "−"}${Math.abs(v * 100).toFixed(d)} pp`;
+/** A difference between two rates, in percentage points: +11.2 points means 11.2 more customers in every 100. */
+export const pp = (v: number | null | undefined, d = 1) => {
+  if (v === null || v === undefined) return "—";
+  const n = Math.abs(v * 100).toFixed(d);
+  return `${v >= 0 ? "+" : "−"}${n} ${Number(n) === 1 ? "point" : "points"}`;
+};
 
 export const num = (v: number | null | undefined) =>
   v === null || v === undefined ? "—" : new Intl.NumberFormat("en-US").format(v);

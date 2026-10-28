@@ -262,7 +262,7 @@ def _revision_suggestions(db: Session, ev: Evidence) -> list[dict]:
         if behind:
             problems.append(f"recovers {_pct(s['recovery_rate'])} against a {_pct(camp.recovery_target)} target")
         if no_lift:
-            problems.append(f"is {abs(s['uplift']) * 100:.1f} pts below its own control group "
+            problems.append(f"is {abs(s['uplift']) * 100:.1f} points below its own control group "
                             f"({s['treated']} treated vs {s['control']} control)")
         if escalating:
             problems.append(f"escalates {_pct(s['escalation_rate'])} of customers against an {_pct(ceiling)} ceiling")

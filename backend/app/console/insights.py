@@ -31,7 +31,7 @@ def _pct(x):
 
 
 def _pp(x):
-    return f"{x * 100:+.1f} pp" if x is not None else "n/a"
+    return f"{x * 100:+.1f} points" if x is not None else "n/a"
 
 
 # ---------------------------------------------------------------------------

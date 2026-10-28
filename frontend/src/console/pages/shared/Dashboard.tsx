@@ -204,7 +204,7 @@ function Narrative({ d, showC, showR, periodLabel }: { d: Data; showC: boolean; 
   const pr = d.kpis.payment_rate;
   if (showC && pr && pr.value !== null) {
     const best = [...d.strategies].filter((s) => s.lift !== null && s.treated >= 10).sort((a, b) => (b.lift ?? 0) - (a.lift ?? 0))[0];
-    lines.push(<>Treated accounts paid at <b>{pct(pr.value)}</b> against <b>{pct(pr.control)}</b> for the control group, a lift of <b>{pp(pr.lift)}</b>
+    lines.push(<>Treated accounts paid at <b>{pct(pr.value)}</b> against <b>{pct(pr.control)}</b> for customers held back with no contact: <b>{pp(pr.lift)} over no contact</b>, about {Math.round((pr.lift ?? 0) * 100)} more payers in every 100 contacted
       {best ? <>; <b>{best.name}</b> leads at {pp(best.lift)}</> : null}.</>);
   }
   if (showC && d.kpis.collected) {
@@ -354,8 +354,8 @@ export default function Dashboard() {
             )}
             {showC && data.kpis.payment_rate && (
               <KpiTile label="Payment rate, treated" metric="payment_rate" value={data.kpis.payment_rate.value ?? 0} format={fmtPct1} color={COLL}
-                foot={<span className="text-[11px] text-[#6b778a]">control {pct(data.kpis.payment_rate.control)} · lift{" "}
-                  <span className={clsx("num font-semibold", (data.kpis.payment_rate.lift ?? 0) >= 0 ? "text-[#1e6b3c]" : "text-[#a3172d]")}>{pp(data.kpis.payment_rate.lift)}</span></span>}
+                foot={<span className="text-[11px] text-[#6b778a]">no contact {pct(data.kpis.payment_rate.control)} ·{" "}
+                  <span className={clsx("num font-semibold", (data.kpis.payment_rate.lift ?? 0) >= 0 ? "text-[#1e6b3c]" : "text-[#a3172d]")}>{pp(data.kpis.payment_rate.lift)}</span> over no contact</span>}
                 trend={data.kpis.payment_rate.trend} />
             )}
             {showR && data.kpis.charged_off && (
@@ -430,7 +430,7 @@ export default function Dashboard() {
             })()}
             {showC && (
               <Tile title="Payment rate, treated against control" metric="lift" subtitle="Shaded gap is the lift. Weeks under 10 treated accounts omitted"
-                figure={data.kpis.payment_rate && <Figure value={pp(data.kpis.payment_rate.lift)} label="lift" />}
+                figure={data.kpis.payment_rate && <Figure value={pp(data.kpis.payment_rate.lift)} label="over no contact" />}
                 table={{ columns: ["Decision week", "Treated", "Control"], rows: data.rate_by_week.map((x) => [weekLabel(x.week), x.treated === null ? "—" : pct(x.treated), x.control === null ? "—" : pct(x.control)]) }}>
                 <TimeSeries weeks={data.weeks} format={fmtPct} hover={hoverWeek} onHover={onHover} band={["t", "k"]} emptyText="Not enough treated accounts per week yet"
                   series={[{ key: "t", name: "Treated", color: COLL, values: data.rate_by_week.map((x) => x.treated), kind: "line" },
@@ -527,7 +527,7 @@ export default function Dashboard() {
           {showC && (
             <Tile title="Strategy performance" metric="lift" subtitle="Payment rate against target: bands show off track, watch (within 5 points) and on track; the tick is the target"
               actions={<Link to="/analytics" className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-primary-500 hover:underline">Details <ArrowRight className="h-3 w-3" /></Link>}
-              table={{ columns: ["Strategy", "Status", "Treated", "Payment rate", "Target", "Control", "Lift", "State"], rows: data.strategies.map((s) => [
+              table={{ columns: ["Strategy", "Status", "Treated", "Payment rate", "Target", "No contact", "Lift over no contact", "State"], rows: data.strategies.map((s) => [
                 s.name, s.status, s.treated, s.payment_rate === null ? "—" : pct(s.payment_rate), pct(s.target, 0), s.control_rate === null ? "—" : pct(s.control_rate),
                 s.lift === null ? "—" : pp(s.lift), s.state ?? "—"]) }}>
               <div className="-mx-4 -mb-3 overflow-x-auto">
@@ -536,7 +536,7 @@ export default function Dashboard() {
                     <th scope="col" className={clsx(TH, "text-left")}>Strategy</th><th scope="col" className={clsx(TH, "text-right")}>Treated</th>
                     <th scope="col" className={clsx(TH, "text-left")}>Payment rate · % of target</th>
                     <th scope="col" className={clsx(TH, "text-right")}>Target</th><th scope="col" className={clsx(TH, "text-right")}>Control</th>
-                    <th scope="col" className={clsx(TH, "text-right")}>Lift</th><th scope="col" className={clsx(TH, "text-left")}>State</th>
+                    <th scope="col" className={clsx(TH, "text-right")}>Lift over no contact</th><th scope="col" className={clsx(TH, "text-left")}>State</th>
                   </tr></thead>
                   <tbody>
                     {data.strategies.map((s) => {

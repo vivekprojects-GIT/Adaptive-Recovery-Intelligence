@@ -169,7 +169,7 @@ METRIC_LABELS = {
 
 def _fmt_metric(metric: str, v: float) -> str:
     if metric in ("campaign_rate_vs_target", "campaign_uplift"):
-        return f"{v * 100:+.1f} pp"
+        return f"{v * 100:+.1f} points"
     if metric in ("escalation_rate", "recovery_rate"):
         return f"{v * 100:.1f}%"
     if metric == "latency_p95_ms":

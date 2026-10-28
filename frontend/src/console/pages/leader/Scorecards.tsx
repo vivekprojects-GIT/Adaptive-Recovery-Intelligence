@@ -29,7 +29,7 @@ interface Data {
 
 const STATE_TONE: Record<string, Tone> = { Contradicted: "bad", "Not proven yet": "neutral", "Too few results": "neutral" };
 /** Payment rate given up: a cost, so no sign. */
-const missed = (v: number | null) => (v === null ? "—" : `${(v * 100).toFixed(1)} pp`);
+const missed = (v: number | null) => (v === null ? "—" : `${(v * 100).toFixed(1)} points`);
 const range = (ci: [number, number] | null) => (ci ? `${pp(ci[0], 0)} to ${pp(ci[1], 0)}` : "");
 
 export default function Scorecards() {

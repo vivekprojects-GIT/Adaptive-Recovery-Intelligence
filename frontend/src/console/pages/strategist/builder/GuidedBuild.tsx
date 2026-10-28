@@ -312,7 +312,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
             <div className="grid gap-3 sm:grid-cols-3">
               <Kpi label="Customers it reaches" value={num(est?.eligible)} sub={est ? `of ${num(est.matching)} in the cohorts picked` : "Pick a cohort first"} />
               <Kpi label="Control / experiment" metric="control_group" value={est ? `${num(est.control)} / ${num(est.treatment)}` : "—"} sub="randomised split" />
-              <Kpi label="Smallest detectable lift" metric="mde" value={mde ? `${(mde * 100).toFixed(1)} pp` : "—"} tone={mde && mde > 0.12 ? "warn" : "neutral"} sub="smallest lift this audience can prove" />
+              <Kpi label="Smallest detectable lift" metric="mde" value={mde ? `${(mde * 100).toFixed(1)} points` : "—"} tone={mde && mde > 0.12 ? "warn" : "neutral"} sub="smallest lift this audience can prove" />
             </div>
             {mde && mde > 0.12 && (
               <Banner tone="warn" title="This audience is too small to prove a typical effect">

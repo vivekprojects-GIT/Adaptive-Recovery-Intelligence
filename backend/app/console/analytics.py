@@ -527,14 +527,14 @@ def results_state(s: dict) -> dict:
         return {"state": "No results", "verdict": "No outcomes against a control group yet."}
     if s["significant"] and up > 0:
         return {"state": "Proven",
-                "verdict": f"Beats its control group by {up * 100:+.1f} pp, and the 95% range is above zero."}
+                "verdict": f"Beats its control group by {up * 100:+.1f} points, and the 95% range is above zero."}
     if s["significant"]:
         return {"state": "Worse than control",
-                "verdict": f"Its customers pay {abs(up) * 100:.1f} pp less than its control group. Review it."}
-    tail = (f" At this size it can only reliably detect a difference of {s['mde'] * 100:.1f} pp or more."
+                "verdict": f"Its customers pay {abs(up) * 100:.1f} points less than its control group. Review it."}
+    tail = (f" At this size it can only reliably detect a difference of {s['mde'] * 100:.1f} points or more."
             if s["underpowered"] and s["mde"] else "")
     return {"state": "Not proven yet",
-            "verdict": f"{up * 100:+.1f} pp against its control group so far, but the 95% range still includes "
+            "verdict": f"{up * 100:+.1f} points against its control group so far, but the 95% range still includes "
                        f"zero.{tail}"}
 
 
