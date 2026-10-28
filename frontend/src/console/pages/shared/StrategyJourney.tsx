@@ -17,17 +17,21 @@ import { dateOnly, money, pct } from "../../lib/format";
 import { useApi } from "../../lib/session";
 import { Button, ErrorState, Page, PageHeader, Select, Spinner } from "../../ui/ui";
 
-interface Treatment {
-  code: string; name: string; description: string; channel: string; timing: string; status: string;
-  successes: number; attempts: number;
-}
+interface Treatment { code: string; name: string; description: string; channel: string; timing: string; status: string }
+interface Factor { label: string; value: string; weight: string }
 interface Account {
   recovery_id: number; account_number: string; name: string; product: string; charge_off_date: string;
   charge_off_balance: number; recovered: number; remaining: number; status: string; payments: number;
   last_payment: string | null; segment: { name: string; factors: { label: string; value: string; why: string }[] };
+  propensity: { pay: number; respond: number; pay_factors: Factor[]; respond_factors: Factor[] };
+  history: { control: { s: number; attempts: number }; treatments: Record<string, { s: number; attempts: number }> };
+  held_out: boolean[];
   recommended: Treatment & { reason: string };
 }
-interface Data { accounts: Account[]; treatments: Treatment[]; rules: { specialist_threshold: number; settlement_share: number; charge_off_dpd: number } }
+interface Data {
+  accounts: Account[]; treatments: Treatment[];
+  rules: { specialist_threshold: number; settlement_share: number; charge_off_dpd: number; control_share: number };
+}
 
 type Step = "start" | "segment" | "decide" | "execute" | "response" | "learn" | "next";
 type Outcome = "paid" | "none" | "feedback";
@@ -58,6 +62,10 @@ const OUTCOME: Record<Outcome, { label: string; hint: string; icon: LucideIcon }
   feedback: { label: "Customer feedback", hint: "The customer replies with a request", icon: MessageCircle },
 };
 const FEEDBACK = "I can't pay that all at once. Can I pay monthly?";
+// Decisions held back at random get no treatment, so every treatment is measured against doing nothing.
+const CONTROL = "CTRL";
+const NO_CONTACT: Treatment = { code: CONTROL, name: "No contact", channel: "None", timing: "Not contacted this attempt", status: "",
+  description: "Held back at random, so each treatment can be measured against doing nothing." };
 
 type Sys = "host" | "recovery" | "ai" | "exec" | "learn";
 const SYSTEMS: { id: Sys; name: string; what: string; icon: LucideIcon }[] = [
@@ -141,9 +149,13 @@ export default function StrategyJourney() {
 }
 
 function Journey({ data, account, onAccount }: { data: Data; account: Account; onAccount: (id: number) => void }) {
-  const codes = useMemo(() => data.treatments.map((t) => t.code), [data]);
-  const byCode = useMemo(() => Object.fromEntries(data.treatments.map((t) => [t.code, t])), [data]);
-  const start = useMemo<Beliefs>(() => Object.fromEntries(data.treatments.map((t) => [t.code, { s: t.successes, f: t.attempts - t.successes }])), [data]);
+  // Records are kept per segment: this account's segment, for each treatment the rules allow and for no contact.
+  const codes = useMemo(() => data.treatments.map((t) => t.code).filter((c) => c in account.history.treatments), [data, account]);
+  const byCode = useMemo<Record<string, Treatment>>(() => ({ ...Object.fromEntries(data.treatments.map((t) => [t.code, t])), [CONTROL]: NO_CONTACT }), [data]);
+  const start = useMemo<Beliefs>(() => ({
+    ...Object.fromEntries(Object.entries(account.history.treatments).map(([c, h]) => [c, { s: h.s, f: h.attempts - h.s }])),
+    [CONTROL]: { s: account.history.control.s, f: account.history.control.attempts - account.history.control.s },
+  }), [account]);
 
   const [started, setStarted] = useState(false);
   const [step, setStep] = useState<Step>("start");
@@ -178,11 +190,14 @@ function Journey({ data, account, onAccount }: { data: Data; account: Account; o
       eligible = codes.filter((c) => c !== last.code);
       rule = `${byCode[last.code].name} went unanswered, so it is not repeated straight away.`;
     }
-    const r = generator(account.recovery_id * 97 + attempts.filter((a) => a.outcome).length + 1);
+    const done = attempts.filter((a) => a.outcome).length;
+    const hold = account.held_out[done] ?? false;
+    const r = generator(account.recovery_id * 97 + done + 1);
     const draws = Object.fromEntries(eligible.map((c) => [c, betaDraw(beliefs[c], r)]));
-    const chosen = eligible.reduce((a, b) => (draws[b] > draws[a] ? b : a));
-    return { eligible, rule, draws, chosen };
+    const best = eligible.reduce((a, b) => (draws[b] > draws[a] ? b : a));
+    return { eligible, rule, draws, chosen: hold ? CONTROL : best, best, hold };
   }, [attempts, beliefs, instalments, account, data.rules, codes, byCode]);
+  const lift = (b: Beliefs, c: string) => rate(b[c]) - rate(b[CONTROL]);
 
   const chance = useMemo(() => chanceBest(beliefs, codes, 11), [beliefs, codes]);
   const chanceBefore = useMemo(() => chanceBest(before, codes, 11), [before, codes]);
@@ -195,7 +210,7 @@ function Journey({ data, account, onAccount }: { data: Data; account: Account; o
   };
   const chosen = step === "decide" && (!current || current.outcome) ? decision.chosen : current?.code ?? decision.chosen;
   const result = current?.outcome ? settle(account, current.code, current.outcome, data.rules.settlement_share) : null;
-  const finished = step === "next" && current?.outcome === "paid";
+  const finished = step === "next" && current?.outcome === "paid" && current.code !== CONTROL;
   const canNext = started && step !== "next" && !(step === "response" && !current?.outcome);
   const canLoop = started && step === "next" && !finished && !!current?.outcome;
 
@@ -320,25 +335,41 @@ function Journey({ data, account, onAccount }: { data: Data; account: Account; o
                       </div>
                     ))}
                   </div>
-                  <Lead muted>Accounts in the same segment are compared with each other, so CARE learns what works for customers in this position.</Lead>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <ScoreCard title="Likelihood to pay" score={account.propensity.pay} factors={account.propensity.pay_factors} />
+                    <ScoreCard title="Likelihood to respond" score={account.propensity.respond} factors={account.propensity.respond_factors} />
+                  </div>
+                  <Lead muted>CARE keeps a separate record of what works for each segment, so this account is judged against customers in the same position.</Lead>
                 </>}
 
                 {step === "decide" && <>
                   <RuleCheck text={decision.rule} />
+                  <Baseline control={beliefs[CONTROL]} share={data.rules.control_share} hold={decision.hold} />
                   <div className="grid gap-3 md:grid-cols-3">
                     {data.treatments.map((tr) => (
-                      <TreatmentCard key={tr.code} t={tr} belief={beliefs[tr.code]} chance={chance[tr.code]}
-                        allowed={decision.eligible.includes(tr.code)} draw={decision.draws[tr.code]} chosen={tr.code === decision.chosen} />
+                      <TreatmentCard key={tr.code} t={tr} belief={beliefs[tr.code]} uplift={beliefs[tr.code] ? lift(beliefs, tr.code) : 0}
+                        chance={chance[tr.code] ?? 0} allowed={decision.eligible.includes(tr.code)} draw={decision.draws[tr.code]}
+                        chosen={!decision.hold && tr.code === decision.chosen} />
                     ))}
                   </div>
                   <Callout icon={Scale}>
-                    {decision.eligible.length > 1
-                      ? <>For each allowed treatment CARE draws a plausible payment rate from what it has learned, and picks the highest: <b className="font-semibold text-fg">{byCode[decision.chosen].name}</b> this time. A treatment with less evidence still gets chosen now and then, which is how CARE keeps learning.</>
-                      : <>Only one treatment is allowed here, so the rules decide: <b className="font-semibold text-fg">{byCode[decision.chosen].name}</b>.</>}
+                    {decision.hold
+                      ? <>Without the comparison check CARE would have chosen <b className="font-semibold text-fg">{byCode[decision.best].name}</b>. This time the account is held back, and what it does with no contact is what every treatment's uplift is measured against.</>
+                      : decision.eligible.length > 1
+                        ? <>For each allowed treatment CARE draws a plausible payment rate from what it has learned for this segment, and picks the one with the biggest uplift over no contact: <b className="font-semibold text-fg">{byCode[decision.chosen].name}</b> this time. A treatment with less evidence still gets chosen now and then, which is how CARE keeps learning.</>
+                        : <>Only one treatment is allowed here, so the rules decide: <b className="font-semibold text-fg">{byCode[decision.chosen].name}</b>.</>}
                   </Callout>
                 </>}
 
-                {step === "execute" && t && <>
+                {step === "execute" && chosen === CONTROL && <>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <Fact label="Treatment" value="No contact" />
+                    <Fact label="Channel" value="None" />
+                    <Fact label="Why" value="Comparison group" />
+                  </div>
+                  <Callout icon={ShieldCheck}>Nothing is sent to {firstName(account)} this attempt. The account is recorded as held back, and whatever happens over the next 30 days shows what customers like this do without any contact.</Callout>
+                </>}
+                {step === "execute" && t && chosen !== CONTROL && <>
                   <div className="grid gap-3 sm:grid-cols-3">
                     <Fact label="Treatment" value={t.name} />
                     <Fact label="Channel" value={t.channel} />
@@ -364,9 +395,9 @@ function Journey({ data, account, onAccount }: { data: Data; account: Account; o
                 </>}
 
                 {step === "response" && current && <>
-                  <Lead>How did {firstName(account)} respond to the {byCode[current.code].name.toLowerCase()}?</Lead>
+                  <Lead>{current.code === CONTROL ? `With no contact, what did ${firstName(account)} do?` : `How did ${firstName(account)} respond to the ${byCode[current.code].name.toLowerCase()}?`}</Lead>
                   <div className="grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Customer response">
-                    {(["paid", "none", "feedback"] as Outcome[]).map((o) => {
+                    {((current.code === CONTROL ? ["paid", "none"] : ["paid", "none", "feedback"]) as Outcome[]).map((o) => {
                       const on = current.outcome === o, O = OUTCOME[o];
                       return (
                         <button key={o} type="button" role="radio" aria-checked={on} data-rise onClick={() => answer(o)}
@@ -379,7 +410,7 @@ function Journey({ data, account, onAccount }: { data: Data; account: Account; o
                           <span className={clsx("flex h-9 w-9 items-center justify-center rounded-lg", on ? "bg-primary-500 text-white" : "bg-surface-sunken text-fg-2")}>
                             <O.icon className="h-[18px] w-[18px]" /></span>
                           <span className="text-sm font-semibold text-fg">{O.label}</span>
-                          <span className="text-xs leading-5 text-fg-3">{o === "feedback" ? `"${FEEDBACK}"` : O.hint}</span>
+                          <span className="text-xs leading-5 text-fg-3">{o === "feedback" ? `"${FEEDBACK}"` : o === "paid" && current.code === CONTROL ? "The customer pays on their own" : O.hint}</span>
                         </button>
                       );
                     })}
@@ -389,16 +420,22 @@ function Journey({ data, account, onAccount }: { data: Data; account: Account; o
                 </>}
 
                 {step === "learn" && current?.outcome && <>
-                  <Lead>{byCode[current.code].name} {current.outcome === "paid" ? "worked" : "did not work"} this time, so CARE adds {current.outcome === "paid" ? "a success" : "a failure"} to its record.</Lead>
-                  <BeliefCurves name={byCode[current.code].name} before={before[current.code]} after={beliefs[current.code]} />
+                  <Lead>{current.code === CONTROL
+                    ? `${firstName(account)} was held back and ${current.outcome === "paid" ? "paid anyway" : "did not pay"}, so the comparison group's record changes, and with it every treatment's uplift.`
+                    : `${byCode[current.code].name} ${current.outcome === "paid" ? "worked" : "did not work"} this time, so CARE adds ${current.outcome === "paid" ? "a success" : "a failure"} to its record for this segment.`}</Lead>
+                  <BeliefCurves name={current.code === CONTROL ? "no contact" : byCode[current.code].name} before={before[current.code]} after={beliefs[current.code]} />
+                  <div data-rise>
+                    <p className="mb-2 text-2xs font-medium uppercase tracking-[0.08em] text-fg-3">Uplift over no contact, in percentage points</p>
+                    <UpliftBars treatments={data.treatments.filter((x) => codes.includes(x.code))} before={before} after={beliefs} />
+                  </div>
                   <div data-rise>
                     <p className="mb-2 text-2xs font-medium uppercase tracking-[0.08em] text-fg-3">Chance each treatment is the best</p>
-                    <ChanceBars treatments={data.treatments} before={chanceBefore} after={chance} />
+                    <ChanceBars treatments={data.treatments.filter((x) => codes.includes(x.code))} before={chanceBefore} after={chance} />
                   </div>
                   {current.outcome === "feedback" && <Callout icon={MessageCircle}>The customer's request is kept on the account: they want to pay monthly. That limits what CARE offers next.</Callout>}
                 </>}
 
-                {step === "next" && current?.outcome && result && (current.outcome === "paid" ? <>
+                {step === "next" && current?.outcome && result && (current.outcome === "paid" && current.code !== CONTROL ? <>
                   <div data-rise className="rounded-xl border border-good/25 bg-good-bg px-5 py-4">
                     <p className="flex items-center gap-2 text-sm font-semibold text-good"><Check className="h-4 w-4" />{result.status}</p>
                     <p className="mt-1 text-[15px] leading-6 text-fg">{result.story}</p>
@@ -413,7 +450,9 @@ function Journey({ data, account, onAccount }: { data: Data; account: Account; o
                     : "CARE keeps the arrangement on track with a reminder before each payment is due. A missed payment brings the account back to the AI strategy decision."}</Callout>
                   <div><Button icon={<RotateCcw className="h-4 w-4" />} onClick={restart}>Run the journey again</Button></div>
                 </> : <>
-                  <Lead>{current.outcome === "feedback" ? "The customer asked to pay monthly, so the next step changes." : "The offer did not work, so CARE tries again with what it has learned."}</Lead>
+                  <Lead>{current.code === CONTROL
+                    ? (current.outcome === "paid" ? "A payment came in with no contact. The account was held back for one attempt only, so CARE now decides again." : "The account was held back for one attempt only, so CARE now decides again.")
+                    : current.outcome === "feedback" ? "The customer asked to pay monthly, so the next step changes." : "The offer did not work, so CARE tries again with what it has learned."}</Lead>
                   <RuleCheck text={decision.rule} />
                   <div data-rise className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-primary-500 bg-primary-50 px-5 py-4">
                     <div>
@@ -693,9 +732,18 @@ function LifeLine({ account: a, chargeOffDpd }: { account: Account; chargeOffDpd
   );
 }
 
-function TreatmentCard({ t, belief, chance, allowed, draw, chosen }: {
-  t: Treatment; belief: Belief; chance: number; allowed: boolean; draw: number | undefined; chosen: boolean;
+function TreatmentCard({ t, belief, uplift, chance, allowed, draw, chosen }: {
+  t: Treatment; belief: Belief | undefined; uplift: number; chance: number; allowed: boolean; draw: number | undefined; chosen: boolean;
 }) {
+  if (!belief) {
+    return (
+      <div data-rise className="flex flex-col rounded-xl border border-line bg-surface-sunken p-4">
+        <p className="text-sm font-semibold text-fg-3">{t.name}</p>
+        <p className="text-xs text-fg-3">Not allowed by the rules</p>
+        <p className="mt-3 text-xs leading-5 text-fg-3">Never offered to accounts in this segment, so there is no record for it.</p>
+      </div>
+    );
+  }
   return (
     <div data-rise className={clsx("relative flex flex-col rounded-xl border p-4 transition-colors",
       chosen ? "border-primary-500 bg-primary-50 shadow-[inset_0_0_0_1px_theme(colors.primary.500)]" : "border-line",
@@ -704,9 +752,10 @@ function TreatmentCard({ t, belief, chance, allowed, draw, chosen }: {
       <p className={clsx("text-sm font-semibold", allowed ? "text-fg" : "text-fg-3")}>{t.name}</p>
       <p className="text-xs text-fg-3">{allowed ? t.channel : "Not allowed by the rules"}</p>
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <div><p className="text-2xs text-fg-3">Track record</p><p className={clsx("num text-sm font-semibold", allowed ? "text-fg" : "text-fg-3")}>{belief.s} of {belief.s + belief.f}</p></div>
-        <div><p className="text-2xs text-fg-3">Payment rate</p><p className={clsx("num text-sm font-semibold", allowed ? "text-fg" : "text-fg-3")}>{pct(rate(belief))}</p></div>
+        <div><p className="text-2xs text-fg-3">Pay rate</p><p className={clsx("num whitespace-nowrap text-base font-semibold", allowed ? "text-fg" : "text-fg-3")}>{pct(rate(belief))}</p></div>
+        <div><p className="text-2xs text-fg-3">Uplift</p><p className={clsx("num whitespace-nowrap text-base font-semibold", !allowed ? "text-fg-3" : uplift > 0 ? "text-good" : "text-bad")}>{points(uplift)}</p></div>
       </div>
+      <p className="mt-1 text-2xs text-fg-3">{belief.s} of {belief.s + belief.f} paid in this segment</p>
       <div className="mt-3">
         <div className="flex justify-between text-2xs text-fg-3"><span>Chance it is the best</span><span className="num font-medium text-fg-2">{pct(chance, 0)}</span></div>
         <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-hover">
@@ -775,6 +824,78 @@ function BeliefCurves({ name, before, after }: { name: string; before: Belief; a
       </svg>
       <p className="text-2xs text-fg-3">Payment rate. The narrower the curve, the surer CARE is.</p>
     </div>
+  );
+}
+
+const points = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v * 100).toFixed(1)} pts`;
+
+/** What happens with no contact: the line every treatment is measured against. */
+function Baseline({ control, share, hold }: { control: Belief; share: number; hold: boolean }) {
+  return (
+    <div data-rise className={clsx("flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3",
+      hold ? "border-warn/30 bg-warn-bg" : "border-line bg-surface-sunken")}>
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-fg">{hold ? "Held back this attempt: no contact" : "Comparison check: treated"}</p>
+        <p className="text-xs leading-5 text-fg-2">
+          {pct(share, 0)} of decisions are held back at random with no contact. In this segment {control.s} of {control.s + control.f} held-back
+          accounts paid, a {pct(rate(control))} rate; each treatment's uplift is its rate above that.
+        </p>
+      </div>
+      <div className="text-right">
+        <p className="text-2xs text-fg-3">Pay rate with no contact</p>
+        <p className="num text-lg font-semibold text-fg">{pct(rate(control))}</p>
+      </div>
+    </div>
+  );
+}
+
+function ScoreCard({ title, score, factors }: { title: string; score: number; factors: Factor[] }) {
+  const level = score >= 65 ? "High" : score >= 35 ? "Medium" : "Low";
+  return (
+    <div data-rise className="rounded-lg border border-line px-4 py-3">
+      <div className="flex items-baseline justify-between">
+        <p className="text-2xs text-fg-3">{title}</p>
+        <p className="text-2xs font-medium text-fg-2">{level}</p>
+      </div>
+      <p className="num mt-0.5 text-2xl font-semibold text-fg">{score}<span className="text-sm font-normal text-fg-3"> / 100</span></p>
+      <div className="relative mt-2 h-2 overflow-hidden rounded-full bg-surface-hover">
+        <span className="absolute inset-y-0 left-[35%] w-px bg-surface" /><span className="absolute inset-y-0 left-[65%] w-px bg-surface" />
+        <span className="block h-full rounded-full bg-primary-500" style={{ width: `${score}%` }} />
+      </div>
+      <ul className="mt-3 space-y-1">
+        {factors.map((f) => (
+          <li key={f.label} className="flex items-baseline justify-between gap-2 text-xs">
+            <span className="text-fg-2">{f.label} <span className="text-fg-3">· {f.weight}</span></span>
+            <span className="num font-medium text-fg">{f.value}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function UpliftBars({ treatments, before, after }: { treatments: Treatment[]; before: Beliefs; after: Beliefs }) {
+  const up = (b: Beliefs, c: string) => rate(b[c]) - rate(b[CONTROL]);
+  const max = Math.max(0.05, ...treatments.flatMap((t) => [up(before, t.code), up(after, t.code)]));
+  return (
+    <ul className="space-y-2.5">
+      {treatments.map((t) => {
+        const a = up(before, t.code), b = up(after, t.code), d = b - a;
+        return (
+          <li key={t.code} className="grid grid-cols-[120px_minmax(0,1fr)_96px] items-center gap-3 text-sm">
+            <span className="truncate text-fg-2">{t.name}</span>
+            <span className="relative h-2.5 overflow-hidden rounded-full bg-surface-hover">
+              <span className="absolute inset-y-0 left-0 rounded-full bg-primary-200" style={{ width: `${Math.max(0, a / max) * 100}%` }} />
+              <span className="absolute inset-y-[3px] left-0 rounded-full bg-primary-500 transition-[width] duration-500" style={{ width: `${Math.max(0, b / max) * 100}%` }} />
+            </span>
+            <span className="num text-right text-xs">
+              <span className="font-semibold text-fg">{points(b)}</span>{" "}
+              <span className={clsx(Math.abs(d) < 0.0005 ? "text-fg-3" : d > 0 ? "text-good" : "text-bad")}>{Math.abs(d) < 0.0005 ? "" : `${d > 0 ? "▲" : "▼"}${Math.abs(d * 100).toFixed(1)}`}</span>
+            </span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -865,6 +986,12 @@ function Intro({ onStart }: { onStart: () => void }) {
 
 function settle(a: Account, code: string, o: Outcome, share: number) {
   const first = firstName(a);
+  if (code === CONTROL) {
+    const paid = Math.max(50, Math.round((a.remaining * 0.1) / 50) * 50);
+    return o === "paid"
+      ? { story: `${first} paid ${money(paid)} on their own, with no contact.`, status: "Partial Recovery", received: paid }
+      : { story: `No contact was made, and no payment came in within 30 days.`, status: a.status, received: 0 };
+  }
   if (o === "none") return { story: `No reply from ${first} and no payment within 30 days.`, status: a.status, received: 0 };
   if (o === "feedback") return { story: `${first} replied: "${FEEDBACK}"`, status: a.status, received: 0 };
   if (code === "R1") {
@@ -882,7 +1009,7 @@ function message(a: Account, code: string, share: number) {
   return `Hi ${first}, your ${a.product} balance of ${money(a.remaining)} can be cleared in one secure payment. Pay online by the end of next month, or call us if you need to talk. Reply STOP to opt out.`;
 }
 
-function tech(step: Step, a: Account, d: { eligible: string[]; chosen: string; rule: string },
+function tech(step: Step, a: Account, d: { eligible: string[]; chosen: string; rule: string; hold: boolean },
   cur: Attempt | undefined, result: ReturnType<typeof settle> | null, byCode: Record<string, Treatment>): { active: Sys[]; flows: Flow[] } {
   const t = byCode[cur?.code ?? d.chosen];
   switch (step) {
@@ -895,11 +1022,14 @@ function tech(step: Step, a: Account, d: { eligible: string[]; chosen: string; r
       { from: "recovery", to: "recovery", msg: "Names are tokenised in logs and traces; card numbers and government IDs are dropped before anything is stored." },
     ] };
     case "decide": return { active: ["recovery", "ai"], flows: [
-      { from: "recovery", to: "ai", msg: "Segment and the treatments the rules allow.", code: `eligible = [${d.eligible.join(", ")}]` },
-      { from: "ai", to: "ai", msg: "Draws a payment rate for each allowed treatment from its belief and picks the highest (Thompson sampling)." },
-      { from: "ai", to: "recovery", msg: `Chosen: ${byCode[d.chosen].name}. The decision, its reason and every rule checked go to the audit trail.` },
+      { from: "recovery", to: "ai", msg: "Segment, propensity scores and the treatments the rules allow.", code: `eligible = [${d.eligible.join(", ")}]` },
+      { from: "ai", to: "ai", msg: d.hold ? "Comparison check: this decision is in the 10% held back at random, so no treatment."
+        : "Comparison check: treated. Then draws a payment rate for each allowed treatment from this segment's record and picks the biggest uplift over no contact (Thompson sampling)." },
+      { from: "ai", to: "recovery", msg: `${d.hold ? "Held back: no contact" : `Chosen: ${byCode[d.chosen].name}`}. The decision, its reason and every rule checked go to the audit trail.` },
     ] };
-    case "execute": return { active: ["recovery", "exec", "host"], flows: [
+    case "execute": return t.code === CONTROL ? { active: ["recovery", "host"], flows: [
+      { from: "recovery", to: "host", msg: "No contact this attempt. The account is recorded as held back, so its outcome counts in the comparison group." },
+    ] } : { active: ["recovery", "exec", "host"], flows: [
       { from: "recovery", to: "exec", msg: `${t.name} for ${a.account_number}. Channel: ${t.channel}. Timing: ${t.timing}.` },
       ...(t.code === "R1" ? [{ from: "exec" as Sys, to: "exec" as Sys, msg: "Held in the Review Queue until a second person approves the settlement." }] : []),
       { from: "exec", to: "host", msg: "The contact is recorded against the account, so the bank's own teams see it." },
@@ -911,7 +1041,7 @@ function tech(step: Step, a: Account, d: { eligible: string[]; chosen: string; r
           : `report_payment_outcome(account_id="${a.account_number}", paid=${cur.outcome === "paid"}, amount=${result?.received ?? 0})`) : "waiting for the customer" },
     ] };
     case "learn": return { active: ["learn", "recovery", "host"], flows: [
-      { from: "learn", to: "learn", msg: `Updates the belief for ${t.name}: one more ${cur?.outcome === "paid" ? "success" : "failure"} in its record.` },
+      { from: "learn", to: "learn", msg: `Updates ${t.code === CONTROL ? "the no-contact record" : `the record for ${t.name}`} in this segment: one more ${cur?.outcome === "paid" ? "payment" : "non-payment"}. Uplift is each treatment's rate less the no-contact rate.` },
       { from: "learn", to: "recovery", msg: result && result.status !== a.status ? `Recovery status becomes ${result.status}.` : "Recovery status stays as it is." },
       { from: "recovery", to: "host", msg: "A signed update goes back to Nova, so the bank's systems stay in step." },
     ] };

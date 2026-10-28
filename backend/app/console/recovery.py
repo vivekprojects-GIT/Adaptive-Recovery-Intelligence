@@ -17,6 +17,7 @@ workbook gives them, and further accounts inside the same ranges and statuses
 """
 from __future__ import annotations
 
+import hashlib
 import random
 from datetime import datetime, timedelta, timezone
 
@@ -41,21 +42,36 @@ SPECIALIST_THRESHOLD = 25_000
 SETTLEMENT_SHARE = 0.6
 
 # The recovery treatments a strategist can assign. Settlements change what
-# the customer owes, so they wait for a reviewer (Settlement Review). Each
-# carries the bank's track record for it (accounts that paid within 30 days,
-# out of accounts that got it): the decision engine starts from that as a weak
-# belief and learns from every outcome after.
+# the customer owes, so they wait for a reviewer (Settlement Review).
 TREATMENTS = [
     {"code": "R1", "name": "Settlement Offer", "tag": "Recommended",
      "description": "Offer a reduced payoff to encourage near-term resolution.", "status": "Settlement Review",
-     "channel": "Letter and SMS", "timing": "Within 2 days of approval", "successes": 38, "attempts": 120},
+     "channel": "Letter and SMS", "timing": "Within 2 days of approval"},
     {"code": "R2", "name": "One-time Payment", "tag": "Targeted",
      "description": "Request a full balance payment with structured outreach.", "status": "Payment Arranged",
-     "channel": "SMS and email with a payment link", "timing": "Day 1", "successes": 14, "attempts": 80},
+     "channel": "SMS and email with a payment link", "timing": "Day 1"},
     {"code": "R3", "name": "Human Review", "tag": "Special Handling",
      "description": "Route to a specialist for individual review and negotiation.", "status": "Specialist Review",
-     "channel": "Specialist phone call", "timing": "Within 2 working days", "successes": 27, "attempts": 90},
+     "channel": "Specialist phone call", "timing": "Within 2 working days"},
 ]
+
+# Accounts held back from every recovery treatment, at random, so each
+# treatment's effect is measured against what happens with no contact (uplift).
+CONTROL_SHARE = 0.10
+
+# The bank's recovery outcomes over the past year, by segment (balance band,
+# paying since charge-off or not): for each treatment, and for accounts held
+# back with no contact, how many paid within 30 days out of how many there
+# were. CARE starts from these and adds every outcome after. Large balances
+# only ever go to a specialist, so they have no automated-offer record.
+HISTORY = {
+    ("Small balance", False): {"control": (7, 110), "R1": (27, 100), "R2": (16, 95), "R3": (12, 80)},
+    ("Small balance", True): {"control": (24, 110), "R1": (31, 90), "R2": (40, 95), "R3": (22, 75)},
+    ("Medium balance", False): {"control": (5, 100), "R1": (31, 115), "R2": (12, 105), "R3": (22, 100)},
+    ("Medium balance", True): {"control": (18, 100), "R1": (30, 92), "R2": (36, 100), "R3": (27, 90)},
+    ("Large balance", False): {"control": (3, 90), "R1": (0, 0), "R2": (0, 0), "R3": (16, 95)},
+    ("Large balance", True): {"control": (12, 85), "R1": (0, 0), "R2": (0, 0), "R3": (30, 92)},
+}
 TREATMENT_BY_CODE = {t["code"]: t for t in TREATMENTS}
 
 # Charge-off balances by card business, around the workbook's sample accounts:
@@ -90,16 +106,81 @@ def classify(account_status: str | None, days_past_due: int | None) -> str:
     return "collections"
 
 
+def band(remaining: float) -> str:
+    return ("Large balance" if remaining >= SPECIALIST_THRESHOLD else
+            "Medium balance" if remaining >= 5_000 else "Small balance")
+
+
+def segment_key(a: RecoveryAccount) -> tuple[str, bool]:
+    return band(_remaining(a)), a.recovered > 0
+
+
+def _rate(s: int, n: int) -> float:
+    return (1 + s) / (2 + n)   # the belief's mean: Beta(1 + paid, 1 + not paid)
+
+
+def allowed(a: RecoveryAccount) -> list[str]:
+    """The treatments the bank's rules allow: a large balance only ever goes to a specialist."""
+    return ["R3"] if _remaining(a) >= SPECIALIST_THRESHOLD else [t["code"] for t in TREATMENTS]
+
+
+def uplift(a: RecoveryAccount) -> dict:
+    """Each allowed treatment's expected payment rate in the account's segment, and
+    its uplift: that rate less the rate for accounts held back with no contact."""
+    h = HISTORY[segment_key(a)]
+    base = _rate(*h["control"])
+    return {"control": round(base, 4), "treatments": {
+        c: {"rate": round(_rate(*h[c]), 4), "uplift": round(_rate(*h[c]) - base, 4)} for c in allowed(a)}}
+
+
 def recommend(a: RecoveryAccount) -> dict:
-    """CARE's suggested treatment, with the reason. Large or disputed balances go
-    to a specialist; customers who are already paying are asked to finish; the
-    rest get a settlement offer."""
-    remaining = a.charge_off_balance - a.recovered
-    if remaining >= SPECIALIST_THRESHOLD:
-        return {"code": "R3", "reason": f"${remaining:,.0f} remaining is above the ${SPECIALIST_THRESHOLD:,} specialist threshold"}
-    if a.recovered > 0 and remaining <= 0.5 * a.charge_off_balance:
-        return {"code": "R2", "reason": "Already paid more than half since charge-off; ask for the rest in one payment"}
-    return {"code": "R1", "reason": "No recent payment; a reduced payoff is the likeliest resolution"}
+    """CARE's suggested treatment, with the reason: of the treatments the rules
+    allow, the one with the largest uplift for accounts like this one."""
+    u = uplift(a)
+    code = max(u["treatments"], key=lambda c: u["treatments"][c]["uplift"])
+    seg = f"{segment_key(a)[0].lower()}, {'paying' if a.recovered > 0 else 'no payment'} since charge-off"
+    gain = f"+{u['treatments'][code]['uplift'] * 100:.0f} points more customers pay than with no contact"
+    if len(u["treatments"]) == 1:
+        return {"code": code, "reason": f"${_remaining(a):,.0f} left is at or above the ${SPECIALIST_THRESHOLD:,} "
+                                        f"specialist threshold; for {seg}, {gain}"}
+    return {"code": code, "reason": f"Largest uplift for {seg}: {gain}"}
+
+
+def held_out(account_number: str, attempt: int = 1) -> bool:
+    """Whether this decision holds the account back with no contact. Random, but
+    fixed for the account and attempt, so the same decision is always made."""
+    h = hashlib.sha256(f"recovery-control:{account_number}:{attempt}".encode()).hexdigest()
+    return int(h[:8], 16) / 0xFFFFFFFF < CONTROL_SHARE
+
+
+def propensity(a: RecoveryAccount, now_: datetime, last_payment: str | None) -> dict:
+    """Two scores out of 100, hand-weighted like the collections scores. Likelihood
+    to pay: payments already made, how recently, how fresh the charge-off is, and
+    how much is left. Likelihood to respond: whether the customer has engaged
+    since charge-off and how fresh it is."""
+    days = (now_.date() - datetime.fromisoformat(a.charge_off_date).date()).days
+    share = a.recovered / a.charge_off_balance if a.charge_off_balance else 0.0
+    since = (now_ - datetime.fromisoformat(last_payment).replace(tzinfo=UTC)).days if last_payment else None
+    recency = 1.0 if since is not None and since <= 60 else 0.5 if since is not None and since <= 180 else 0.0
+    fresh = 1 - min(days / 540, 1.0)
+    ease = 1 - min(_remaining(a) / 50_000, 1.0)
+    paid_part = min(share / 0.5, 1.0)
+    pay = 100 * (0.35 * paid_part + 0.25 * recency + 0.20 * fresh + 0.20 * ease)
+    engaged = 1.0 if a.recovered > 0 else 0.25
+    respond = 100 * (0.55 * engaged + 0.45 * fresh)
+    return {
+        "pay": round(pay), "respond": round(respond),
+        "pay_factors": [
+            {"label": "Paid since charge-off", "value": f"{share:.0%}", "weight": "35%"},
+            {"label": "Last payment", "value": f"{since} days ago" if since is not None else "None", "weight": "25%"},
+            {"label": "Time in recovery", "value": f"{days} days", "weight": "20%"},
+            {"label": "Balance left", "value": f"${_remaining(a):,.0f}", "weight": "20%"},
+        ],
+        "respond_factors": [
+            {"label": "Engaged since charge-off", "value": "Yes" if a.recovered > 0 else "No", "weight": "55%"},
+            {"label": "Time in recovery", "value": f"{days} days", "weight": "45%"},
+        ],
+    }
 
 
 def _iso(dt: datetime) -> str:
@@ -297,16 +378,15 @@ def segment(a: RecoveryAccount, now_: datetime) -> dict:
     remaining = _remaining(a)
     days = (now_.date() - datetime.fromisoformat(a.charge_off_date).date()).days
     share = a.recovered / a.charge_off_balance if a.charge_off_balance else 0.0
-    band = ("Large balance" if remaining >= SPECIALIST_THRESHOLD else
-            "Medium balance" if remaining >= 5_000 else "Small balance")
+    size = band(remaining)
     paying = "paying since charge-off" if a.recovered > 0 else "no payment since charge-off"
     return {
-        "name": f"{band}, {paying}",
+        "name": f"{size}, {paying}",
         "factors": [
             {"label": "Holder", "value": "Business" if a.product == "Small Business Card" else "Individual",
              "why": "Business cards are negotiated with the business owner."},
             {"label": "Balance left", "value": f"${remaining:,.0f}",
-             "why": f"{band}: at ${SPECIALIST_THRESHOLD:,} or more a specialist handles the account."},
+             "why": f"{size}: at ${SPECIALIST_THRESHOLD:,} or more a specialist handles the account."},
             {"label": "Paid since charge-off", "value": f"{share:.0%}",
              "why": "Customers already paying respond to different offers than customers who have not paid."},
             {"label": "Time in recovery", "value": f"{days} days",
@@ -330,12 +410,16 @@ def journey(db: Session) -> dict:
     for a in rows:
         rec = recommend(a)
         n, last = paid.get(a.recovery_id, (0, None))
+        h = HISTORY[segment_key(a)]
         accounts.append({"recovery_id": a.recovery_id, "account_number": a.account_number, "name": a.name,
                          "product": a.product, "charge_off_date": a.charge_off_date,
                          "charge_off_balance": a.charge_off_balance, "recovered": a.recovered,
                          "remaining": _remaining(a), "status": a.status, "payments": n, "last_payment": last,
-                         "segment": segment(a, now_),
+                         "segment": segment(a, now_), "propensity": propensity(a, now_, last),
+                         "history": {"control": {"s": h["control"][0], "attempts": h["control"][1]},
+                                     "treatments": {c: {"s": h[c][0], "attempts": h[c][1]} for c in allowed(a)}},
+                         "held_out": [held_out(a.account_number, k) for k in range(1, 7)],
                          "recommended": {**TREATMENT_BY_CODE[rec["code"]], "reason": rec["reason"]}})
     return {"accounts": accounts, "treatments": treatments(),
             "rules": {"specialist_threshold": SPECIALIST_THRESHOLD, "settlement_share": SETTLEMENT_SHARE,
-                      "charge_off_dpd": CHARGE_OFF_DPD}}
+                      "charge_off_dpd": CHARGE_OFF_DPD, "control_share": CONTROL_SHARE}}
