@@ -196,7 +196,7 @@ def dashboard(db: Session, user, product: str | None, process: str, period: int,
         links.append({"source": src[0], "target": dst[0], "value": value})
 
     if show_c:
-        book = ("c_book", "Collections accounts", "collections")
+        book = ("c_book", "Collections book", "collections")
         for key, label in ROUTES:
             link(book, (f"route_{key}", label, "collections"), route.get(key, 0))
         latest: dict[int, Decision] = {}
@@ -221,7 +221,7 @@ def dashboard(db: Session, user, product: str | None, process: str, period: int,
         link(src, ("out_waiting", "Waiting for the outcome", "outcome"), waiting)
         link(src, ("out_undecided", "Waiting for a decision", "outcome"), undecided)
     if show_r:
-        book = ("r_book", "Recovery accounts", "recovery")
+        book = ("r_book", "Recovery book", "recovery")
         for st, n in status.most_common():
             link(book, (f"status_{st}", st, "recovery"), n)
 

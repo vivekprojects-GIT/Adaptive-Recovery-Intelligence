@@ -100,6 +100,12 @@ def recovery_view(product: str = "", user: User = Depends(require("view_kpi_dash
     return out
 
 
+@router.get("/journey/recovery")
+def recovery_journey(user: User = Depends(require("view_customer_list")), db: Session = Depends(get_db)):
+    """The Strategy Journey page: sample recovery accounts, their segments, and the treatments CARE chooses from."""
+    return recovery.journey(db)
+
+
 @router.get("/workspace/recovery/accounts")
 def recovery_accounts(product: str = "", status: str = "", page: int = 1, page_size: int = 25,
                       user: User = Depends(require("view_customer_list")), db: Session = Depends(get_db)):

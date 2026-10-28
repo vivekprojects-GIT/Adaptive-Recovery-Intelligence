@@ -440,7 +440,7 @@ def _to_recovery(db: Session, rec: NovaAccount, record: bool) -> dict:
                                        name=(rec.customer_name or rec.account_id)[:80],
                                        product=product_name(rec.product), charge_off_date=date.today().isoformat(),
                                        charge_off_balance=float(rec.current_balance), recovered=0.0,
-                                       status="Active Collections", source="nova", created_at=now())
+                                       status="Active Recovery", source="nova", created_at=now())
             db.add(existing)
             audit(db, ACTOR, "CREATE", "recovery", rec.account_id,
                   f"Filed {rec.account_id} for recovery: charged off ({rec.days_past_due} days past due)")

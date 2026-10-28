@@ -184,7 +184,7 @@ function RecoveryTab({ product }: { product: string }) {
           <div className="mt-3 min-h-[36px] text-xs leading-5 text-fg-2">
             {one ? <>CARE recommends <span className="font-medium text-fg">{one.recommended.name}</span> for {one.account_number}: {one.recommended.reason}.</>
               : picked.length ? <>{picked.length} accounts selected. The option chosen is what CARE recommends for most of them.</>
-              : <>Select accounts in active collections or partial recovery. Accounts with a payment plan, a settlement or a treatment already assigned cannot be selected.</>}
+              : <>Select accounts in active recovery or partial recovery. Accounts with a payment plan, a settlement or a treatment already assigned cannot be selected.</>}
           </div>
           <div className="mt-2 [&>button]:w-full [&>button]:justify-center">
             <Button variant="primary" disabled={!picked.length || !can("edit_strategy")} loading={busy === "assign"} onClick={assign}

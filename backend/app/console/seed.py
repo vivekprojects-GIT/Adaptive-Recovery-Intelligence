@@ -32,13 +32,23 @@ from .rbac import DATA_PERMISSIONS, DEFAULT_GRANTS, PERMISSION_KEYS
 UTC = timezone.utc
 
 USERS = [
-    ("u-maya", "Maya Patel", "maya.patel@firm.co", "strategist", "Active", 0.03),
-    ("u-james", "James Thornton", "j.thornton@firm.co", "leader", "Active", 0.25),
-    ("u-ravi", "Ravi Kumar", "ravi.k@firm.co", "strategist", "Active", 0.6),
-    ("u-aisha", "Aisha Osei", "a.osei@firm.co", "strategist", "Inactive", 9),
-    ("u-tom", "Tom Eriksson", "t.eriksson@firm.co", "viewer", "Pending", None),
-    ("u-priya", "Priya Nair", "priya.nair@firm.co", "admin", "Active", 0.01),
+    ("u-maya", "Morgan Ellsworth", "morgan.ellsworth@firm.co", "strategist", "Active", 0.03),
+    ("u-james", "Jordan Whitcomb", "j.whitcomb@firm.co", "leader", "Active", 0.25),
+    ("u-ravi", "Ryan Holcomb", "ryan.h@firm.co", "strategist", "Active", 0.6),
+    ("u-aisha", "Ashley Donnelly", "a.donnelly@firm.co", "strategist", "Inactive", 9),
+    ("u-tom", "Trevor Bramwell", "t.bramwell@firm.co", "viewer", "Pending", None),
+    ("u-priya", "Patricia Vaughn", "p.vaughn@firm.co", "admin", "Active", 0.01),
 ]
+
+# Staff renamed to American names (Oct 2026): user id -> (old name, new name, new email).
+STAFF_RENAMED = {
+    "u-maya": ("Maya Patel", "Morgan Ellsworth", "morgan.ellsworth@firm.co"),
+    "u-james": ("James Thornton", "Jordan Whitcomb", "j.whitcomb@firm.co"),
+    "u-ravi": ("Ravi Kumar", "Ryan Holcomb", "ryan.h@firm.co"),
+    "u-aisha": ("Aisha Osei", "Ashley Donnelly", "a.donnelly@firm.co"),
+    "u-tom": ("Tom Eriksson", "Trevor Bramwell", "t.bramwell@firm.co"),
+    "u-priya": ("Priya Nair", "Patricia Vaughn", "p.vaughn@firm.co"),
+}
 
 # name, owner, status, launch weeks ago, waves, fields
 CAMPAIGNS = [
@@ -87,13 +97,13 @@ CAMPAIGNS = [
 
 ALERTS = [
     ("Strategy recovery rate below target", "campaign_rate_vs_target", "lt", -0.05, "campaign",
-     "Critical", "Strategy owner, James Thornton"),
+     "Critical", "Strategy owner, Jordan Whitcomb"),
     ("No lift over control", "campaign_uplift", "lt", 0.0, "campaign", "High", "Strategy owner"),
-    ("Escalation rate above ceiling", "escalation_rate", "gt", 0.08, "portfolio", "High", "James Thornton"),
+    ("Escalation rate above ceiling", "escalation_rate", "gt", 0.08, "portfolio", "High", "Jordan Whitcomb"),
     ("Open critical compliance violations", "critical_violations", "gt", 0, "portfolio", "Critical",
-     "Compliance, James Thornton"),
+     "Compliance, Jordan Whitcomb"),
     ("Review queue backlog", "pending_review", "gt", 10, "portfolio", "Medium", "Strategists"),
-    ("API p95 latency", "latency_p95_ms", "gt", 800, "portfolio", "Medium", "Priya Nair"),
+    ("API p95 latency", "latency_p95_ms", "gt", 800, "portfolio", "Medium", "Patricia Vaughn"),
 ]
 
 
@@ -144,6 +154,10 @@ def ensure_console(db: Session) -> None:
         db.query(models.Customer).filter(models.Customer.product == old).update(
             {models.Customer.product: new}, synchronize_session=False)
     _bank_workbook(db)
+    for uid, (old, new, email) in STAFF_RENAMED.items():
+        u = db.get(User, uid)
+        if u is not None and u.name == old:
+            u.name, u.email = new, email
     have = {(r.role, r.permission) for r in db.query(RolePermission)}
     for role, grants in DEFAULT_GRANTS.items():
         for p in PERMISSION_KEYS:
@@ -433,7 +447,7 @@ def _insights(db: Session, now: datetime) -> None:
 
 
 def _audit_extras(db: Session, now: datetime) -> None:
-    audit(db, "u-priya", "UPDATE", "user", "u-tom", "Updated role: Tom Eriksson -> Viewer",
+    audit(db, "u-priya", "UPDATE", "user", "u-tom", "Updated role: Trevor Bramwell -> Viewer",
           at=_iso(now - timedelta(hours=26)))
     audit(db, "u-james", "EXPORT", "report", "portfolio", "Exported portfolio report",
           at=_iso(now - timedelta(hours=9)))

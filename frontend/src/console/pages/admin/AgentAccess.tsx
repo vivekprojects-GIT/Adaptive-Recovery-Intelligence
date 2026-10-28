@@ -31,16 +31,16 @@ const freshId = () => `NOVA-${Math.floor(10000 + Math.random() * 90000)}`;
 /** Accounts shaped like the Nova data contract (C1-C6). Same cohort, different right answers. */
 const SAMPLES: Record<string, { label: string; account: () => Record<string, unknown> }> = {
   helped: { label: "Can be helped · 31 DPD", account: () => ({
-    account_id: freshId(), customer_name: "Priya Sharma", days_past_due: 31, current_balance: 4180, credit_limit: 5000,
+    account_id: freshId(), customer_name: "Rachel Whitfield", days_past_due: 31, current_balance: 4180, credit_limit: 5000,
     opened_date: "2020-03-01", prior_delinquencies_12m: 1, on_time_payment_ratio: 0.94, risk_segment: "Medium",
     risk_score: 62, app_user: true, sms_responsive: true, hardship_flag: true,
     consent: { sms: true, email: true, call: false }, contacts_last_7d: 1, source_system: "CRM_PROD" }) },
   selfcure: { label: "Will pay anyway · 30 DPD", account: () => ({
-    account_id: freshId(), customer_name: "John Mitchell", days_past_due: 30, current_balance: 7920, credit_limit: 9000,
+    account_id: freshId(), customer_name: "Garrett Holloway", days_past_due: 30, current_balance: 7920, credit_limit: 9000,
     opened_date: "2018-01-15", prior_delinquencies_12m: 1, on_time_payment_ratio: 0.85, risk_segment: "Medium",
     risk_score: 58, app_user: false, sms_responsive: false, hardship_flag: false, source_system: "CRM_PROD" }) },
   hardship: { label: "Severe hardship · 62 DPD", account: () => ({
-    account_id: freshId(), customer_name: "Mike Torres", days_past_due: 62, current_balance: 7640, credit_limit: 8000,
+    account_id: freshId(), customer_name: "Dustin Kincaid", days_past_due: 62, current_balance: 7640, credit_limit: 8000,
     opened_date: "2023-02-01", prior_delinquencies_12m: 4, on_time_payment_ratio: 0.44, risk_segment: "High",
     risk_score: 77, app_user: false, sms_responsive: false, hardship_flag: true, source_system: "CRM_PROD" }) },
   minimal: { label: "Required fields only", account: () => ({

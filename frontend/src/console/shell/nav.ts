@@ -30,6 +30,7 @@ import {
   UserCog,
   Users,
   Waypoints,
+  Workflow,
   Wrench,
   type LucideIcon,
 } from "lucide-react";
@@ -50,6 +51,7 @@ export const NAV: Record<Role, { section?: string; items: NavItem[] }[]> = {
     ] },
     { section: "Strategy Workspace", items: [
       { to: "/workspace", label: "Strategy Workspace", icon: Columns3 },
+      { to: "/strategy-journey", label: "Strategy Journey", icon: Workflow, perm: "view_customer_list" },
       { to: "/builder", label: "Strategy Builder", icon: Wrench, perm: "create_strategy" },
       { to: "/strategies", label: "My Strategies", icon: BookOpen },
       { to: "/treatments", label: "Treatment Playbook", icon: Library },
@@ -78,6 +80,7 @@ export const NAV: Record<Role, { section?: string; items: NavItem[] }[]> = {
     ] },
     { section: "Strategy Workspace", items: [
       { to: "/workspace", label: "Strategy Workspace", icon: Columns3 },
+      { to: "/strategy-journey", label: "Strategy Journey", icon: Workflow, perm: "view_customer_list" },
       { to: "/approvals", label: "Approvals", icon: ListChecks, perm: "approve_strategy", badge: (b) => b.awaiting_approval },
       { to: "/compare", label: "Strategy Compare", icon: GitCompare, perm: "compare_strategies" },
       { to: "/treatments", label: "Treatment Playbook", icon: Library },
@@ -120,6 +123,7 @@ export const NAV: Record<Role, { section?: string; items: NavItem[] }[]> = {
     ] },
     { section: "Strategy Workspace", items: [
       { to: "/workspace", label: "Strategy Workspace", icon: Columns3 },
+      { to: "/strategy-journey", label: "Strategy Journey", icon: Workflow, perm: "view_customer_list" },
     ] },
     { section: "Analysis", items: [
       { to: "/analytics", label: "Strategy Analytics", icon: ChartColumnBig },

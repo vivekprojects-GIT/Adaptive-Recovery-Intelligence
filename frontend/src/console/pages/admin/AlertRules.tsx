@@ -60,7 +60,7 @@ export default function AlertRules() {
             <Field label="Threshold" hint="Rates as fractions (0.08 = 8%)"><input type="number" step="any" className={inputCls} value={form.threshold} onChange={(e) => setForm({ ...form, threshold: Number(e.target.value) })} /></Field>
           </div>
           <Field label="Severity"><Select value={form.severity} onChange={(v) => setForm({ ...form, severity: v })} options={["Critical", "High", "Medium", "Low"].map((s) => ({ value: s, label: s }))} /></Field>
-          <Field label="Notify"><input className={inputCls} value={form.notify} onChange={(e) => setForm({ ...form, notify: e.target.value })} placeholder="e.g. Strategy owner, James Thornton" /></Field>
+          <Field label="Notify"><input className={inputCls} value={form.notify} onChange={(e) => setForm({ ...form, notify: e.target.value })} placeholder="e.g. Strategy owner, Jordan Whitcomb" /></Field>
           <label className="flex items-center gap-2 text-[13px]"><Toggle checked={form.enabled} onChange={(v) => setForm({ ...form, enabled: v })} />Enabled</label>
         </div>
       </Drawer>

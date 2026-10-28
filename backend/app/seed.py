@@ -6,11 +6,11 @@ from .core.database import Base, engine, SessionLocal
 from . import cards, models
 from .scoring import nudge_score, self_cure_score, segment_for
 
-FIRST = ["Aisha", "Carlos", "Dana", "Ethan", "Fatima", "Grace", "Hiro", "Isabel", "Jamal", "Kara",
-         "Liam", "Maya", "Noah", "Olivia", "Pablo", "Quinn", "Rosa", "Sam", "Tara", "Umar", "Vera",
-         "Wyatt", "Yusuf", "Zoe", "Adam", "Bianca", "Leo", "Nina", "Omar", "Ruth"]
-LAST = ["Okafor", "Nguyen", "Patel", "Brooks", "Silva", "Kim", "Rossi", "Haddad", "Fischer",
-        "Novak", "Ali", "Dubois", "Santos", "Larsen", "Moreau", "Reyes", "Chen", "Walsh"]
+FIRST = ["Megan", "Tyler", "Brooke", "Garrett", "Lauren", "Dustin", "Kendra", "Colton", "Whitney", "Brandon",
+         "Shelby", "Travis", "Courtney", "Derek", "Haley", "Logan", "Mallory", "Austin", "Danielle", "Cody",
+         "Kayla", "Grant", "Paige", "Wesley", "Jenna", "Reid", "Erin", "Caleb", "Tessa", "Bryce"]
+LAST = ["Caldwell", "Whitaker", "Brennan", "Hartley", "Prescott", "Kessler", "Langford", "Mercer", "Hollis",
+        "Sutton", "Delaney", "Garrison", "Pruitt", "Ashby", "Callahan", "Rutledge", "McAllister", "Ellison"]
 
 # What the client's collections system hands over. CARE does not recompute these.
 COHORTS = [
@@ -123,16 +123,16 @@ def _draw(target: str, rng: random.Random) -> dict:
 
 # Same client cohort, same client risk band - three different right answers.
 PERSONAS = [
-    dict(name="Priya Sharma", balance=4180.0, credit_limit=5000.0, utilization=0.84, tenure_years=6,
+    dict(name="Rachel Whitfield", balance=4180.0, credit_limit=5000.0, utilization=0.84, tenure_years=6,
          sms_responsive=True, app_user=True, hardship_flag=True, missed_payments=1,
          payment_history=0.94, days_past_due=30, client_risk_score=62.0,
          persona_note="Hours reduced at work - temporary hardship. Opens SMS, uses the mobile app around 6 PM."),
-    dict(name="John Mitchell", balance=7920.0, credit_limit=9000.0, utilization=0.88, tenure_years=8,
+    dict(name="Garrett Holloway", balance=7920.0, credit_limit=9000.0, utilization=0.88, tenure_years=8,
          sms_responsive=False, app_user=False, hardship_flag=False, missed_payments=1,
          payment_history=0.85, days_past_due=30, client_risk_score=58.0,
          persona_note="Forgot to pay. Eight years of on-time payments and no hardship - "
                       "he ignores outreach and settles the balance on his own."),
-    dict(name="Mike Torres", balance=7640.0, credit_limit=8000.0, utilization=0.955, tenure_years=3,
+    dict(name="Dustin Kincaid", balance=7640.0, credit_limit=8000.0, utilization=0.955, tenure_years=3,
          sms_responsive=False, app_user=False, hardship_flag=True, missed_payments=4,
          payment_history=0.44, days_past_due=31, client_risk_score=64.0,
          persona_note="Recent unemployment, several missed payments this year. "

@@ -47,16 +47,16 @@ def check(cond: bool, msg: str) -> None:
 
 
 # Nova-shaped accounts. Same cohort and risk band; different right answers.
-PRIYA = {"account_id": "NOVA-ACC-1001", "customer_name": "Priya Sharma", "days_past_due": 31,
+PRIYA = {"account_id": "NOVA-ACC-1001", "customer_name": "Rachel Whitfield", "days_past_due": 31,
          "current_balance": 4180, "credit_limit": 5000, "opened_date": "2020-03-01", "prior_delinquencies_12m": 1,
          "on_time_payment_ratio": 0.94, "risk_segment": "Medium", "risk_score": 62, "app_user": True,
          "sms_responsive": True, "hardship_flag": True, "consent": {"sms": True, "email": True, "call": False},
          "contacts_last_7d": 1, "source_system": "CRM_PROD"}
-JOHN = {"account_id": "NOVA-ACC-1002", "customer_name": "John Mitchell", "days_past_due": 30,
+JOHN = {"account_id": "NOVA-ACC-1002", "customer_name": "Garrett Holloway", "days_past_due": 30,
         "current_balance": 7920, "credit_limit": 9000, "opened_date": "2018-01-15", "prior_delinquencies_12m": 1,
         "on_time_payment_ratio": 0.85, "risk_segment": "Medium", "risk_score": 58, "app_user": False,
         "sms_responsive": False, "hardship_flag": False}
-MIKE_C3 = {"account_id": "NOVA-ACC-1003", "customer_name": "Mike Torres", "days_past_due": 62,
+MIKE_C3 = {"account_id": "NOVA-ACC-1003", "customer_name": "Dustin Kincaid", "days_past_due": 62,
            "current_balance": 7640, "credit_limit": 8000, "opened_date": "2023-02-01", "prior_delinquencies_12m": 4,
            "on_time_payment_ratio": 0.44, "risk_segment": "High", "risk_score": 77, "app_user": False,
            "sms_responsive": False, "hardship_flag": True}
@@ -279,7 +279,7 @@ async def main(port: int) -> None:
                 async with httpx.AsyncClient() as h:
                     rv = await h.post(f"http://127.0.0.1:{port}/console/decisions/{pending['decision_id']}/review",
                                       json={"approve": True, "note": ""}, headers={"X-User-Id": "u-maya"})
-                check(rv.status_code == 200, f"Maya approves it in the console ({rv.json()})")
+                check(rv.status_code == 200, f"Morgan approves it in the console ({rv.json()})")
                 db = SessionLocal()
                 o = db.query(Outcome).filter(Outcome.decision_id == pending["decision_id"]).first()
                 db.close()

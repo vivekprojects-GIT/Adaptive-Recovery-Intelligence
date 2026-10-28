@@ -532,10 +532,10 @@ class RecoveryAccount(Base):
     charge_off_date: Mapped[str] = mapped_column(String(10))
     charge_off_balance: Mapped[float] = mapped_column(Float)
     recovered: Mapped[float] = mapped_column(Float, default=0.0)
-    # The bank's recovery statuses: Active Collections | Partial Recovery | Payment Plan |
+    # The bank's recovery statuses: Active Recovery | Partial Recovery | Payment Plan |
     # Settlement Agreement | Paid in Full; and, while a treatment waits on a person or
     # the customer: Settlement Review | Specialist Review | Payment Arranged.
-    status: Mapped[str] = mapped_column(String(20), default="Active Collections", index=True)
+    status: Mapped[str] = mapped_column(String(20), default="Active Recovery", index=True)
     assigned_treatment: Mapped[str | None] = mapped_column(String(10), nullable=True)
     assigned_by: Mapped[str | None] = mapped_column(String(20), nullable=True)
     assigned_at: Mapped[str | None] = mapped_column(String(32), nullable=True)

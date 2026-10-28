@@ -35,6 +35,7 @@ import NudgeDetail from "./pages/shared/NudgeDetail";
 import Nudges from "./pages/shared/Nudges";
 import StrategyAnalytics from "./pages/shared/StrategyAnalytics";
 import StrategyDetail from "./pages/shared/StrategyDetail";
+import StrategyJourney from "./pages/shared/StrategyJourney";
 import StrategyWorkspace from "./pages/shared/StrategyWorkspace";
 import TreatmentsPage from "./pages/shared/Treatments";
 import LiveCampaigns from "./pages/strategist/LiveCampaigns";
@@ -66,6 +67,7 @@ export const ROUTES: { path: string; el: ReactNode; perm?: string | string[] }[]
   { path: "/executive", el: <Navigate to="/overview" replace /> },
   { path: "/kpis", el: <Navigate to="/overview" replace /> },
   { path: "/workspace", el: <StrategyWorkspace />, perm: "view_kpi_dashboard" },
+  { path: "/strategy-journey", el: <StrategyJourney />, perm: "view_customer_list" },
   { path: "/agencies", el: <Agencies />, perm: "view_kpi_dashboard" },
   { path: "/governance", el: <Governance />, perm: ["view_compliance", "manage_roles"] },
   { path: "/dashboard", el: <Navigate to="/overview" replace /> },

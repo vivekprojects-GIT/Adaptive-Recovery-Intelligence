@@ -68,7 +68,7 @@ def v1(tag: str, **over) -> dict:
     """A complete, fresh RecoveryContext v1 - a 31 DPD account that can be helped."""
     base = {
         "contract_version": "v1", "request_id": f"REQ-{tag}", "as_of_timestamp": ago(1), "source_system": "NOVA_TEST",
-        "party": {"party_id": f"P-{tag}", "name": "Priya Sharma"},
+        "party": {"party_id": f"P-{tag}", "name": "Rachel Whitfield"},
         "account": {"account_id": f"V1-{tag}", "balance": 4180, "credit_limit": 5000, "status": "DELINQUENT",
                     "opened_date": "2020-03-01", "product_type": "CREDIT_CARD"},
         "delinquency": {"dpd": 31, "amount_past_due": 620, "cycles_delinquent": 1, "prior_delinquencies_12m": 1,
@@ -87,7 +87,7 @@ def v1(tag: str, **over) -> dict:
     return merge(base, over)
 
 
-V0 = {"customer_name": "Priya Sharma", "days_past_due": 31, "current_balance": 4180, "credit_limit": 5000,
+V0 = {"customer_name": "Rachel Whitfield", "days_past_due": 31, "current_balance": 4180, "credit_limit": 5000,
       "opened_date": "2020-03-01", "prior_delinquencies_12m": 1, "on_time_payment_ratio": 0.94, "risk_segment": "Medium",
       "risk_score": 62, "app_user": True, "sms_responsive": True, "hardship_flag": True,
       "consent": {"sms": True, "email": True, "call": False}, "contacts_last_7d": 1}

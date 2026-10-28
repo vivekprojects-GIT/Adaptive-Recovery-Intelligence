@@ -38,9 +38,9 @@ const BLANK: Form = {
 };
 
 const TONE_PREVIEW: Record<string, string> = {
-  Supportive: "Hi Priya, a quick reminder that $146 is past due on your account. You can pay in seconds here: ari.bank/p/3fa1c2. Reply STOP to opt out.",
-  Neutral: "Priya, your account has $146 past due. Pay now: ari.bank/p/3fa1c2. Reply STOP to opt out.",
-  Direct: "Priya, $146 on your account is now 30 days overdue. Please pay today: ari.bank/p/3fa1c2. Reply STOP to opt out.",
+  Supportive: "Hi Rachel, a quick reminder that $146 is past due on your account. You can pay in seconds here: care.bank/p/3fa1c2. Reply STOP to opt out.",
+  Neutral: "Rachel, your account has $146 past due. Pay now: care.bank/p/3fa1c2. Reply STOP to opt out.",
+  Direct: "Rachel, $146 on your account is now 30 days overdue. Please pay today: care.bank/p/3fa1c2. Reply STOP to opt out.",
 };
 
 const SUBTITLE = [

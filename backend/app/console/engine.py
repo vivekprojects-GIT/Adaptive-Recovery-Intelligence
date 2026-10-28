@@ -422,7 +422,7 @@ def render(code: str, tone: str, c, st=None, *, due: float | None) -> str:
     tpl = table.get((code, tone)) or table.get((code, None)) or _offer_template(st, due is not None)
     cid = c.customer_id or 0  # a previewed account has no CARE id yet
     return tpl.format(first=first_name(c), due=f"{due:,.0f}" if due is not None else "",
-                      link="ari.bank/p/" + hashlib.md5(str(cid).encode()).hexdigest()[:6],
+                      link="care.bank/p/" + hashlib.md5(str(cid).encode()).hexdigest()[:6],
                       dpd=c.days_past_due, inst=f"{due / 3:,.0f}" if due is not None else "")
 
 

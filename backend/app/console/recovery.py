@@ -30,20 +30,31 @@ from .platform import audit, now
 UTC = timezone.utc
 CHARGE_OFF_DPD = 180
 
-# The bank's recovery statuses, from its workbook.
-BANK_STATUSES = ["Active Collections", "Partial Recovery", "Payment Plan", "Settlement Agreement", "Paid in Full"]
+# The bank's recovery statuses, from its workbook ("Active Collections" there is
+# "Active Recovery" here, as the bank asked).
+BANK_STATUSES = ["Active Recovery", "Partial Recovery", "Payment Plan", "Settlement Agreement", "Paid in Full"]
 # Accounts with no arrangement yet, which a strategist can assign a treatment to.
-ELIGIBLE = ("Active Collections", "Partial Recovery")
+ELIGIBLE = ("Active Recovery", "Partial Recovery")
+# A balance this large always goes to a specialist, never an automated offer.
+SPECIALIST_THRESHOLD = 25_000
+# A settlement offer asks for this share of what remains.
+SETTLEMENT_SHARE = 0.6
 
 # The recovery treatments a strategist can assign. Settlements change what
-# the customer owes, so they wait for a reviewer (Settlement Review).
+# the customer owes, so they wait for a reviewer (Settlement Review). Each
+# carries the bank's track record for it (accounts that paid within 30 days,
+# out of accounts that got it): the decision engine starts from that as a weak
+# belief and learns from every outcome after.
 TREATMENTS = [
     {"code": "R1", "name": "Settlement Offer", "tag": "Recommended",
-     "description": "Offer a reduced payoff to encourage near-term resolution.", "status": "Settlement Review"},
+     "description": "Offer a reduced payoff to encourage near-term resolution.", "status": "Settlement Review",
+     "channel": "Letter and SMS", "timing": "Within 2 days of approval", "successes": 38, "attempts": 120},
     {"code": "R2", "name": "One-time Payment", "tag": "Targeted",
-     "description": "Request a full balance payment with structured outreach.", "status": "Payment Arranged"},
+     "description": "Request a full balance payment with structured outreach.", "status": "Payment Arranged",
+     "channel": "SMS and email with a payment link", "timing": "Day 1", "successes": 14, "attempts": 80},
     {"code": "R3", "name": "Human Review", "tag": "Special Handling",
-     "description": "Route to a specialist for individual review and negotiation.", "status": "Specialist Review"},
+     "description": "Route to a specialist for individual review and negotiation.", "status": "Specialist Review",
+     "channel": "Specialist phone call", "timing": "Within 2 working days", "successes": 27, "attempts": 90},
 ]
 TREATMENT_BY_CODE = {t["code"]: t for t in TREATMENTS}
 
@@ -58,15 +69,16 @@ MIX = {
 # How the book splits across the statuses, and the share of the charge-off
 # balance recovered so far in each. Settlement Review accounts have just been
 # offered a settlement that waits for a reviewer.
-STATUS_MIX = [("Active Collections", 0.36, (0.0, 0.0)), ("Partial Recovery", 0.20, (0.10, 0.60)),
+STATUS_MIX = [("Active Recovery", 0.36, (0.0, 0.0)), ("Partial Recovery", 0.20, (0.10, 0.60)),
               ("Payment Plan", 0.18, (0.05, 0.50)), ("Settlement Agreement", 0.10, (0.40, 0.85)),
               ("Paid in Full", 0.08, (1.0, 1.0)), ("Settlement Review", 0.08, (0.0, 0.0))]
 INSTALMENTS = {"Partial Recovery": (1, 3), "Payment Plan": (3, 8), "Settlement Agreement": (2, 4),
                "Paid in Full": (1, 3)}
-FIRST = ["Aisha", "Carlos", "Dana", "Ethan", "Fatima", "Grace", "Hiro", "Isabel", "Jamal", "Kara", "Liam", "Maya",
-         "Noah", "Olivia", "Pablo", "Quinn", "Rosa", "Sam", "Tara", "Umar", "Vera", "Wyatt", "Yusuf", "Zoe"]
-LAST = ["Okafor", "Nguyen", "Patel", "Brooks", "Silva", "Kim", "Rossi", "Haddad", "Fischer", "Novak", "Ali", "Dubois",
-        "Santos", "Larsen", "Moreau", "Reyes", "Chen", "Walsh"]
+FIRST = ["Amber", "Bradley", "Carly", "Dalton", "Emily", "Forrest", "Gretchen", "Hunter", "Jillian", "Kyle",
+         "Lindsey", "Mason", "Natalie", "Owen", "Peyton", "Riley", "Savannah", "Trent", "Vanessa", "Wade",
+         "Allison", "Chase", "Molly", "Spencer"]
+LAST = ["Abernathy", "Beckett", "Crawford", "Dunham", "Fletcher", "Gentry", "Hadley", "Jarrett", "Lockhart",
+        "Maddox", "Norwood", "Pendleton", "Ramsey", "Stanton", "Tolliver", "Vance", "Wheeler", "Yardley"]
 
 
 def classify(account_status: str | None, days_past_due: int | None) -> str:
@@ -83,8 +95,8 @@ def recommend(a: RecoveryAccount) -> dict:
     to a specialist; customers who are already paying are asked to finish; the
     rest get a settlement offer."""
     remaining = a.charge_off_balance - a.recovered
-    if remaining >= 25_000:
-        return {"code": "R3", "reason": f"${remaining:,.0f} remaining is above the $25,000 specialist threshold"}
+    if remaining >= SPECIALIST_THRESHOLD:
+        return {"code": "R3", "reason": f"${remaining:,.0f} remaining is above the ${SPECIALIST_THRESHOLD:,} specialist threshold"}
     if a.recovered > 0 and remaining <= 0.5 * a.charge_off_balance:
         return {"code": "R2", "reason": "Already paid more than half since charge-off; ask for the rest in one payment"}
     return {"code": "R1", "reason": "No recent payment; a reduced payoff is the likeliest resolution"}
@@ -149,8 +161,8 @@ def seed(db: Session, now_: datetime, n: int = 920) -> None:
         age = rng.randint(5, 540)
         charged = now_ - timedelta(days=age)
         status = rng.choices(statuses, [w for _, w, _ in STATUS_MIX])[0]
-        if age < 60 and status not in ("Active Collections", "Settlement Review"):
-            status = "Active Collections"   # too soon after charge-off for payments to have come in
+        if age < 60 and status not in ("Active Recovery", "Settlement Review"):
+            status = "Active Recovery"   # too soon after charge-off for payments to have come in
         seqs[product] += 1
         a = RecoveryAccount(account_number=cards.account_id(product, seqs[product], recovery=True),
                             name=_name(product, rng), product=product, charge_off_date=charged.date().isoformat(),
@@ -168,10 +180,10 @@ def seed(db: Session, now_: datetime, n: int = 920) -> None:
 def adopt_workbook(db: Session) -> None:
     """Move recovery accounts stored before the bank's workbook onto its
     statuses and account IDs."""
-    old = {"In Recovery": None, "Settled": "Settlement Agreement", "With Agency": "Active Collections",
-           "Legal": "Active Collections"}
+    old = {"In Recovery": None, "Settled": "Settlement Agreement", "With Agency": "Active Recovery",
+           "Legal": "Active Recovery", "Active Collections": "Active Recovery"}
     for a in db.query(RecoveryAccount).filter(RecoveryAccount.status.in_(list(old))):
-        a.status = old[a.status] or ("Partial Recovery" if a.recovered > 0 else "Active Collections")
+        a.status = old[a.status] or ("Partial Recovery" if a.recovered > 0 else "Active Recovery")
     seqs = _next_numbers(db)
     for a in db.query(RecoveryAccount).filter(RecoveryAccount.account_number.is_(None)).order_by(
             RecoveryAccount.recovery_id):
@@ -276,3 +288,54 @@ def assign(db: Session, recovery_ids: list[int], code: str, actor: str) -> dict:
 
 def treatments() -> list[dict]:
     return [dict(t) for t in TREATMENTS]
+
+
+def segment(a: RecoveryAccount, now_: datetime) -> dict:
+    """The segment a recovery account falls in, from what the bank holds on it:
+    who holds the card, how much is left, whether anything has come in since
+    charge-off, and how long ago it was charged off."""
+    remaining = _remaining(a)
+    days = (now_.date() - datetime.fromisoformat(a.charge_off_date).date()).days
+    share = a.recovered / a.charge_off_balance if a.charge_off_balance else 0.0
+    band = ("Large balance" if remaining >= SPECIALIST_THRESHOLD else
+            "Medium balance" if remaining >= 5_000 else "Small balance")
+    paying = "paying since charge-off" if a.recovered > 0 else "no payment since charge-off"
+    return {
+        "name": f"{band}, {paying}",
+        "factors": [
+            {"label": "Holder", "value": "Business" if a.product == "Small Business Card" else "Individual",
+             "why": "Business cards are negotiated with the business owner."},
+            {"label": "Balance left", "value": f"${remaining:,.0f}",
+             "why": f"{band}: at ${SPECIALIST_THRESHOLD:,} or more a specialist handles the account."},
+            {"label": "Paid since charge-off", "value": f"{share:.0%}",
+             "why": "Customers already paying respond to different offers than customers who have not paid."},
+            {"label": "Time in recovery", "value": f"{days} days",
+             "why": "The longer an account sits in recovery, the less likely a full payment becomes."},
+        ],
+    }
+
+
+def journey(db: Session) -> dict:
+    """What the Strategy Journey page walks through: the bank's sample recovery
+    accounts, each with its segment and the treatment CARE recommends, and the
+    treatments with their track record and the rules that limit them."""
+    now_ = datetime.now(UTC)
+    ids = [s[0] for s in cards.RECOVERY_SAMPLE if s[4] in ELIGIBLE]
+    rows = (db.query(RecoveryAccount).filter(RecoveryAccount.account_number.in_(ids))
+            .order_by(RecoveryAccount.account_number).all())
+    paid = {rid: (n, last) for rid, n, last in db.query(
+        RecoveryPayment.recovery_id, func.count(), func.max(RecoveryPayment.paid_at)).filter(
+        RecoveryPayment.recovery_id.in_([a.recovery_id for a in rows])).group_by(RecoveryPayment.recovery_id)}
+    accounts = []
+    for a in rows:
+        rec = recommend(a)
+        n, last = paid.get(a.recovery_id, (0, None))
+        accounts.append({"recovery_id": a.recovery_id, "account_number": a.account_number, "name": a.name,
+                         "product": a.product, "charge_off_date": a.charge_off_date,
+                         "charge_off_balance": a.charge_off_balance, "recovered": a.recovered,
+                         "remaining": _remaining(a), "status": a.status, "payments": n, "last_payment": last,
+                         "segment": segment(a, now_),
+                         "recommended": {**TREATMENT_BY_CODE[rec["code"]], "reason": rec["reason"]}})
+    return {"accounts": accounts, "treatments": treatments(),
+            "rules": {"specialist_threshold": SPECIALIST_THRESHOLD, "settlement_share": SETTLEMENT_SHARE,
+                      "charge_off_dpd": CHARGE_OFF_DPD}}
