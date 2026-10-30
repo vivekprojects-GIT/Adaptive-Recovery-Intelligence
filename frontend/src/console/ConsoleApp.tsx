@@ -22,6 +22,14 @@ function Shell() {
   useEffect(() => {
     try { localStorage.setItem("ari.console.nav", collapsed ? "collapsed" : "open"); } catch { /* storage blocked */ }
   }, [collapsed]);
+  // On a narrow window the full sidebar crowds out the page, so it starts collapsed there.
+  useEffect(() => {
+    const narrow = window.matchMedia("(max-width: 1023px)");
+    const fit = () => { if (narrow.matches) setCollapsed(true); };
+    fit();
+    narrow.addEventListener("change", fit);
+    return () => narrow.removeEventListener("change", fit);
+  }, []);
 
   if (signedOut && !me) return <SignIn />;
   if (!me) return <Spinner label="Signing in" />;

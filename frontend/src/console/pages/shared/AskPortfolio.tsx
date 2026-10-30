@@ -102,13 +102,15 @@ export default function AskPortfolio({ question, onAnswer, onClear }: {
                 <span key={l} className="rounded-md border border-primary-500/30 bg-primary-50 px-2 py-0.5 text-xs font-medium text-fg">{l}</span>
               ))}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <p className="text-sm text-fg-2"><span className="num font-semibold text-fg">{num(answer.accounts)}</span> accounts match ·{" "}
                 <span className="num">{money(answer.balance, true)}</span> total balance</p>
-              {can("create_strategy") && (
+              {can("create_strategy") ? (
                 <Button variant="primary" loading={busy === "target"} disabled={!answer.accounts} onClick={() => void target()}
                   title={answer.accounts ? "Start a strategy whose audience is these accounts" : "No accounts match"}>
                   Use as campaign target <ArrowRight className="h-4 w-4" /></Button>
+              ) : (
+                <p className="text-xs text-fg-3">A Strategy Analyst can use these accounts as a campaign target.</p>
               )}
             </div>
           </div>

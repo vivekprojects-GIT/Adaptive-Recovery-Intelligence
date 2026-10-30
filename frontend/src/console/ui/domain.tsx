@@ -206,7 +206,7 @@ export function waveMessage(r: WaveRun, names: Record<string, string>): string {
     + (arms ? ` Treated: ${arms}.` : "")
     + (r.held_for_review ? ` ${r.held_for_review} held for review.` : "")
     + (r.blocked_by_guard ? ` ${r.blocked_by_guard} stopped by the contact guard.` : "")
-    + (added ? ` The audience was running out, so ${r.handoffs.length === 1 ? "a new cohort handoff" : `${r.handoffs.length} handoffs`} arrived automatically (+${num(added)} accounts).` : "");
+    + (added ? ` The audience was running out, so ${r.handoffs.length === 1 ? "a new handoff" : `${r.handoffs.length} handoffs`} arrived automatically (+${num(added)} accounts).` : "");
 }
 
 /** Run the next wave, or five in a row. Learning updates between waves. */

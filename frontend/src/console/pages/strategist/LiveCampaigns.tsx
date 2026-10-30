@@ -20,7 +20,7 @@ export default function LiveCampaigns() {
   const live = (data ?? []).filter((s) => ["Live", "Paused", "Approved"].includes(s.status));
   const last = handoffs.data?.handoffs[0];
   const receive = () => run("handoff", () => api.post<HandoffRow>("/handoffs"),
-    (r) => `Handoff #${r.handoff} received: ${num(r.total)} new accounts across ${Object.keys(r.counts).length} cohorts.`)
+    (r) => `Handoff #${r.handoff} received: ${num(r.total)} new accounts across ${Object.keys(r.counts).length} groups.`)
     .then((r) => { if (r) { reload(); handoffs.reload(); refresh(); } });
   return (
     <>
@@ -31,7 +31,7 @@ export default function LiveCampaigns() {
       <Page>
         <Banner tone="neutral">
           Each wave decides the next slice of the strategy's audience: a randomised share goes to control, the rest get the treatment Thompson sampling picks, and outcomes feed the next wave's beliefs.
-          {handoffs.data && <> New accounts arrive from the collections system as cohort handoffs{last?.at ? ` (last one ${ago(last.at)})` : ""}.{handoffs.data.auto ? " When a strategy's audience runs low, the next handoff arrives automatically." : " Automatic handoffs are off, so receive the next one here when an audience runs low."}</>}
+          {handoffs.data && <> New accounts arrive from the collections system as handoffs{last?.at ? ` (last one ${ago(last.at)})` : ""}.{handoffs.data.auto ? " When a strategy's audience runs low, the next handoff arrives automatically." : " Automatic handoffs are off, so receive the next one here when an audience runs low."}</>}
         </Banner>
         <div className="grid gap-4 xl:grid-cols-2">
           {live.map((s) => {

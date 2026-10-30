@@ -32,7 +32,7 @@ export default function Approvals() {
                 { label: "Audience", value: `${s.target_cohorts.map(cohortName).join(", ")} · Likely responsive (Propensity Router)` },
                 { label: "Balance", value: `${s.min_balance !== null ? money(s.min_balance) : "any"} – ${s.max_balance !== null ? money(s.max_balance) : "any"}` },
                 { label: "Treatments", value: s.treatments.map((t) => t.name).join(", ") },
-                { label: "Needs human review", value: s.treatment_codes.filter((c) => treatments?.find((t) => t.code === c)?.human_review).join(", ") || "none" },
+                { label: "Needs human review", value: s.treatment_codes.map((c) => treatments?.find((t) => t.code === c)).filter((t) => t?.human_review).map((t) => t!.name).join(", ") || "none" },
               ]} />
               <KV items={[
                 { label: "Cadence", value: `every ${s.cadence_days}d · max ${s.max_touches} · ${s.tone}` },

@@ -237,7 +237,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
                   <div className="min-w-0">
                     <p className="text-2xs font-medium uppercase tracking-[0.08em] text-primary-500">Target accounts from a question</p>
                     <p className="mt-0.5 text-sm font-medium text-fg">"{form.target_query.question}"</p>
-                    <p className="mt-0.5 text-xs text-fg-2">Only accounts that match this question, inside the cohorts below, are in the audience. It came from the Customers list.</p>
+                    <p className="mt-0.5 text-xs text-fg-2">Only accounts that match this question, and are as late as picked below, are in the audience. It came from the Customers list.</p>
                   </div>
                   {editable && <Button size="sm" variant="ghost" onClick={() => set("target_query", null)}>Remove</Button>}
                 </div>
@@ -258,7 +258,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
                 <Field label="Minimum days past due"><input id="min-dpd" type="number" className={inputCls} value={form.min_dpd ?? ""} onChange={(e) => set("min_dpd", numOrNull(e.target.value))} placeholder="Any" /></Field>
                 <Field label="Maximum days past due"><input id="max-dpd" type="number" className={inputCls} value={form.max_dpd ?? ""} onChange={(e) => set("max_dpd", numOrNull(e.target.value))} placeholder="Any" /></Field>
               </div>
-              <Field label="Client risk bands" hint="From Meridian Valley Bank's risk model. Leave empty to accept every band in the cohorts.">
+              <Field label="Client risk bands" hint="From Meridian Valley Bank's risk model. Leave empty to accept every band.">
                 <div className="flex flex-wrap gap-2">
                   {["Low", "Medium", "High", "Very high"].map((b) => (
                     <button key={b} type="button" onClick={() => toggle("risk_bands", b)} className={clsx("h-8 rounded-lg border px-3 text-[13px]",
@@ -324,7 +324,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
               </dl>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
-              <Kpi label="Customers it reaches" value={num(est?.eligible)} sub={est ? `of ${num(est.matching)} in the cohorts picked` : "Pick how late first"} />
+              <Kpi label="Customers it reaches" value={num(est?.eligible)} sub={est ? `of ${num(est.matching)} that match the audience` : "Pick how late first"} />
               <Kpi label="Control / experiment" metric="control_group" value={est ? `${num(est.control)} / ${num(est.treatment)}` : "—"} sub="randomised split" />
               <Kpi label="Smallest detectable lift" metric="mde" value={mde ? `${(mde * 100).toFixed(1)} points` : "—"} tone={mde && mde > 0.12 ? "warn" : "neutral"} sub="smallest lift this audience can prove" />
             </div>
@@ -372,7 +372,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
         <Card title="Live estimate" subtitle="Who this strategy would reach, as you fill it in">
           {est ? (
             <div className="space-y-2.5">
-              <div className="flex items-baseline justify-between"><span className="text-xs text-fg-2">Customers in the cohorts picked</span><span className="num text-[15px] font-semibold">{num(est.matching)}</span></div>
+              <div className="flex items-baseline justify-between"><span className="text-xs text-fg-2">Customers that match the audience</span><span className="num text-[15px] font-semibold">{num(est.matching)}</span></div>
               <div className="flex items-baseline justify-between"><span className="text-xs text-fg-2">Sent to strategies by the router</span><span className="num text-[15px] font-semibold text-primary-500">{num(est.eligible)}</span></div>
               {est.validation > 0 && <p className="flex justify-between gap-2 text-2xs text-fg-3"><span>of which its validation share</span><span className="num">{num(est.validation)}</span></p>}
               {est.exclusions.length > 0 && (
@@ -382,9 +382,9 @@ export default function GuidedBuild({ id }: { id?: string }) {
                 </div>
               )}
             </div>
-          ) : <p className="text-xs text-fg-3">Pick a cohort to see who this strategy would reach.</p>}
+          ) : <p className="text-xs text-fg-3">Pick how late to see who this strategy would reach.</p>}
         </Card>
-        <Card title="Recommendations" subtitle="From live results in the cohorts you picked">
+        <Card title="Recommendations" subtitle="From live results for accounts this late">
           {!form.target_cohorts.length && <p className="text-xs text-fg-3">Pick how late to see recommendations.</p>}
           <div className="space-y-2.5">
             {recs?.recommendations.map((r) => (

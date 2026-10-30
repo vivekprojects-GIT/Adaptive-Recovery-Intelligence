@@ -496,7 +496,7 @@ def build_recommendations(db: Session, cohorts: set[str], family: set[str]) -> d
     if best:
         o, s = best
         out.append({"kind": "clone", "title": "Segment match found",
-                    "body": f"{o.campaign_id} {o.name} targets the same cohort with "
+                    "body": f"{o.campaign_id} {o.name} targets accounts as late as these, with "
                             f"{s['recovery_rate']:.0%} recovery and {s['uplift'] * 100:+.1f} points over its "
                             f"control ({'significant' if s['significant'] else 'not yet significant'}, "
                             f"{s['treated']} vs {s['control']} customers). Clone it as a starting point?",
