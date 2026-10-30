@@ -94,7 +94,7 @@ export const api = {
 };
 
 /* --------------------------------------------------------------------- types */
-export type Role = "strategist" | "leader" | "admin" | "viewer";
+export type Role = "strategist" | "leader" | "admin";
 
 export interface PublicUser { user_id: string; name: string; role: Role; role_label: string; status: string }
 

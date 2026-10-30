@@ -13,14 +13,13 @@ const WHAT: Record<Role, string> = {
   strategist: "Builds strategies, runs waves, reviews forbearance offers and follows customer journeys.",
   leader: "Approves strategies, compares results, watches compliance and sends improvements.",
   admin: "Manages users, roles and permissions, and runs the platform. No access to customer or account data.",
-  viewer: "Read-only access to portfolio KPIs.",
 };
 
 export default function SignIn() {
   const { users, switchUser, error } = useSession();
   const navigate = useNavigate();
   // Every session starts with the platform administrator, then the business roles.
-  const order: Role[] = ["admin", "leader", "strategist", "viewer"];
+  const order: Role[] = ["admin", "leader", "strategist"];
   // Active accounts first, then by role.
   const people = [...users].sort((a, b) =>
     Number(a.status !== "Active") - Number(b.status !== "Active")

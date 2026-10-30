@@ -30,7 +30,7 @@ class User(Base):
     user_id: Mapped[str] = mapped_column(String(20), primary_key=True)
     name: Mapped[str] = mapped_column(String(80))
     email: Mapped[str] = mapped_column(String(120), unique=True)
-    role: Mapped[str] = mapped_column(String(20))            # strategist | leader | admin | viewer
+    role: Mapped[str] = mapped_column(String(20))            # strategist | leader | admin
     status: Mapped[str] = mapped_column(String(12), default="Active")   # Active | Inactive | Pending
     last_login: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[str] = mapped_column(String(32))

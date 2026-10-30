@@ -18,7 +18,7 @@ export function Notifications() {
   if (!me) return null;
   const b = me.badges;
   const items: { label: string; count: number; to: string; perm?: string }[] = [
-    { label: "New insights from your strategy leader", count: me.user.role === "strategist" ? b.new_insights : 0, to: "/overview" },
+    { label: "New insights from your executive", count: me.user.role === "strategist" ? b.new_insights : 0, to: "/overview" },
     { label: "Decisions waiting for review", count: b.pending_review, to: "/review", perm: "override_decisions" },
     { label: "Strategies waiting for approval", count: b.awaiting_approval, to: "/approvals", perm: "approve_strategy" },
     { label: "Agency placements waiting for approval", count: b.pending_placements, to: "/agencies", perm: "approve_placements" },

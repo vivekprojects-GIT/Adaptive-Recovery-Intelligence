@@ -28,6 +28,8 @@ ROUTES = {"strategy": "In a strategy", "bau": "Business as usual", "hardship": "
           "suppress": "Not contacted"}
 BANDS = ["Low", "Medium", "High", "Very high"]
 COHORTS = ["C1", "C2", "C3", "C4"]
+# How the cohorts are shown: by days late, never by code.
+COHORT_NAMES = {"C1": "1-29 days late", "C2": "30 days late", "C3": "60 days late", "C4": "90+ days late"}
 
 # field: (column, label, kind, allowed values for an enum)
 FIELDS: dict[str, tuple[Any, str, str, list[str] | None]] = {
@@ -37,7 +39,7 @@ FIELDS: dict[str, tuple[Any, str, str, list[str] | None]] = {
     "delinquent_amount": (C.delinquent_amount, "Delinquent amount", "money", None),
     "credit_limit": (C.credit_limit, "Credit limit", "money", None),
     "client_risk_band": (C.client_risk_band, "Bank risk band", "enum", BANDS),
-    "cohort_id": (C.cohort_id, "Cohort", "enum", COHORTS),
+    "cohort_id": (C.cohort_id, "Days late", "enum", COHORTS),
     "segment": (C.segment, "Fit group", "enum", list(GROUPS)),
     "route": (C.route, "Route", "enum", list(ROUTES)),
     "hardship_flag": (C.hardship_flag, "Hardship flag", "bool", None),
@@ -266,7 +268,7 @@ def describe(c: dict) -> str:
     """One condition in words, for a chip on screen."""
     _, label, kind, _ = FIELDS[c["field"]]
     op, v = c["op"], c["value"]
-    show = {"enum": lambda x: GROUPS.get(x) or ROUTES.get(x) or x,
+    show = {"enum": lambda x: GROUPS.get(x) or ROUTES.get(x) or COHORT_NAMES.get(x) or x,
             "money": lambda x: f"${x:,.0f}", "share": lambda x: f"{x * 100:.0f}%"}.get(kind, lambda x: f"{x:,}")
     if kind == "bool":
         return f"{label}: {'yes' if v else 'no'}"

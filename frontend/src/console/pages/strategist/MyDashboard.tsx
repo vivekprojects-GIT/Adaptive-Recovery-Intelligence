@@ -138,7 +138,7 @@ export default function MyDashboard() {
           </div>
 
           <Card title={<span className="flex items-center gap-1.5"><Lightbulb className="h-4 w-4 text-fg-3" />Leadership Insights</span>}
-            subtitle="From the Strategy Workbench, sent by your strategy leader">
+            subtitle="From the Strategy Workbench, sent by your executive">
             <div className="space-y-2.5">
               {data.insights.map((i) => <InsightCard key={i.insight_id} i={i} onDone={reload} />)}
               {!data.insights.length && <p className="py-6 text-center text-xs text-fg-3">No insights yet.</p>}

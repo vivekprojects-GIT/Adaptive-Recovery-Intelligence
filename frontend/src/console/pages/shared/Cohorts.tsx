@@ -2,7 +2,7 @@ import { ArrowRight, Database, Inbox } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { api, type Cohort, type HandoffRow, type Treatment } from "../../lib/api";
-import { ago, dateTime, money, num, pct, SEGMENT_COLOR, SEGMENT_LABEL, SEGMENTS } from "../../lib/format";
+import { ago, cohortName, dateTime, money, num, pct, SEGMENT_COLOR, SEGMENT_LABEL, SEGMENTS } from "../../lib/format";
 import { useApi, useSession } from "../../lib/session";
 import { SegmentChip } from "../../ui/domain";
 import { Banner, Button, Card, Chip, ErrorState, Page, PageHeader, Spinner, Table, Td, Th, Tr, useAction } from "../../ui/ui";
@@ -45,7 +45,7 @@ export default function Cohorts() {
             const total = Object.values(c.segments).reduce((a, b) => a + b, 0) || 1;
             return (
               <Card key={c.cohort_id} title={<span className="flex items-center gap-2"><Database className="h-4 w-4 text-fg-3" />{c.name}</span>}
-                subtitle={`${c.dpd_bucket} · ${c.risk_band} risk · expected payment ${c.expected_payment}`}>
+                subtitle={`${c.risk_band} risk · expected payment ${c.expected_payment}`}>
                 <div className="flex items-baseline justify-between">
                   <span className="num text-2xl font-semibold">{num(c.customers)}</span><span className="text-xs text-fg-3">{money(c.balance, true)} balance</span>
                 </div>
@@ -77,7 +77,7 @@ export default function Cohorts() {
           actions={handoffs.data && <Chip tone={handoffs.data.auto ? "good" : "neutral"}>Automatic {handoffs.data.auto ? "on" : "off"}</Chip>}>
           <Table maxHeight="320px">
             <thead><tr><Th>Handoff</Th><Th>Received</Th><Th>Triggered by</Th><Th>Trigger</Th><Th align="right">Accounts</Th>
-              {ids.map((id) => <Th key={id} align="right">{id}</Th>)}</tr></thead>
+              {ids.map((id) => <Th key={id} align="right">{cohortName(id)}</Th>)}</tr></thead>
             <tbody>
               {(handoffs.data?.handoffs ?? []).map((h) => (
                 <Tr key={h.handoff_id}>

@@ -83,7 +83,7 @@ export function GlobalSearch() {
     return [
       ...pages.slice(0, 4),
       ...res.customers.map((c) => ({ group: "Customers", key: `c${c.customer_id}`, title: c.name,
-        detail: `${c.ref} · ${c.cohort_id} · ${c.days_past_due} DPD`, to: `/journeys/${c.customer_id}` })),
+        detail: `${c.ref} · ${c.days_past_due} days past due`, to: `/journeys/${c.customer_id}` })),
       ...res.strategies.map((s) => ({ group: "Strategies", key: `s${s.campaign_id}`, title: s.name,
         detail: `${s.campaign_id} · v${s.version} · ${s.status}`, to: `/strategies/${s.campaign_id}` })),
       ...res.decisions.map((d) => ({ group: "Decisions", key: `d${d.decision_id}`, title: d.decision_id,

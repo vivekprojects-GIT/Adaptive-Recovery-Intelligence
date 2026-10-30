@@ -19,6 +19,10 @@ export const pp = (v: number | null | undefined, d = 1) => {
   return `${v >= 0 ? "+" : "−"}${n} ${Number(n) === 1 ? "point" : "points"}`;
 };
 
+/** The bank's handover groups, by how late the account is. Never shown by code (C1 to C4). */
+const COHORT_NAMES: Record<string, string> = { C1: "1-29 days late", C2: "30 days late", C3: "60 days late", C4: "90+ days late" };
+export const cohortName = (id: string) => COHORT_NAMES[id] ?? id;
+
 export const num = (v: number | null | undefined) =>
   v === null || v === undefined ? "—" : new Intl.NumberFormat("en-US").format(v);
 

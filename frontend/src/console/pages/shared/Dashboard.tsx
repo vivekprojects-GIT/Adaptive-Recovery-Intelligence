@@ -563,7 +563,7 @@ export default function Dashboard() {
           )}
 
           {strategist && data.insights.length > 0 && (
-            <Tile title="Insights from your strategy leader" subtitle="Proposed changes to your strategies">
+            <Tile title="Insights from your executive" subtitle="Proposed changes to your strategies">
               <div className="grid gap-3 xl:grid-cols-2">{data.insights.map((i) => <InsightCard key={i.insight_id} i={i} onDone={reload} compact />)}</div>
             </Tile>
           )}

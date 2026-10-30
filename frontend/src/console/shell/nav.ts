@@ -116,25 +116,8 @@ export const NAV: Record<Role, { section?: string; items: NavItem[] }[]> = {
       { to: "/admin/alerts", label: "Alert Rules", icon: Bell, perm: "manage_alert_rules" },
     ] },
   ],
-  viewer: [
-    { section: "Overview", items: [
-      { to: "/overview", label: "Dashboard", icon: LayoutDashboard },
-      { to: "/portfolio", label: "Portfolio Health", icon: HeartPulse },
-    ] },
-    { section: "Strategy Workspace", items: [
-      { to: "/workspace", label: "Strategy Workspace", icon: Columns3 },
-      { to: "/journey", label: "Collections Journey", icon: Workflow, perm: "view_customer_list" },
-    ] },
-    { section: "Analysis", items: [
-      { to: "/analytics", label: "Strategy Analytics", icon: ChartColumnBig },
-      { to: "/scorecards", label: "Scorecards", icon: Scale },
-    ] },
-    { section: "Execution", items: [
-      { to: "/agencies", label: "Collection Agencies", icon: Briefcase },
-    ] },
-  ],
 };
 
-export const HOME: Record<Role, string> = { strategist: "/overview", leader: "/overview", admin: "/admin", viewer: "/overview" };
-export const WORKSPACE: Record<Role, string> = { strategist: "Strategy analyst workspace", leader: "Leadership workspace", admin: "Platform administration", viewer: "Read-only workspace" };
+export const HOME: Record<Role, string> = { strategist: "/overview", leader: "/overview", admin: "/admin" };
+export const WORKSPACE: Record<Role, string> = { strategist: "Strategy analyst workspace", leader: "Executive workspace", admin: "Platform administration" };
 

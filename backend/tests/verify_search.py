@@ -41,11 +41,6 @@ def as_(uid: str) -> dict:
 
 
 with TestClient(app) as api:
-    # The seeded viewer is still pending; make them active for this check.
-    with SessionLocal() as db:
-        db.get(User, "u-tom").status = "Active"
-        db.commit()
-
     customer = api.get("/console/customers?page_size=1", headers=as_("u-ravi")).json()["rows"][0]
     ref = customer["account_number"]
     strategy = api.get("/console/strategies", headers=as_("u-ravi")).json()[0]
@@ -69,14 +64,9 @@ with TestClient(app) as api:
     check(all(len(r[g]) <= 5 for g in ("strategies", "customers", "decisions", "messages")), "at most five matches per group")
 
     print("\n2. Each role searches only what it may open")
-    r = api.get(f"/console/search?q={ref}", headers=as_("u-tom")).json()
-    check(r["scopes"] == ["strategies"], f"a viewer searches strategies only ({r['scopes']})")
-    check(r["customers"] == [] and r["decisions"] == [] and r["messages"] == [], "a viewer gets no customers, decisions or messages")
-    r = api.get(f"/console/search?q={strategy['campaign_id']}", headers=as_("u-tom")).json()
-    check(len(r["strategies"]) >= 1, "a viewer still finds strategies")
     r = api.get(f"/console/search?q={ref}", headers=as_("u-james")).json()
     check(set(r["scopes"]) == {"strategies", "customers", "decisions"} and len(r["customers"]) == 1,
-          "a strategy leader finds customers too")
+          "an executive finds customers too")
     r = api.get(f"/console/search?q={ref}", headers=as_("u-priya")).json()
     check(not r.get("customers"), "a platform admin finds no customers: admin never sees customer data")
 

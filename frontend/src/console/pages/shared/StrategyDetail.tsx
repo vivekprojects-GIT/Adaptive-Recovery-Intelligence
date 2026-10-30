@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import type { DecisionRow, StrategyDetail as SD } from "../../lib/api";
-import { dateTime, money, num, pct, pp } from "../../lib/format";
+import { cohortName, dateTime, money, num, pct, pp } from "../../lib/format";
 import { useApi, useSession } from "../../lib/session";
 import { AllocationChart, BarList, BeliefBars, BeliefTrajectory, RateVsControl, SERIES, UpliftRow } from "../../ui/charts";
 import { LEARNING_TONE, StrategyActions, WaveButton } from "../../ui/domain";
@@ -136,7 +136,7 @@ export default function StrategyDetail() {
             <div className="grid gap-4 lg:grid-cols-4">
               <FlowStep n={1} title="Eligible population">
                 <p className="num text-2xl font-semibold">{num(p.eligible)}</p>
-                <p className="text-xs text-fg-3">of {num(p.matching)} customers in the target cohorts</p>
+                <p className="text-xs text-fg-3">of {num(p.matching)} customers in the target groups</p>
                 <div className="mt-3 space-y-1 text-xs">
                   <p className="flex justify-between gap-2"><span className="text-fg-2">Sent here by the Propensity Router</span><span className="num">{num(p.routed)}</span></p>
                   {p.validation > 0 && <p className="flex justify-between gap-2"><span className="text-fg-3">of which its validation share</span><span className="num text-fg-3">{num(p.validation)}</span></p>}
@@ -258,7 +258,7 @@ export default function StrategyDetail() {
           <div className="grid gap-4 lg:grid-cols-2">
             <Card title="Audience & treatments">
               <KV items={[
-                { label: "Cohorts", value: data.target_cohorts.join(", ") || "—" },
+                { label: "How late", value: data.target_cohorts.map(cohortName).join(", ") || "—" },
                 { label: "Routing", value: "Likely responsive customers, from the Propensity Router" },
                 { label: "Risk bands", value: data.risk_bands.join(", ") || "all" },
                 { label: "Days past due", value: `${data.min_dpd ?? "any"} – ${data.max_dpd ?? "any"}` },

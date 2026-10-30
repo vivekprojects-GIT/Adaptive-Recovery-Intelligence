@@ -35,11 +35,11 @@ export default function PortfolioHealth() {
           </Card>
           <Card title="Cohorts" flush>
             <Table>
-              <thead><tr><Th>Cohort</Th><Th align="right">Accounts</Th><Th align="right">In strategy</Th><Th align="right">Arrears</Th><Th align="right">Treated rate</Th><Th align="right">Control</Th><Th align="right">Uplift</Th><Th align="right">Recovered</Th></tr></thead>
+              <thead><tr><Th>How late</Th><Th align="right">Accounts</Th><Th align="right">In strategy</Th><Th align="right">Arrears</Th><Th align="right">Treated rate</Th><Th align="right">Control</Th><Th align="right">Uplift</Th><Th align="right">Recovered</Th></tr></thead>
               <tbody>
                 {data.cohorts.map((c) => (
                   <Tr key={c.cohort_id} onClick={() => navigate("/customers")}>
-                    <Td><span className="font-medium">{c.name}</span><span className="block text-2xs text-fg-3">{c.dpd_bucket} · {c.risk_band} risk</span></Td>
+                    <Td><span className="font-medium">{c.name}</span><span className="block text-2xs text-fg-3">{c.risk_band} risk</span></Td>
                     <Td align="right">{num(c.customers)}</Td><Td align="right">{num(c.in_strategy)}</Td><Td align="right">{money(c.arrears, true)}</Td>
                     <Td align="right">{pct(c.recovery_rate, 0)}</Td><Td align="right">{pct(c.control_rate, 0)}</Td><Td align="right" className="font-medium">{pp(c.uplift)}</Td>
                     <Td align="right">{money(c.recovered, true)}</Td>

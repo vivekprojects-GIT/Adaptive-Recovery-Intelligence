@@ -73,7 +73,7 @@ export default function Customers({ journeys }: { journeys?: boolean }) {
                   <Tr key={r.customer_id} onClick={() => navigate(`/journeys/${r.customer_id}`)}>
                     <Td><span className="flex items-center gap-2"><Avatar name={r.name} size="sm" />
                       <span className="min-w-0"><span className="block whitespace-nowrap font-medium">{r.name}</span>
-                        <span className="block whitespace-nowrap text-2xs text-fg-3">{r.product} · {r.cohort_id}</span></span></span></Td>
+                        <span className="block whitespace-nowrap text-2xs text-fg-3">{r.product}</span></span></span></Td>
                     <Td mono className="whitespace-nowrap text-primary-500">{r.account_number}</Td>
                     <Td align="right"><span className="block">{money(r.balance)}</span><span className="block whitespace-nowrap text-2xs text-fg-3">limit {money(r.credit_limit)}</span></Td>
                     <Td align="right"><span className="block">{money(r.arrears)}</span><span className="block whitespace-nowrap text-2xs text-fg-3">{r.days_past_due} days past due</span></Td>

@@ -88,7 +88,7 @@ export default function Agencies() {
           <Kpi label="Agency fees" metric="agency_fee" value={money(t.fees, true)} />
           <Kpi label="Net recovered" metric="net_liquidation" value={money(t.net_recovered, true)}
             sub={`${pct(t.net_liquidation_rate)} net liquidation`} />
-          <Kpi label="Waiting for approval" metric="placement_approval" value={num(t.pending)} sub={approver ? "you can approve these" : "a leader approves these"} />
+          <Kpi label="Waiting for approval" metric="placement_approval" value={num(t.pending)} sub={approver ? "you can approve these" : "an executive approves these"} />
         </div>
 
         <Card title="Agency panel" subtitle="Contract terms and results to date. Agencies are compared on net recovery, after their fee." flush>

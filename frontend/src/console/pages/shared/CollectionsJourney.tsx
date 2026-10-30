@@ -191,7 +191,7 @@ function Problem({ d }: { d: Data }) {
 
 const PROCESS = [
   { key: "behind", title: "Account falls behind", sub: "A payment is missed", icon: AlertTriangle },
-  { key: "handoff", title: "Handed to collections", sub: "Grouped by days late and risk, C1 to C4", icon: Boxes },
+  { key: "handoff", title: "Handed to collections", sub: "Grouped by days late and risk", icon: Boxes },
   { key: "contact", title: "Reminders and calls", sub: "Much the same sequence for everyone", icon: MessageSquareText },
   { key: "agency", title: "Agency placement", sub: "Late-stage accounts, around 90+ days", icon: Users },
   { key: "chargeoff", title: "Charge-off", sub: "At 180 days the account moves to recovery", icon: Ban },
@@ -206,7 +206,6 @@ function Today({ d }: { d: Data }) {
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {d.cohorts.map((c) => (
             <div key={c.cohort_id} className="rounded-lg border border-line px-4 py-3">
-              <p className="text-2xs text-fg-3">{c.cohort_id} · {c.dpd_bucket}</p>
               <p className="text-sm font-semibold text-fg">{c.name}</p>
               <p className="num mt-1 text-xl font-semibold text-fg">{num(c.accounts)}</p>
               <p className="text-xs text-fg-2">accounts · {c.risk_band.toLowerCase()} risk</p>
@@ -284,7 +283,7 @@ function Flow() {
       <div className="grid gap-3 md:grid-cols-3">
         <Pain icon={ShieldCheck} title="Protected data" body="Card numbers and government IDs are dropped before anything is stored. Names are tokenised in logs." />
         <Pain icon={Scale} title="Every decision explained" body="Each decision is stored with its reason and every rule checked, so it can be audited later." />
-        <Pain icon={Gauge} title="People stay in charge" body="Strategies are approved by a leader, and offers that change what a customer owes wait for a person." />
+        <Pain icon={Gauge} title="People stay in charge" body="Strategies are approved by an executive, and offers that change what a customer owes wait for a person." />
       </div>
     </>
   );
@@ -312,7 +311,7 @@ function TargetBase({ d }: { d: Data }) {
         ))}
       </div>
       <div data-rise>
-        <p className="mb-2 text-2xs font-medium uppercase tracking-[0.08em] text-fg-3">Same cohort, same bank risk band, three different right answers</p>
+        <p className="mb-2 text-2xs font-medium uppercase tracking-[0.08em] text-fg-3">Same days late, same bank risk band, three different right answers</p>
         <div className="grid gap-3 lg:grid-cols-3">
           {d.personas.map((p) => (
             <div key={p.customer_id} className="flex flex-col rounded-xl border border-line px-4 py-3">
@@ -320,7 +319,7 @@ function TargetBase({ d }: { d: Data }) {
                 <p className="text-sm font-semibold text-fg">{p.name}</p>
                 <Link to={`/journeys/${p.customer_id}`} className="font-mono text-2xs text-primary-500 hover:underline">{p.account_number}</Link>
               </div>
-              <p className="text-xs text-fg-3">{p.cohort_id} · {p.risk_band} risk · {p.days_past_due} days past due · {money(p.delinquent_amount)} behind</p>
+              <p className="text-xs text-fg-3">{p.risk_band} risk · {p.days_past_due} days past due · {money(p.delinquent_amount)} behind</p>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <Score label="Likely to respond" value={p.nudge_score} />
                 <Score label="Pays anyway" value={p.self_cure_score} />
@@ -337,7 +336,7 @@ function TargetBase({ d }: { d: Data }) {
           <p className="text-sm leading-6 text-fg-2"><span className="font-semibold text-fg">Pick a target base in plain English.</span> On the Customers list, ask for
             the accounts you want, see the query it runs, and use the result as a campaign's target.</p>
         </div>
-        <Link to={`/customers?ask=${encodeURIComponent("Likely to respond customers in C2 who reply to texts and are not in hardship")}`}
+        <Link to={`/customers?ask=${encodeURIComponent("Likely to respond customers between 30 and 59 days past due who reply to texts and are not in hardship")}`}
           className="inline-flex items-center gap-1 text-sm font-medium text-primary-500 hover:underline">Try it on the Customers list <ArrowRight className="h-4 w-4" /></Link>
       </div>
     </>
@@ -348,7 +347,7 @@ function Campaign({ d }: { d: Data }) {
   const rachel = d.personas.find((p) => p.decision) ?? d.personas[0];
   const dec = rachel?.decision;
   const steps = [
-    { icon: Target, title: "The audience", body: "The strategy's cohorts and filters, or a target base from a question. Only accounts routed to a strategy are in." },
+    { icon: Target, title: "The audience", body: "The strategy's groups and filters, or a target base from a question. Only accounts routed to a strategy are in." },
     { icon: Scale, title: `${pct(d.control_pct, 0)} held back`, body: "A random share gets no treatment. It is the yardstick every result is measured against." },
     { icon: Cpu, title: "Treatment per customer", body: "CARE picks from the approved treatments by what has worked for customers like this one, and keeps testing." },
     { icon: ShieldCheck, title: "Contact rules", body: "Permitted hours, contact limits, opt-outs and hardship are checked before every message." },

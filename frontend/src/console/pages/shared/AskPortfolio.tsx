@@ -19,7 +19,7 @@ export interface Answer {
 
 const EXAMPLES = [
   "Consumer card accounts over 60 days past due with a balance above $5,000 who use the app",
-  "Likely to respond customers in C2 who reply to texts and are not in hardship",
+  "Likely to respond customers between 30 and 59 days past due who reply to texts and are not in hardship",
   "Small business cards owing more than $25k with no missed payments",
 ];
 

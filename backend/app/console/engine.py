@@ -524,7 +524,9 @@ def in_audience(camp: Campaign, c) -> tuple[bool, str]:
     as target_customers and undecided_pool, applied to a single record."""
     cohorts, bands = jl(camp.target_cohorts), jl(camp.risk_bands)
     if cohorts and c.cohort_id not in cohorts:
-        return False, f"targets {', '.join(cohorts)}, not {c.cohort_id}"
+        from .nlq import COHORT_NAMES as names
+        return False, (f"targets {', '.join(names.get(x, x) for x in cohorts)}, "
+                       f"not {names.get(c.cohort_id, c.cohort_id)}")
     if bands and c.client_risk_band not in bands:
         return False, f"targets {', '.join(bands)} risk, not {c.client_risk_band}"
     if camp.min_dpd is not None and c.days_past_due < camp.min_dpd:

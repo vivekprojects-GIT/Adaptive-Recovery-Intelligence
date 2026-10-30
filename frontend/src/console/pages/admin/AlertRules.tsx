@@ -23,7 +23,7 @@ export default function AlertRules() {
     .then((r) => { if (r) { setOpen(false); reload(); } });
   return (
     <>
-      <PageHeader title="Alert Rules" subtitle="Thresholds evaluated against live metrics; firing alerts appear on the leader dashboard"
+      <PageHeader title="Alert Rules" subtitle="Thresholds evaluated against live metrics; firing alerts appear on the executive dashboard"
         actions={<Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => start()}>New rule</Button>} />
       <Page>
         <Card flush>

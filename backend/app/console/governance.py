@@ -101,7 +101,7 @@ def human_in_the_loop(db: Session) -> dict:
             {"rule": "Changing CARE's choice", "action": "A person may override any decision, with a written reason",
              "where": "Decision record", "configurable": False},
             {"rule": "Launching or changing a strategy",
-             "action": "Approved by a leader who is not the author", "where": "Approvals", "configurable": False},
+             "action": "Approved by an executive who is not the author", "where": "Approvals", "configurable": False},
         ],
         "decisions": {"pending": status.get("pending", 0), "approved": status.get("approved", 0),
                       "rejected": status.get("rejected", 0), "cancelled": status.get("cancelled", 0)},

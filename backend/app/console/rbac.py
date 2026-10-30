@@ -2,7 +2,7 @@
 
 The UI hides what a role cannot do, but that is a convenience. Every console
 endpoint declares the permission it needs and the check happens here, so a
-crafted request from a Viewer is refused exactly like a button click would be.
+crafted request from an Executive is refused exactly like a button click would be.
 
 Identity in the PoC is a header (X-User-Id) set by the persona switcher. In a
 bank deployment this is replaced by the SSO session; nothing else changes.
@@ -17,9 +17,8 @@ from .models import RolePermission, User
 
 ROLES = {
     "strategist": "Strategy Analyst",
-    "leader": "Strategy Leader",
+    "leader": "Executive",
     "admin": "Platform Admin",
-    "viewer": "Viewer",
 }
 
 # (key, label, description, category)
@@ -65,7 +64,6 @@ DEFAULT_GRANTS: dict[str, set[str]] = {
     # customer records, account numbers or banking data (Kumar, Oct 2026).
     "admin": {"manage_users", "manage_roles", "configure_platform", "manage_integrations", "view_audit_log",
               "manage_alert_rules", "view_system_health"},
-    "viewer": {"view_kpi_dashboard"},
 }
 
 # Permissions that open customer, account or banking data. The admin role can

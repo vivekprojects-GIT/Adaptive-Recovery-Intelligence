@@ -36,7 +36,7 @@ USERS = [
     ("u-james", "Jordan Whitcomb", "j.whitcomb@firm.co", "leader", "Active", 0.25),
     ("u-ravi", "Ryan Holcomb", "ryan.h@firm.co", "strategist", "Active", 0.6),
     ("u-aisha", "Ashley Donnelly", "a.donnelly@firm.co", "strategist", "Inactive", 9),
-    ("u-tom", "Trevor Bramwell", "t.bramwell@firm.co", "viewer", "Pending", None),
+    ("u-tom", "Trevor Bramwell", "t.bramwell@firm.co", "strategist", "Pending", None),
     ("u-priya", "Patricia Vaughn", "p.vaughn@firm.co", "admin", "Active", 0.01),
 ]
 
@@ -159,6 +159,15 @@ def ensure_console(db: Session) -> None:
         u = db.get(User, uid)
         if u is not None and u.name == old:
             u.name, u.email = new, email
+    # Three roles only (Rajesh, Oct 2026): the read-only Viewer role is gone.
+    for u in db.query(User).filter(User.role == "viewer"):
+        u.role = "strategist"
+    db.query(RolePermission).filter(RolePermission.role == "viewer").delete(synchronize_session=False)
+    # The cohorts are shown by plain names, not C1 to C4 (Rajesh, Oct 2026).
+    for co in COHORTS:
+        row = db.get(models.Cohort, co["cohort_id"])
+        if row is not None and row.name != co["name"]:
+            row.name = co["name"]
     have = {(r.role, r.permission) for r in db.query(RolePermission)}
     for role, grants in DEFAULT_GRANTS.items():
         for p in PERMISSION_KEYS:
@@ -448,7 +457,7 @@ def _insights(db: Session, now: datetime) -> None:
 
 
 def _audit_extras(db: Session, now: datetime) -> None:
-    audit(db, "u-priya", "UPDATE", "user", "u-tom", "Updated role: Trevor Bramwell -> Viewer",
+    audit(db, "u-priya", "UPDATE", "user", "u-tom", "Updated role: Trevor Bramwell -> Strategy Analyst",
           at=_iso(now - timedelta(hours=26)))
     audit(db, "u-james", "EXPORT", "report", "portfolio", "Exported portfolio report",
           at=_iso(now - timedelta(hours=9)))

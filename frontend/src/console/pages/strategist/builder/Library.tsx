@@ -25,8 +25,8 @@ export default function Library() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Pills value={filter} onChange={setFilter} options={[
-          { id: "all", label: "All" }, { id: "C1", label: "Early arrears" }, { id: "C2", label: "30 DPD" },
-          { id: "C3", label: "60 DPD" }, { id: "C4", label: "90+ DPD" }, { id: "SMS", label: "SMS" },
+          { id: "all", label: "All" }, { id: "C1", label: "1-29 days late" }, { id: "C2", label: "30 days late" },
+          { id: "C3", label: "60 days late" }, { id: "C4", label: "90+ days late" }, { id: "SMS", label: "SMS" },
           { id: "App", label: "App" }, { id: "call", label: "Call" },
         ]} />
         <div className="relative w-64">

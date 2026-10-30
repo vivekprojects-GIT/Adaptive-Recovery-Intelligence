@@ -195,7 +195,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
               <Button variant="primary" disabled={!editable || !form.name.trim() || (meta !== null && meta.status !== "Draft")} loading={busy === "submit"}
                 onClick={async () => {
                   const s = await save(DONE_AT[2]);
-                  if (s && (await run("submit", () => api.post(`/strategies/${s.campaign_id}/submit`), `${s.campaign_id} submitted. A strategy leader approves it before launch.`)))
+                  if (s && (await run("submit", () => api.post(`/strategies/${s.campaign_id}/submit`), `${s.campaign_id} submitted. An executive approves it before launch.`)))
                     navigate(`/strategies/${s.campaign_id}`);
                 }}>Submit for approval</Button>
             </div>
@@ -243,11 +243,11 @@ export default function GuidedBuild({ id }: { id?: string }) {
                 </div>
               </div>
             )}
-            <Field label="Delinquency buckets" hint="The cohorts Meridian Valley Bank's collections system hands over. CARE does not re-segment them.">
+            <Field label="How late" hint="The groups Meridian Valley Bank's collections system hands over, by days past due. CARE does not re-segment them.">
               <div className="grid gap-2 sm:grid-cols-2">
                 {cohorts.map((c) => (
                   <CheckCard key={c.cohort_id} checked={form.target_cohorts.includes(c.cohort_id)} onChange={() => toggle("target_cohorts", c.cohort_id)}
-                    title={c.name} sub={`${c.dpd_bucket} · ${c.risk_band} risk · ${num(c.customers)} customers`} />
+                    title={c.name} sub={`${c.risk_band} risk · ${num(c.customers)} customers`} />
                 ))}
               </div>
             </Field>
@@ -316,7 +316,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
             <div className="rounded-lg border border-line">
               <dl className="divide-y divide-line text-[13px]">
                 {[
-                  ["Audience", `${form.target_cohorts.map((c) => cohorts.find((x) => x.cohort_id === c)?.name).join(", ") || "No cohort picked"}${limits ? ` · ${limits}` : ""}`],
+                  ["Audience", `${form.target_cohorts.map((c) => cohorts.find((x) => x.cohort_id === c)?.name).join(", ") || "Nothing picked"}${limits ? ` · ${limits}` : ""}`],
                   ["Who it contacts", "Likely responsive customers, sent by the Propensity Router"],
                   ["Treatments", form.treatment_codes.map(name).join(", ") || "None picked"],
                   ["Escalation path", form.escalate_to ? `${name(form.escalate_to)} after ${form.escalate_after_days} days` : "No escalation"],
@@ -324,7 +324,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
               </dl>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
-              <Kpi label="Customers it reaches" value={num(est?.eligible)} sub={est ? `of ${num(est.matching)} in the cohorts picked` : "Pick a cohort first"} />
+              <Kpi label="Customers it reaches" value={num(est?.eligible)} sub={est ? `of ${num(est.matching)} in the cohorts picked` : "Pick how late first"} />
               <Kpi label="Control / experiment" metric="control_group" value={est ? `${num(est.control)} / ${num(est.treatment)}` : "—"} sub="randomised split" />
               <Kpi label="Smallest detectable lift" metric="mde" value={mde ? `${(mde * 100).toFixed(1)} points` : "—"} tone={mde && mde > 0.12 ? "warn" : "neutral"} sub="smallest lift this audience can prove" />
             </div>
@@ -385,7 +385,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
           ) : <p className="text-xs text-fg-3">Pick a cohort to see who this strategy would reach.</p>}
         </Card>
         <Card title="Recommendations" subtitle="From live results in the cohorts you picked">
-          {!form.target_cohorts.length && <p className="text-xs text-fg-3">Pick a cohort to see recommendations.</p>}
+          {!form.target_cohorts.length && <p className="text-xs text-fg-3">Pick how late to see recommendations.</p>}
           <div className="space-y-2.5">
             {recs?.recommendations.map((r) => (
               <div key={r.title} className="rounded-lg border border-line bg-surface-sunken/60 p-2.5">

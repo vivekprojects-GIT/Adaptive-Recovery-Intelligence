@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api, type RulePreview, type Rules, type Treatment, type TreatmentSchema } from "../../lib/api";
-import { ago, money, num, pct } from "../../lib/format";
+import { ago, cohortName, money, num, pct } from "../../lib/format";
 import { useApi, useSession } from "../../lib/session";
 import {
   Banner, Button, Card, Chip, Drawer, Empty, ErrorState, Field, Kpi, Menu, Modal, Page, PageHeader, Pills, Progress, Select,
@@ -179,7 +179,7 @@ function Editor({ target, schema, onClose, onSaved }: {
                 <div className="mt-3 space-y-2">
                   {preview.by_cohort.map((c) => (
                     <div key={c.cohort_id}>
-                      <div className="flex justify-between text-2xs"><span className="text-fg-2">{c.cohort_id}</span><span className="num text-fg-3">{num(c.eligible)} / {num(c.customers)}</span></div>
+                      <div className="flex justify-between text-2xs"><span className="text-fg-2">{cohortName(c.cohort_id)}</span><span className="num text-fg-3">{num(c.eligible)} / {num(c.customers)}</span></div>
                       <Progress value={(c.eligible / Math.max(1, c.customers)) * 100} />
                     </div>
                   ))}

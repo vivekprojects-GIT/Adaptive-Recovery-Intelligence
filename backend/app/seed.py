@@ -14,23 +14,23 @@ LAST = ["Caldwell", "Whitaker", "Brennan", "Hartley", "Prescott", "Kessler", "La
 
 # What the client's collections system hands over. CARE does not recompute these.
 COHORTS = [
-    dict(cohort_id="C1", name="Early arrears", dpd_bucket="1-29 DPD", client_risk_band="Low",
+    dict(cohort_id="C1", name="1-29 days late", dpd_bucket="1-29 DPD", client_risk_band="Low",
          expected_payment="3-5 days", sort_order=1, size=380,
          mix={"Persuadable": 0.20, "Sure Thing": 0.70, "Lost Cause": 0.03, "Sleeping Dog": 0.07},
          dpd=(3, 29), risk=(18, 38),
          description="Mostly forgetful payers. Most will cure on their own."),
-    dict(cohort_id="C2", name="30 DPD - medium risk", dpd_bucket="30 DPD", client_risk_band="Medium",
+    dict(cohort_id="C2", name="30 days late", dpd_bucket="30 DPD", client_risk_band="Medium",
          expected_payment="7-10 days", sort_order=2, size=509,
          mix={"Persuadable": 0.35, "Sure Thing": 0.45, "Lost Cause": 0.12, "Sleeping Dog": 0.08},
          dpd=(28, 35), risk=(42, 66),
          description="The client's model rates these medium risk with payment expected in 7-10 days. "
                      "The intervention decision starts here."),
-    dict(cohort_id="C3", name="60 DPD - high risk", dpd_bucket="60 DPD", client_risk_band="High",
+    dict(cohort_id="C3", name="60 days late", dpd_bucket="60 DPD", client_risk_band="High",
          expected_payment="14-21 days", sort_order=3, size=290,
          mix={"Persuadable": 0.30, "Sure Thing": 0.20, "Lost Cause": 0.35, "Sleeping Dog": 0.15},
          dpd=(58, 66), risk=(66, 84),
          description="Two cycles behind. A real split between the recoverable and the distressed."),
-    dict(cohort_id="C4", name="90+ DPD - very high risk", dpd_bucket="90+ DPD", client_risk_band="Very high",
+    dict(cohort_id="C4", name="90+ days late", dpd_bucket="90+ DPD", client_risk_band="Very high",
          expected_payment="Unlikely without help", sort_order=4, size=160,
          mix={"Persuadable": 0.10, "Sure Thing": 0.05, "Lost Cause": 0.70, "Sleeping Dog": 0.15},
          dpd=(90, 178), risk=(84, 98),

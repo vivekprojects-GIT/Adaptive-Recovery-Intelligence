@@ -68,11 +68,11 @@ def admin_overview(user: User = Depends(require("manage_users")), db: Session = 
 class UserIn(BaseModel):
     name: str = Field(min_length=2)
     email: str = Field(pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-    role: str = Field(pattern="^(strategist|leader|admin|viewer)$")
+    role: str = Field(pattern="^(strategist|leader|admin)$")
 
 
 class UserPatch(BaseModel):
-    role: str | None = Field(default=None, pattern="^(strategist|leader|admin|viewer)$")
+    role: str | None = Field(default=None, pattern="^(strategist|leader|admin)$")
     status: str | None = Field(default=None, pattern="^(Active|Inactive|Pending)$")
 
 
