@@ -305,7 +305,7 @@ function TargetBase({ d }: { d: Data }) {
             <span className="font-semibold text-fg">{g.label}</span>
             <span className="relative h-6 overflow-hidden rounded-md bg-surface-hover">
               <span data-grow className={clsx("absolute inset-y-0 left-0 origin-left rounded-md", tone[g.key])} style={{ width: `${(g.accounts / total) * 100}%` }} />
-              <span className="absolute inset-y-0 left-2 flex items-center text-xs font-semibold text-fg num">{num(g.accounts)}</span>
+              <span className={clsx("absolute inset-y-0 left-2 flex items-center text-xs font-semibold num", g.key === "Persuadable" ? "text-white" : "text-fg")}>{num(g.accounts)}</span>
             </span>
             <span className="text-xs text-fg-2">→ {g.route_label}</span>
           </div>
