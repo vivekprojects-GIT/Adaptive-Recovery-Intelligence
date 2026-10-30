@@ -40,7 +40,7 @@ POLICY = "propensity-router/1"
 
 ROUTES = {"Persuadable": "strategy", "Sure Thing": "bau", "Lost Cause": "hardship", "Sleeping Dog": "suppress"}
 ROUTE_LABEL = {"strategy": "Strategy", "bau": "Business as usual", "hardship": "Hardship team",
-               "suppress": "Suppressed"}
+               "suppress": "Not contacted"}
 GROUP_LABEL = {"Persuadable": "Likely responsive", "Sure Thing": "Likely self-cure", "Lost Cause": "Needs support",
                "Sleeping Dog": "Do not contact"}
 WHY = {

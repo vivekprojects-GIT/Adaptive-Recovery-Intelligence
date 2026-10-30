@@ -10,7 +10,7 @@ import { Avatar, Banner, Button, Card, Drawer, ErrorState, Field, Kpi, Page, Pag
 
 interface U { user_id: string; name: string; email: string; role: Role; role_label: string; status: string; last_login: string | null; created_at: string; strategies: number }
 interface Data { users: U[]; role_permissions: Record<string, string[]>; permissions: { key: string; label: string; description: string; category: string }[] }
-const ROLE_LABEL: Record<Role, string> = { strategist: "Strategist", leader: "Strategy Leader", admin: "Platform Admin", viewer: "Viewer" };
+const ROLE_LABEL: Record<Role, string> = { strategist: "Strategy Analyst", leader: "Strategy Leader", admin: "Platform Admin", viewer: "Viewer" };
 
 export default function UserManagement() {
   const { me, refresh } = useSession();

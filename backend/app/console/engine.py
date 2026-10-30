@@ -38,6 +38,7 @@ from .platform import cfg, cfg_float
 from opentelemetry import context as otel_context, trace as otel_trace
 
 from ..core import pii, telemetry as otel
+from . import nlq
 from .router import GROUP_LABEL, ROUTE_LABEL
 from .playbook import human_review_codes
 
@@ -142,6 +143,8 @@ def target_customers(db: Session, camp: Campaign) -> list[models.Customer]:
         q = q.filter(models.Customer.balance >= camp.min_balance)
     if camp.max_balance is not None:
         q = q.filter(models.Customer.balance <= camp.max_balance)
+    if camp.target_query:
+        q = nlq.apply(q, jl(camp.target_query, {}).get("conditions", []))
     return q.order_by(models.Customer.customer_id).all()
 
 
@@ -892,7 +895,7 @@ def _execute(db: Session, camp: Campaign, dec, c, at: datetime,
                    + (f", selection probability {dec.selection_probability:.0%}"
                       if dec.selection_probability is not None else "")},
         {"stage": "Content generation", "at": iso(at + timedelta(seconds=2)), "ok": True,
-         "detail": "Manual message from strategist" if manual_text
+         "detail": "Manual message from a strategy analyst" if manual_text
          else f"Approved template, {camp.tone.lower()} tone"},
         {"stage": "Compliance check", "at": iso(send_at - timedelta(seconds=1)), "ok": ok,
          "detail": guard_note},

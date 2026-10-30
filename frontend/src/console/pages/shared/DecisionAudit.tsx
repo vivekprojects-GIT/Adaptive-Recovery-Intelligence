@@ -77,7 +77,7 @@ export default function DecisionAudit() {
   const headline = d.group === "Control" ? { tone: "neutral" as const, title: "Control holdout", body: "This customer is in the randomised comparison group and received business-as-usual treatment only." }
     : d.review_status === "cancelled" ? { tone: "neutral" as const, title: `Cancelled before review: ${d.treatment}`, body: data.exclusion_reason ?? "Withdrawn before anything was sent." }
     : !d.treatment && !d.overridden ? { tone: "warn" as const, title: "No treatment allowed", body: data.explanation }
-    : d.review_status === "pending" ? { tone: "warn" as const, title: `Held for human review: ${d.treatment}`, body: `${d.review_reason ?? "Needs a person's approval"}. Nothing is sent until a strategist approves it.` }
+    : d.review_status === "pending" ? { tone: "warn" as const, title: `Held for human review: ${d.treatment}`, body: `${d.review_reason ?? "Needs a person's approval"}. Nothing is sent until a strategy analyst approves it.` }
     : d.overridden ? { tone: "warn" as const, title: `Overridden by a person: ${data.original_treatment} → ${d.treatment ?? "no treatment"}`, body: data.override_reason ?? "" }
     : d.review_policy === "human_review" ? { tone: "good" as const, title: `Approved by a person: ${d.treatment}`, body: `Selected by the model, approved before sending.` }
     : { tone: "info" as const, title: `Executed automatically: ${d.treatment}`, body: "A communication treatment. Policy allows these to send without review, inside the contact rules." };

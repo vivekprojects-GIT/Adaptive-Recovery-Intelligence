@@ -115,6 +115,7 @@ export interface Stats {
 }
 
 export interface Strategy {
+  target_query: TargetQuery | null;
   campaign_id: string; name: string; description: string; status: string; version: number;
   source: string; steps_completed: number; target_cohorts: string[];
   risk_bands: string[]; min_balance: number | null; max_balance: number | null;
@@ -269,6 +270,8 @@ export interface InsightRow {
   body: string; evidence: string; priority: string; status: string;
   change: Record<string, unknown>; created_at: string; response_note: string | null;
 }
+
+export interface TargetQuery { question: string; conditions: { field: string; op: string; value: unknown }[] }
 
 export interface CustomerRow {
   customer_id: number; account_number: string; name: string; cohort_id: string; balance: number; arrears: number; credit_limit: number;

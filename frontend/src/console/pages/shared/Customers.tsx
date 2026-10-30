@@ -8,6 +8,7 @@ import { ROUTE_LABEL, ago, money } from "../../lib/format";
 import { useApi } from "../../lib/session";
 import { SegmentChip } from "../../ui/domain";
 import { Avatar, Card, Empty, ErrorState, Page, PageHeader, Pager, Pills, Progress, Select, Spinner, StatusChip, Table, Td, Th, Tr, inputCls } from "../../ui/ui";
+import AskPortfolio from "./AskPortfolio";
 
 interface Data { total: number; page: number; page_size: number; counts: Record<string, number>; products: { product: string; accounts: number }[]; rows: CustomerRow[] }
 
@@ -28,7 +29,8 @@ export default function Customers({ journeys }: { journeys?: boolean }) {
   const [q, setQ] = useState(params.get("q") ?? "");
   useEffect(() => setQ(params.get("q") ?? ""), [params]);
   const card = params.get("card") ?? "";
-  const path = `/customers?view=${view}&page=${page}&page_size=20&q=${encodeURIComponent(params.get("q") ?? "")}&product=${encodeURIComponent(card)}`;
+  const where = params.get("where") ?? "";
+  const path = `/customers?view=${view}&page=${page}&page_size=20&q=${encodeURIComponent(params.get("q") ?? "")}&product=${encodeURIComponent(card)}&where=${encodeURIComponent(where)}`;
   const { data, error, loading, reload } = useApi<Data>(path, [path]);
   const navigate = useNavigate();
   const set = (k: string, v: string) => { const n = new URLSearchParams(params); v ? n.set(k, v) : n.delete(k); if (k !== "page") n.delete("page"); setParams(n); };
@@ -39,6 +41,11 @@ export default function Customers({ journeys }: { journeys?: boolean }) {
       <PageHeader title={journeys ? "Journeys" : "Customers"}
         subtitle={journeys ? "Every customer a strategy has touched, with where their journey stands" : `${data?.total ?? "…"} accounts handed over by Meridian Valley Bank's collections system`} />
       <Page>
+        {!journeys && (
+          <AskPortfolio question={params.get("ask")}
+            onAnswer={(a) => { const n = new URLSearchParams(params); n.set("ask", a.question); n.set("where", JSON.stringify(a.conditions)); n.delete("page"); setParams(n); }}
+            onClear={() => { const n = new URLSearchParams(params); n.delete("ask"); n.delete("where"); n.delete("page"); setParams(n); }} />
+        )}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Pills value={view} onChange={(v) => set("view", v)} options={[
             ...(journeys ? [] : [{ id: "all", label: "All", count: c.all }]),

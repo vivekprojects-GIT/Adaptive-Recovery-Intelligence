@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from ... import models
 from ...core.database import get_db
 from ...seed import PRODUCTS
-from .. import analytics, recovery
+from .. import analytics, journey, recovery
 from ..engine import arrears, jl
 from ..models import Campaign, Decision, Outcome, User
 from ..rbac import granted, require
@@ -98,6 +98,12 @@ def recovery_view(product: str = "", user: User = Depends(require("view_kpi_dash
     if "view_customer_list" in granted(db, user.role):
         out["population"] = recovery.accounts(db, p, page_size=5)
     return out
+
+
+@router.get("/journey/collections")
+def collections_journey(user: User = Depends(require("view_customer_list")), db: Session = Depends(get_db)):
+    """The Collections Journey page: the collections book's story, told with its own numbers."""
+    return journey.collections(db, user)
 
 
 @router.get("/journey/recovery")

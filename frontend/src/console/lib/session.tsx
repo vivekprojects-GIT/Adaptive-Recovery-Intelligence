@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { api, clearSessionUser, getUserId, setSessionUser, type Me, type PublicUser } from "./api";
 
@@ -83,17 +83,23 @@ export function useApi<T>(path: string | null, deps: unknown[] = []) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const { me } = useSession();
+  // Only the latest request may set the data: an earlier one that answers later is stale.
+  const latest = useRef(0);
 
   const load = useCallback(async () => {
     if (!path || !me) return;
+    const n = ++latest.current;
     setLoading(true);
     try {
-      setData(await api.get<T>(path));
+      const got = await api.get<T>(path);
+      if (n !== latest.current) return;
+      setData(got);
       setError(null);
     } catch (e) {
+      if (n !== latest.current) return;
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setLoading(false);
+      if (n === latest.current) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, me?.user.user_id, ...deps]);

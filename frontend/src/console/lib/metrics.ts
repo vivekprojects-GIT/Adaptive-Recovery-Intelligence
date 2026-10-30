@@ -73,7 +73,7 @@ export const METRICS: Record<string, MetricDef> = {
   recovery_target: {
     label: "Target payment rate", group: "Experiment",
     meaning: "The payment rate a strategy was approved to reach.",
-    formula: "Set by the strategist; approved by a leader",
+    formula: "Set by the strategy analyst; approved by a leader",
     read: "Deviation is actual minus target. Within 5 points below target is shown as watch.",
   },
   cost_per_recovery: {

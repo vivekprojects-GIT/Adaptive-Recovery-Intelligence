@@ -102,7 +102,7 @@ ALERTS = [
     ("Escalation rate above ceiling", "escalation_rate", "gt", 0.08, "portfolio", "High", "Jordan Whitcomb"),
     ("Open critical compliance violations", "critical_violations", "gt", 0, "portfolio", "Critical",
      "Compliance, Jordan Whitcomb"),
-    ("Review queue backlog", "pending_review", "gt", 10, "portfolio", "Medium", "Strategists"),
+    ("Review queue backlog", "pending_review", "gt", 10, "portfolio", "Medium", "Strategy analysts"),
     ("API p95 latency", "latency_p95_ms", "gt", 800, "portfolio", "Medium", "Patricia Vaughn"),
 ]
 
@@ -132,7 +132,8 @@ def ensure_console(db: Session) -> None:
                      ("payment_records", "nova_cure_flag", "BOOLEAN"),
                      ("customers", "account_number", "VARCHAR(64)"),
                      ("customers", "delinquent_amount", "FLOAT"),
-                     ("recovery_accounts", "account_number", "VARCHAR(64)")]
+                     ("recovery_accounts", "account_number", "VARCHAR(64)"),
+                     ("campaigns", "target_query", "TEXT")]
     try:
         for table, column, ddl in added_columns:
             cols = {r[1] for r in db.execute(text(f"PRAGMA table_info({table})"))}

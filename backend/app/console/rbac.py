@@ -16,7 +16,7 @@ from ..core.database import get_db
 from .models import RolePermission, User
 
 ROLES = {
-    "strategist": "Strategist",
+    "strategist": "Strategy Analyst",
     "leader": "Strategy Leader",
     "admin": "Platform Admin",
     "viewer": "Viewer",

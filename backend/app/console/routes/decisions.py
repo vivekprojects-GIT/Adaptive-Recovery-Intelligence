@@ -328,7 +328,7 @@ def nudge_detail(nid: str, user: User = Depends(require("view_ai_decisions")), d
         "pipeline": jl(n.pipeline),
         "reasoning": {
             "summary": (d.explanation if d and n.touch_number == 1 and not n.manual else
-                        ("Manual message sent by a strategist." if n.manual else
+                        ("Manual message sent by a strategy analyst." if n.manual else
                          ("Escalation step from the strategy's escalation rule." if n.is_escalation
                           else f"Follow-up touch {n.touch_number} on the strategy's cadence."))),
             "fit_reasons": chosen["fit_reasons"] if chosen else fit_reasons(n.treatment_code, c),

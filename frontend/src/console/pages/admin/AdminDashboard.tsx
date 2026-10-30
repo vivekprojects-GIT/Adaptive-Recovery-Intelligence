@@ -36,7 +36,7 @@ export default function AdminDashboard() {
       <Page>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Kpi label="Total users" value={k.users} sub={`${k.active_users} active`} />
-          <Kpi label="Live strategies" value={k.live_strategies} sub={`across ${k.strategists} strategists`} tone="primary" />
+          <Kpi label="Live strategies" value={k.live_strategies} sub={`across ${k.strategists} strategy analysts`} tone="primary" />
           <Kpi label="Permission model" value={`${k.permissions}`} sub={`permissions across ${k.roles} roles`} />
           <Kpi label="API availability" value={pct(k.availability, 2)} tone={k.availability < 0.999 ? "warn" : "good"} sub={`since start · ${fmtUptime(h.metrics.uptime_seconds)}`} />
         </div>

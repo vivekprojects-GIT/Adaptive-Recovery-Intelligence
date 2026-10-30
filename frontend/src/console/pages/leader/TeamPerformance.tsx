@@ -13,11 +13,11 @@ export default function TeamPerformance() {
   if (loading || !data) return <Spinner />;
   return (
     <>
-      <PageHeader title="Team Performance" subtitle="Strategists, their strategies and what those strategies caused" />
+      <PageHeader title="Team Performance" subtitle="Strategy analysts, their strategies and what those strategies caused" />
       <Page>
         <Card flush>
           <Table>
-            <thead><tr><Th>Strategist</Th><Th>Status</Th><Th align="right">Strategies</Th><Th align="right">Live</Th><Th align="right">Drafts / review</Th>
+            <thead><tr><Th>Strategy analyst</Th><Th>Status</Th><Th align="right">Strategies</Th><Th align="right">Live</Th><Th align="right">Drafts / review</Th>
               <Th align="right">Accounts</Th><Th>Recovery vs control</Th><Th align="right">Recovered</Th><Th align="right">Offers reviewed</Th><Th align="right">Overrides</Th></tr></thead>
             <tbody>
               {data.team.map((r) => (
@@ -33,8 +33,8 @@ export default function TeamPerformance() {
           </Table>
         </Card>
         <div className="grid gap-4 lg:grid-cols-2">
-          <Card title="Recovered by strategist"><BarList rows={data.team.map((r) => ({ label: r.name, value: r.recovered }))} format={(v) => money(v ?? 0)} /></Card>
-          <Card title="Uplift over control by strategist" subtitle="Small portfolios swing; read alongside account counts">
+          <Card title="Recovered by strategy analyst"><BarList rows={data.team.map((r) => ({ label: r.name, value: r.recovered }))} format={(v) => money(v ?? 0)} /></Card>
+          <Card title="Uplift over control by strategy analyst" subtitle="Small portfolios swing; read alongside account counts">
             <BarList rows={data.team.map((r) => ({ label: r.name, value: Math.max(0, r.uplift ?? 0), sub: `${num(r.accounts)} accounts` }))} format={(v) => pct(v ?? 0)} />
           </Card>
         </div>

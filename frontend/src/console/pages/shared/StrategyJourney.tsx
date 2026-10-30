@@ -135,20 +135,22 @@ const betaPdf = (x: number, b: Belief) => {
   return Math.exp((a - 1) * Math.log(x) + (c - 1) * Math.log(1 - x) - (lgamma(a) + lgamma(c) - lgamma(a + c)));
 };
 
-export default function StrategyJourney() {
+export default function StrategyJourney({ title = "Recovery Journey", tabs }: { title?: string; tabs?: ReactNode }) {
   const { data, error, loading, reload } = useApi<Data>("/journey/recovery");
   const [accountId, setAccountId] = useState<number | null>(null);
-  if (loading && !data) return <><PageHeader title="Strategy Journey" /><Page><Spinner /></Page></>;
-  if (error || !data) return <><PageHeader title="Strategy Journey" /><Page><ErrorState message={error ?? "Not available"} onRetry={reload} /></Page></>;
+  if (loading && !data) return <><PageHeader title={title} meta={tabs} /><Page><Spinner /></Page></>;
+  if (error || !data) return <><PageHeader title={title} meta={tabs} /><Page><ErrorState message={error ?? "Not available"} onRetry={reload} /></Page></>;
   // Opens on an account in Active Recovery with nothing paid yet and an automated offer allowed: the plainest case.
   const account = data.accounts.find((a) => a.recovery_id === accountId)
     ?? data.accounts.find((a) => a.status === "Active Recovery" && a.remaining < data.rules.specialist_threshold)
     ?? data.accounts[0];
-  if (!account) return <><PageHeader title="Strategy Journey" /><Page><ErrorState message="No recovery accounts are open for a treatment." /></Page></>;
-  return <Journey key={account.recovery_id} data={data} account={account} onAccount={setAccountId} />;
+  if (!account) return <><PageHeader title={title} meta={tabs} /><Page><ErrorState message="No recovery accounts are open for a treatment." /></Page></>;
+  return <Journey key={account.recovery_id} data={data} account={account} onAccount={setAccountId} title={title} tabs={tabs} />;
 }
 
-function Journey({ data, account, onAccount }: { data: Data; account: Account; onAccount: (id: number) => void }) {
+function Journey({ data, account, onAccount, title, tabs }: {
+  data: Data; account: Account; onAccount: (id: number) => void; title: string; tabs?: ReactNode;
+}) {
   // Records are kept per segment: this account's segment, for each treatment the rules allow and for no contact.
   const codes = useMemo(() => data.treatments.map((t) => t.code).filter((c) => c in account.history.treatments), [data, account]);
   const byCode = useMemo<Record<string, Treatment>>(() => ({ ...Object.fromEntries(data.treatments.map((t) => [t.code, t])), [CONTROL]: NO_CONTACT }), [data]);
@@ -264,7 +266,7 @@ function Journey({ data, account, onAccount }: { data: Data; account: Account; o
 
   return (
     <>
-      <PageHeader title="Strategy Journey"
+      <PageHeader title={title} meta={tabs}
         subtitle="How a recovery account moves through CARE: what the business does at each step, and how the systems decide, act and learn"
         actions={<>
           <label className="sr-only" htmlFor="journey-account">Account</label>

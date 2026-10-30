@@ -136,7 +136,7 @@ function RecoveryTab({ product }: { product: string }) {
             <span>Showing {num(rows?.length ?? 0)} of {num(pop.total)} accounts</span>
             <button type="button" onClick={() => setAll((a) => !a)} className="inline-flex items-center gap-1 font-medium text-primary-500 hover:underline">
               {all ? "Show fewer" : "View all"} <ArrowRight className="h-3 w-3" /></button></div>}>
-          {!pop ? <p className="px-4 py-6 text-sm text-fg-2">Account lists are available to strategists and leaders.</p> : (
+          {!pop ? <p className="px-4 py-6 text-sm text-fg-2">Account lists are available to strategy analysts and leaders.</p> : (
             <>
               <Table maxHeight={all ? "560px" : undefined}>
                 <thead><tr><Th w="36px"> </Th><Th>Account ID</Th><Th>Card business</Th><Th align="right">Charge-off balance</Th>
@@ -188,7 +188,7 @@ function RecoveryTab({ product }: { product: string }) {
           </div>
           <div className="mt-2 [&>button]:w-full [&>button]:justify-center">
             <Button variant="primary" disabled={!picked.length || !can("edit_strategy")} loading={busy === "assign"} onClick={assign}
-              title={!can("edit_strategy") ? "Strategists assign recovery treatments" : undefined}>
+              title={!can("edit_strategy") ? "Strategy analysts assign recovery treatments" : undefined}>
               Assign treatment {picked.length > 0 && `to ${picked.length}`} <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
@@ -225,7 +225,7 @@ function CollectionsTab({ product }: { product: string }) {
           actions={pop && <div className="flex items-center gap-4 text-xs text-fg-2">
             <span>Showing {num(pop.rows.length)} of {num(pop.total)} accounts</span>
             <Link to="/customers" className="inline-flex items-center gap-1 font-medium text-primary-500 hover:underline">View all <ArrowRight className="h-3 w-3" /></Link></div>}>
-          {!pop ? <p className="px-4 py-6 text-sm text-fg-2">Account lists are available to strategists and leaders.</p> : (
+          {!pop ? <p className="px-4 py-6 text-sm text-fg-2">Account lists are available to strategy analysts and leaders.</p> : (
             <Table>
               <thead><tr><Th>Account ID</Th><Th>Card business</Th><Th align="right">Total balance</Th>
                 <Th align="right">Delinquent amount</Th><Th align="right">Days past due</Th><Th align="right">Credit limit</Th><Th>Status</Th></tr></thead>

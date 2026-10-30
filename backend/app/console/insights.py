@@ -101,7 +101,7 @@ def problem_areas(db: Session) -> list[dict]:
     if pending:
         out.append({"id": "review", "kind": "review_backlog", "campaign_id": None, "severity": "Medium",
                     "title": "Decisions waiting for human review",
-                    "metrics": f"{pending} forbearance decisions are held until a strategist approves them",
+                    "metrics": f"{pending} forbearance decisions are held until a strategy analyst approves them",
                     "evidence": {"pending": pending}})
 
     order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}

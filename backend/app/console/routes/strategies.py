@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 
 from ...core.database import get_db
-from .. import analytics, compliance, engine, insights, playbook, suggest, scorecards
+from .. import analytics, compliance, engine, insights, nlq, playbook, suggest, scorecards
 from ..engine import jl
 from ..models import Campaign, Decision, Outcome, User
 from ..platform import audit, cfg, now
@@ -34,6 +34,7 @@ class StrategyIn(BaseModel):
     max_balance: float | None = None
     min_dpd: int | None = None
     max_dpd: int | None = None
+    target_query: dict | None = None   # {"question", "conditions"} from the Customers list
     treatment_codes: list[str] = []
     cadence_days: int = Field(3, ge=1, le=30)
     max_touches: int = Field(3, ge=1, le=6)
@@ -50,6 +51,12 @@ class StrategyIn(BaseModel):
 
 
 def _validate_strategy(db: Session, body: StrategyIn, final: bool) -> None:
+    if body.target_query:
+        try:
+            body.target_query = {"question": str(body.target_query.get("question", ""))[:300],
+                                 "conditions": nlq.validate(body.target_query.get("conditions", []))}
+        except ValueError as e:
+            raise HTTPException(400, f"Target accounts: {e}")
     t = _treatments(db)
     bad = [c for c in body.treatment_codes if c not in t]
     if bad:
@@ -93,12 +100,13 @@ def list_strategies(scope: str = "all", status: str | None = None,
 @router.get("/strategies/estimate")
 def estimate(cohorts: str = "", risk_bands: str = "",
              min_balance: float | None = None, max_balance: float | None = None,
-             min_dpd: int | None = None, max_dpd: int | None = None, treatments: str = "",
+             min_dpd: int | None = None, max_dpd: int | None = None, treatments: str = "", query: str = "",
              user: User = Depends(require("view_kpi_dashboard")), db: Session = Depends(get_db)):
     """Live count for the guided builder: how many customers this definition reaches."""
     tmp = Campaign(campaign_id="STR-TMP", target_cohorts=json.dumps([x for x in cohorts.split(",") if x]),
                    risk_bands=json.dumps([x for x in risk_bands.split(",") if x]),
                    min_balance=min_balance, max_balance=max_balance, min_dpd=min_dpd, max_dpd=max_dpd,
+                   target_query=query or None,
                    treatment_codes=json.dumps([x for x in treatments.split(",") if x] or ["S1"]),
                    control_pct=0.2)
     return engine.population_breakdown(db, tmp)
@@ -258,7 +266,7 @@ def create_strategy(body: StrategyIn, user: User = Depends(require("create_strat
     data = body.model_dump()
     c = Campaign(campaign_id=cid, owner_id=user.user_id, created_by=user.user_id, status="Draft",
                  source="manual", created_at=ts, updated_at=ts, seed=int(cid.split("-")[1]) * 7 + 3,
-                 **{k: (json.dumps(v) if isinstance(v, list) else v) for k, v in data.items()})
+                 **{k: (json.dumps(v) if isinstance(v, (list, dict)) else v) for k, v in data.items()})
     db.add(c)
     audit(db, user.user_id, "CREATE", "strategy", cid, f"Created strategy {cid} {body.name}")
     db.commit()
@@ -282,10 +290,10 @@ def update_strategy(cid: str, body: StrategyIn, user: User = Depends(require("ed
     _validate_strategy(db, body, final=False)
     data = body.model_dump()
     changed = [k for k, v in data.items()
-               if (json.dumps(v) if isinstance(v, list) else v) != getattr(c, k)]
+               if (json.dumps(v) if isinstance(v, (list, dict)) else v) != getattr(c, k)]
     material = [k for k in changed if k in MATERIAL]
     for k, v in data.items():
-        setattr(c, k, json.dumps(v) if isinstance(v, list) else v)
+        setattr(c, k, json.dumps(v) if isinstance(v, (list, dict)) else v)
     note = ""
     if material and c.status in ("Approved", "Paused", "In review"):
         # What was approved is no longer what would run.
@@ -316,8 +324,8 @@ def submit(cid: str, user: User = Depends(require("edit_strategy")), db: Session
     c = _get_campaign(db, cid)
     if c.status != "Draft":
         raise HTTPException(409, f"Only a draft can be submitted (this one is {c.status}).")
-    body = StrategyIn(**{k: (jl(getattr(c, k)) if k in ("target_cohorts", "risk_bands",
-                                                         "treatment_codes") else getattr(c, k))
+    body = StrategyIn(**{k: (jl(getattr(c, k)) if k in ("target_cohorts", "risk_bands", "treatment_codes")
+                             else jl(c.target_query, {}) or None if k == "target_query" else getattr(c, k))
                          for k in StrategyIn.model_fields})
     _validate_strategy(db, body, final=True)
     c.submitted_at = now()

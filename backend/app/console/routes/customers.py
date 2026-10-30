@@ -1,6 +1,7 @@
 """Customers, their journeys, and the actions a strategist can take on one."""
 from __future__ import annotations
 
+import json
 from datetime import datetime
 
 
@@ -15,7 +16,7 @@ from ... import models
 from ...seed import PRODUCTS
 from ...core.database import get_db
 from ...scoring import eligibility, fit_reasons, nudge_explanation
-from .. import analytics, compliance, engine
+from .. import analytics, compliance, engine, nlq
 from ..engine import arrears
 from ..models import Campaign, Decision, User
 from ..platform import audit, customer_ref
@@ -25,13 +26,40 @@ from .common import UTC, _ordered_treatments, _treatments, customer_match
 router = APIRouter()
 
 
+class AskIn(BaseModel):
+    question: str = Field(min_length=3, max_length=300)
+
+
+@router.post("/customers/ask")
+def ask(body: AskIn, user: User = Depends(require("view_customer_list")), db: Session = Depends(get_db)):
+    """A question about the portfolio in plain English, read into query conditions:
+    what was understood, what was not, the SQL it amounts to, and how many accounts match."""
+    r = nlq.read(body.question)
+    if not r["conditions"]:
+        raise HTTPException(422, "No conditions found in that question. Try something like: consumer card accounts "
+                                 "over 60 days past due with a balance above $5,000 who use the app.")
+    rows = nlq.apply(db.query(models.Customer), r["conditions"]).all()
+    audit(db, user.user_id, "READ", "customer", "query", f"Asked the portfolio: {body.question[:120]}",
+          {"conditions": r["conditions"], "matches": len(rows)})
+    db.commit()
+    return {"question": body.question, **r, "accounts": len(rows),
+            "cohorts": sorted({c.cohort_id for c in rows}),
+            "balance": round(sum(c.balance for c in rows), 2)}
+
+
 @router.get("/customers")
-def customers(view: str = "all", q: str = "", cohort: str = "", product: str = "", page: int = 1, page_size: int = 25,
-              user: User = Depends(require("view_customer_list")), db: Session = Depends(get_db)):
-    """Accounts in collections, filtered by view, search, delinquency bucket and card business."""
+def customers(view: str = "all", q: str = "", cohort: str = "", product: str = "", where: str = "", page: int = 1,
+              page_size: int = 25, user: User = Depends(require("view_customer_list")), db: Session = Depends(get_db)):
+    """Accounts in collections, filtered by view, search, delinquency bucket, card business,
+    and the conditions a plain-English question was read into (`where`, see /customers/ask)."""
     if product and product not in PRODUCTS:
         raise HTTPException(400, f"Unknown card business {product}. Use one of: {', '.join(PRODUCTS)}.")
     query = db.query(models.Customer)
+    if where:
+        try:
+            query = nlq.apply(query, json.loads(where))
+        except (ValueError, TypeError) as e:
+            raise HTTPException(400, f"Could not apply the question's conditions: {e}")
     if cohort:
         query = query.filter(models.Customer.cohort_id == cohort)
     if q.strip():

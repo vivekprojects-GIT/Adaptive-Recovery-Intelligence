@@ -24,7 +24,7 @@ REPORTS = {
     "decisions": ("Decision log", "Every decision with its group, treatment, probability and outcome"),
     "compliance": ("Compliance violations", "All detected violations with status and resolution"),
     "audit": ("Audit trail", "Every user and system action"),
-    "team": ("Team performance", "Per-strategist results"),
+    "team": ("Team performance", "Per-analyst results"),
 }
 
 

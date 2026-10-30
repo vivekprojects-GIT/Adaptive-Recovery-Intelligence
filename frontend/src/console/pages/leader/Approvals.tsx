@@ -15,7 +15,7 @@ export default function Approvals() {
   if (loading || !data) return <Spinner />;
   return (
     <>
-      <PageHeader title="Approvals" subtitle="Strategies submitted by strategists, waiting for sign-off before they can run" />
+      <PageHeader title="Approvals" subtitle="Strategies submitted by strategy analysts, waiting for sign-off before they can run" />
       <Page>
         <Banner tone="info" title="Maker-checker">
           Nobody can approve a strategy they authored. Approving lets the owner launch it; any later change to its audience, treatments, control share or escalation sends it back here.

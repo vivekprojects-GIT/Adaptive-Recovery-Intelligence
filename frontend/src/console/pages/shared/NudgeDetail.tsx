@@ -60,7 +60,7 @@ export default function NudgeDetail() {
                 ))}
               </ol>
             </Card>
-            <Card title="Message content" subtitle={n.manual ? "Typed by a strategist (not an approved template)" : "Approved template"}>
+            <Card title="Message content" subtitle={n.manual ? "Typed by a strategy analyst (not an approved template)" : "Approved template"}>
               <div className="max-w-md rounded-2xl rounded-bl-sm bg-surface-sunken px-4 py-3 text-[13px] leading-5 ring-1 ring-line">{n.content}</div>
             </Card>
           </div>

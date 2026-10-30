@@ -32,7 +32,7 @@ interface Defaults { control_pct: number; wave_size: number; evaluation_days: nu
 
 const BLANK: Form = {
   name: "", description: "", steps_completed: 0, target_cohorts: [], risk_bands: [],
-  min_balance: null, max_balance: null, min_dpd: null, max_dpd: null, treatment_codes: [], cadence_days: 3,
+  min_balance: null, max_balance: null, min_dpd: null, max_dpd: null, target_query: null, treatment_codes: [], cadence_days: 3,
   max_touches: 3, tone: "Supportive", send_window_start: 9, send_window_end: 19, escalate_after_days: 14,
   escalate_to: null, control_pct: 0.2, wave_size: 40, evaluation_days: 7, recovery_target: 0.45,
 };
@@ -108,6 +108,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
       treatments: form.treatment_codes.join(","),
     });
     (["min_balance", "max_balance", "min_dpd", "max_dpd"] as const).forEach((k) => form[k] !== null && p.set(k, String(form[k])));
+    if (form.target_query) p.set("query", JSON.stringify(form.target_query));
     return p.toString();
   }, [form]);
 
@@ -159,6 +160,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
       ? `balance ${form.min_balance !== null ? money(form.min_balance) : "any"}–${form.max_balance !== null ? money(form.max_balance) : "any"}` : null,
     form.min_dpd !== null || form.max_dpd !== null ? `${form.min_dpd ?? 0}–${form.max_dpd ?? "any"} days past due` : null,
     form.risk_bands.length ? `${form.risk_bands.join(", ")} risk` : null,
+    form.target_query ? `accounts matching "${form.target_query.question}"` : null,
   ].filter(Boolean).join(" · ");
   const rhythm = `Every ${form.cadence_days} days, up to ${form.max_touches} touches, ${form.tone.toLowerCase()} tone, ${form.send_window_start}:00–${form.send_window_end}:00`;
   const experiment = `${pct(form.control_pct, 0)} control group, ${form.wave_size} per wave, ${form.evaluation_days}-day performance window, target ${pct(form.recovery_target, 0)}`;
@@ -229,6 +231,18 @@ export default function GuidedBuild({ id }: { id?: string }) {
           <div className="space-y-4">
             <Field label="Strategy name" required><input id="strategy-name" className={inputCls} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Medium-Risk Payment Plan Flow" /></Field>
             <Field label="Description"><textarea id="strategy-description" rows={2} className={`${inputCls} h-auto py-2`} value={form.description} onChange={(e) => set("description", e.target.value)} /></Field>
+            {form.target_query && (
+              <div className="rounded-lg border border-primary-500/40 bg-primary-50 px-3 py-2.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-2xs font-medium uppercase tracking-[0.08em] text-primary-500">Target accounts from a question</p>
+                    <p className="mt-0.5 text-sm font-medium text-fg">"{form.target_query.question}"</p>
+                    <p className="mt-0.5 text-xs text-fg-2">Only accounts that match this question, inside the cohorts below, are in the audience. It came from the Customers list.</p>
+                  </div>
+                  {editable && <Button size="sm" variant="ghost" onClick={() => set("target_query", null)}>Remove</Button>}
+                </div>
+              </div>
+            )}
             <Field label="Delinquency buckets" hint="The cohorts Meridian Valley Bank's collections system hands over. CARE does not re-segment them.">
               <div className="grid gap-2 sm:grid-cols-2">
                 {cohorts.map((c) => (

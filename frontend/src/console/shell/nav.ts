@@ -51,7 +51,7 @@ export const NAV: Record<Role, { section?: string; items: NavItem[] }[]> = {
     ] },
     { section: "Strategy Workspace", items: [
       { to: "/workspace", label: "Strategy Workspace", icon: Columns3 },
-      { to: "/strategy-journey", label: "Strategy Journey", icon: Workflow, perm: "view_customer_list" },
+      { to: "/journey", label: "Collections Journey", icon: Workflow, perm: "view_customer_list" },
       { to: "/builder", label: "Strategy Builder", icon: Wrench, perm: "create_strategy" },
       { to: "/strategies", label: "My Strategies", icon: BookOpen },
       { to: "/treatments", label: "Treatment Playbook", icon: Library },
@@ -80,7 +80,7 @@ export const NAV: Record<Role, { section?: string; items: NavItem[] }[]> = {
     ] },
     { section: "Strategy Workspace", items: [
       { to: "/workspace", label: "Strategy Workspace", icon: Columns3 },
-      { to: "/strategy-journey", label: "Strategy Journey", icon: Workflow, perm: "view_customer_list" },
+      { to: "/journey", label: "Collections Journey", icon: Workflow, perm: "view_customer_list" },
       { to: "/approvals", label: "Approvals", icon: ListChecks, perm: "approve_strategy", badge: (b) => b.awaiting_approval },
       { to: "/compare", label: "Strategy Compare", icon: GitCompare, perm: "compare_strategies" },
       { to: "/treatments", label: "Treatment Playbook", icon: Library },
@@ -123,7 +123,7 @@ export const NAV: Record<Role, { section?: string; items: NavItem[] }[]> = {
     ] },
     { section: "Strategy Workspace", items: [
       { to: "/workspace", label: "Strategy Workspace", icon: Columns3 },
-      { to: "/strategy-journey", label: "Strategy Journey", icon: Workflow, perm: "view_customer_list" },
+      { to: "/journey", label: "Collections Journey", icon: Workflow, perm: "view_customer_list" },
     ] },
     { section: "Analysis", items: [
       { to: "/analytics", label: "Strategy Analytics", icon: ChartColumnBig },
@@ -136,5 +136,5 @@ export const NAV: Record<Role, { section?: string; items: NavItem[] }[]> = {
 };
 
 export const HOME: Record<Role, string> = { strategist: "/overview", leader: "/overview", admin: "/admin", viewer: "/overview" };
-export const WORKSPACE: Record<Role, string> = { strategist: "Strategist workspace", leader: "Leadership workspace", admin: "Platform administration", viewer: "Read-only workspace" };
+export const WORKSPACE: Record<Role, string> = { strategist: "Strategy analyst workspace", leader: "Leadership workspace", admin: "Platform administration", viewer: "Read-only workspace" };
 

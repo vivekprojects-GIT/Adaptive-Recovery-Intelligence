@@ -67,6 +67,8 @@ class Campaign(Base):
     # 2. Risk rules
     risk_bands: Mapped[str] = mapped_column(Text, default="[]")             # client risk bands
     min_dpd: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # The accounts a plain-English question found, as {"question", "conditions"} (console/nlq.py).
+    target_query: Mapped[str | None] = mapped_column(Text, nullable=True)
     max_dpd: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # 3. Channels = treatment arms the bandit may choose among
     treatment_codes: Mapped[str] = mapped_column(Text, default="[]")
