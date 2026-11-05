@@ -74,7 +74,7 @@ def problem_areas(db: Session) -> list[dict]:
             if er is not None and er > ceiling and (pr is None or er > pr):
                 out.append({
                     "id": f"esc-{c.campaign_id}", "kind": "escalation", "campaign_id": c.campaign_id,
-                    "severity": "High", "title": "Escalation rate rising",
+                    "severity": "High", "title": "Second tries rising",
                     "metrics": f"{_pct(er)} in {c.campaign_id} (ceiling {_pct(ceiling)})"
                                + (f", up from {_pct(pr)}" if pr is not None else ""),
                     "evidence": {"current": er, "previous": pr, "escalate_after_days": c.escalate_after_days,
@@ -156,15 +156,14 @@ def ideas_for(db: Session, area: dict) -> list[dict]:
     elif kind == "escalation" and camp:
         ev = area["evidence"]
         out.append({
-            "title": f"Delay escalation in {camp.campaign_id} to day {camp.escalate_after_days + 7}",
-            "body": f"Escalation to {ev.get('escalate_to')} currently fires on day "
-                    f"{camp.escalate_after_days}. Many digital payers settle in the second week; "
-                    f"escalating later avoids paying for calls the customer did not need.",
+            "title": f"Let the engine pick the second try in {camp.campaign_id}",
+            "body": f"Every customer the first treatment misses gets {ev.get('escalate_to')} next. Letting the "
+                    f"engine pick from the treatments not tried yet sends each one what has worked best so far.",
             "evidence": area["metrics"], "priority": "High",
-            "change": {"escalate_after_days": camp.escalate_after_days + 7}})
+            "change": {"escalate_to": None}})
         out.append({
-            "title": f"Cap touches at {max(1, camp.max_touches - 1)} before escalation",
-            "body": "Fewer reminders before the escalation step keeps the contact count inside "
+            "title": f"Cap touches at {max(1, camp.max_touches - 1)} before the second try",
+            "body": "Fewer reminders before the second try keeps the contact count inside "
                     "the 7-in-7 guidance when the BAU dialler is also active.",
             "evidence": area["metrics"], "priority": "Medium",
             "change": {"max_touches": max(1, camp.max_touches - 1)}})

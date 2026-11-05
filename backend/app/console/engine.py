@@ -306,7 +306,8 @@ def learning(db: Session, camp: Campaign) -> dict:
     codes = list(priors)
     state = {k: (priors[k]["a"], priors[k]["b"]) for k in codes}
     rng = np.random.default_rng(17)
-    rows = (db.query(Decision.wave, Decision.group, Decision.treatment_code, Outcome.reward, Outcome.learned)
+    rows = (db.query(Decision.wave, Decision.group, Decision.treatment_code, Outcome.reward, Outcome.learned,
+                     Decision.origin)
             .outerjoin(Outcome, Outcome.decision_id == Decision.decision_id)
             .filter(Decision.campaign_id == camp.campaign_id).all())
 
@@ -322,8 +323,10 @@ def learning(db: Session, camp: Campaign) -> dict:
     for w in sorted({r[0] for r in rows}):
         counts: dict[str, int] = {}
         learned = 0
-        for _, group, code, reward, was_learned in (r for r in rows if r[0] == w):
-            if group == "Treatment" and code in state:
+        for _, group, code, reward, was_learned, origin in (r for r in rows if r[0] == w):
+            # Allocation is the engine's free choice: a second try is drawn only
+            # from what a customer has not had, so it is learned from, not counted here.
+            if group == "Treatment" and code in state and origin != "next_try":
                 counts[code] = counts.get(code, 0) + 1
             if was_learned and reward is not None and code in state:
                 a, b = state[code]
@@ -567,6 +570,54 @@ def undecided_pool(db: Session, camp: Campaign) -> list[models.Customer]:
     return pool
 
 
+# A customer gets at most this many different treatments in one strategy: the
+# first, and one next try when the first reached them and they did not pay.
+MAX_TRIES = 2
+
+
+def tried(db: Session, camp: Campaign, customer_id: int) -> list[str]:
+    """Treatments this strategy has already given this customer, in order."""
+    return [k for (k,) in db.query(Decision.treatment_code)
+            .filter(Decision.campaign_id == camp.campaign_id, Decision.customer_id == customer_id,
+                    Decision.group == "Treatment", Decision.treatment_code.isnot(None))
+            .order_by(Decision.decided_at)]
+
+
+def next_try_state(db: Session, camp: Campaign, c, state: dict) -> dict:
+    """The arms a customer's next try is drawn from: every treatment not tried
+    on them yet. A strategy that names an escalation treatment keeps that choice
+    for the analyst; otherwise Thompson sampling picks among the rest, with
+    everything learned so far - including this customer's miss."""
+    done = set(tried(db, camp, c.customer_id))
+    left = {k: v for k, v in state.items() if k not in done}
+    if camp.escalate_to:
+        left = {k: v for k, v in left.items() if k == camp.escalate_to}
+    return left
+
+
+def next_try_pool(db: Session, camp: Campaign) -> list[tuple[models.Customer, Outcome]]:
+    """Customers whose treatment reached them without a payment in its window,
+    who have a try left and a treatment not yet tried that they may receive.
+    Each comes with the outcome of the try that missed."""
+    rows = (db.query(Decision, Outcome).join(Outcome, Outcome.decision_id == Decision.decision_id)
+            .filter(Decision.campaign_id == camp.campaign_id, Decision.group == "Treatment",
+                    Decision.validation.is_(False), Outcome.paid.is_(False), Outcome.reward.isnot(None),
+                    Outcome.escalated.is_(False))
+            .order_by(Decision.decided_at).all())
+    paid = {cid for (cid,) in db.query(Outcome.customer_id)
+            .filter(Outcome.campaign_id == camp.campaign_id, Outcome.paid.is_(True))}
+    out = []
+    for dec, o in rows:
+        if dec.customer_id in paid or len(tried(db, camp, dec.customer_id)) >= MAX_TRIES:
+            continue
+        c = db.get(models.Customer, dec.customer_id)
+        if c is None or c.route != "strategy":
+            continue
+        if any(eligibility(k, c)[0] for k in next_try_state(db, camp, c, {k: None for k in jl(camp.treatment_codes)})):
+            out.append((c, o))
+    return out
+
+
 def console_context(c) -> dict:
     """The decision context of a console wave: the synthetic handoff record,
     with no Nova guardrail data."""
@@ -794,16 +845,27 @@ def _run_wave(db: Session, camp: Campaign, at: datetime | None = None, actor: st
     seq = Seq(db)
     summary = {"wave": wave, "decided": 0, "treatment": 0, "control": 0, "excluded": 0,
                "held_for_review": 0, "blocked_by_guard": 0, "delivered": 0, "failed": 0,
-               "by_treatment": {}, "pool_before": len(pool)}
+               "next_try": 0, "by_treatment": {}, "pool_before": len(pool)}
     treated_quota = camp.wave_size - already
     pending_learning: list[tuple[str, float]] = []
+    # Customers whose first treatment missed go first: they are mid-journey.
+    # Their next try is drawn from the treatments not tried on them yet.
+    queue = [(c, missed) for c, missed in next_try_pool(db, camp)] + [(c, None) for c in pool]
 
-    for c in pool:
+    for c, missed in queue:
         if summary["treatment"] >= treated_quota:
             break
         decided_at = at + timedelta(minutes=int(rng.integers(0, 240)))
+        state = next_try_state(db, camp, c, arms_state) if missed else arms_state
         dec = decide_one(db, camp, c, decision_id=seq.decision(), wave=wave, decided_at=decided_at, rng=rng,
-                         arms_state=arms_state, human_review=human_review, auto_approve=realise)
+                         arms_state=state, human_review=human_review, auto_approve=realise,
+                         origin="next_try" if missed else "wave")
+        if missed:
+            if dec.group != "Treatment":
+                seq.d -= 1   # nothing allowed today (a contact limit, say): the id is not used, try again next wave
+                continue
+            missed.escalated = True
+            summary["next_try"] += 1
         add_decision(db, dec)
         summary["decided"] += 1
         if dec.group == "Excluded":
@@ -838,7 +900,7 @@ def _run_wave(db: Session, camp: Campaign, at: datetime | None = None, actor: st
         summary["wave"] = None
     db.commit()
     summary["learned"] = len(pending_learning)
-    summary["pool_after"] = len(pool) - summary["decided"]
+    summary["pool_after"] = len(pool) - (summary["decided"] - summary["next_try"])
     return summary
 
 
@@ -976,12 +1038,14 @@ def _observe(db: Session, camp: Campaign, dec: Decision, c, code: str | None, at
                        "ok": True, "detail": ", ".join(e for e, _ in events) or "No engagement recorded"})
         stages.append({"stage": "Response routing", "at": iso(sent + timedelta(days=days or window)),
                        "ok": True, "detail": ("Payment received - journey closed" if paid
-                                              else f"No payment in {window} days - follow-up per cadence")})
+                                              else f"No payment in {window} days - follow-ups per cadence, "
+                                                   f"then a different treatment")})
         first.pipeline = json.dumps(stages)
         if events:
             first.status = {"Clicked": "Clicked", "FormCompleted": "Clicked", "Opened": "Opened",
                             "Answered": "Delivered", "OptOut": "Delivered"}[events[-1][0]]
 
+    # Set later, when the customer's second try is decided (next_try_pool).
     escalated = False
     if not paid and code and delivered and seq is not None:
         # Follow-up touches on the cadence, inside the evaluation window.
@@ -990,11 +1054,6 @@ def _observe(db: Session, camp: Campaign, dec: Decision, c, code: str | None, at
             if (when - at).days > window:
                 break
             execute(db, camp, dec, c, when, rng, seq, touch=touch)
-        # Escalation: a different treatment after N days with no payment.
-        if camp.escalate_to and camp.escalate_to != code:
-            esc = execute(db, camp, dec, c, at + timedelta(days=camp.escalate_after_days), rng, seq,
-                          touch=camp.max_touches + 1, escalation=True, code=camp.escalate_to)
-            escalated = esc.status != "Held"
 
     is_treated = dec.group == "Treatment"
     # The router's validation share is scored, never taught: those customers are

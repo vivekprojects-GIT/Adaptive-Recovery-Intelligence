@@ -23,7 +23,8 @@ from .. import cards, models
 from ..seed import COHORTS
 from . import agencies, compliance, engine, governance, insights, playbook, recovery, router
 from .models import (
-    AlertRule, Campaign, ContactRecord, Decision, EngagementEvent, FeatureSnapshot, Handoff, Insight, Nudge, Outcome,
+    AlertRule, Campaign, ContactRecord, Decision, EngagementEvent, ExternalCustomer, FeatureSnapshot, Handoff, Insight,
+    Nudge, Outcome,
     PlatformConfig, RecoveryAccount, RolePermission, User, Agency,
 )
 from .platform import CONFIG_DEFAULTS, audit, customer_ref
@@ -111,6 +112,25 @@ def _iso(dt: datetime) -> str:
     return dt.isoformat(timespec="seconds")
 
 
+def _spread_risk(db: Session) -> None:
+    """Databases built before the bank's risk score was modelled gave every
+    account in a cohort the cohort's band. Rate the generated accounts from their
+    own record instead (app/seed.py bank_risk), once: a cohort with more than one
+    band is left alone. Accounts Nova sent keep the band Nova gave."""
+    from ..seed import bank_risk
+    nova = {cid for (cid,) in db.query(ExternalCustomer.customer_id)}
+    rng = random.Random(3_042)
+    for co in db.query(models.Cohort):
+        rows = (db.query(models.Customer).filter(models.Customer.cohort_id == co.cohort_id,
+                                                 models.Customer.is_persona.is_(False))
+                .order_by(models.Customer.customer_id).all())
+        rows = [c for c in rows if c.customer_id not in nova]
+        if len({c.client_risk_band for c in rows}) != 1:
+            continue
+        for c in rows:
+            c.client_risk_score, c.client_risk_band = bank_risk(c, rng)
+
+
 def ensure_console(db: Session) -> None:
     """Bring an existing database up to the current schema and reference data,
     and load the treatment playbook into the scoring cache. Safe on every start;
@@ -163,6 +183,7 @@ def ensure_console(db: Session) -> None:
     for u in db.query(User).filter(User.role == "viewer"):
         u.role = "strategist"
     db.query(RolePermission).filter(RolePermission.role == "viewer").delete(synchronize_session=False)
+    _spread_risk(db)
     # The cohorts are shown by plain names, not C1 to C4 (Rajesh, Oct 2026).
     for co in COHORTS:
         row = db.get(models.Cohort, co["cohort_id"])

@@ -39,6 +39,7 @@ import JourneyPage from "./pages/shared/CollectionsJourney";
 import StrategyWorkspace from "./pages/shared/StrategyWorkspace";
 import TreatmentsPage from "./pages/shared/Treatments";
 import LiveCampaigns from "./pages/strategist/LiveCampaigns";
+import LiveRun from "./pages/shared/LiveRun";
 import MyStrategies from "./pages/strategist/MyStrategies";
 import ReviewQueue from "./pages/strategist/ReviewQueue";
 import StrategyBuilder from "./pages/strategist/StrategyBuilder";
@@ -78,6 +79,7 @@ export const ROUTES: { path: string; el: ReactNode; perm?: string | string[] }[]
   { path: "/strategies/:id", el: <StrategyDetail />, perm: "view_kpi_dashboard" },
   { path: "/analytics", el: <StrategyAnalytics />, perm: "view_kpi_dashboard" },
   { path: "/campaigns", el: <LiveCampaigns /> },
+  { path: "/live-run", el: <LiveRun />, perm: "view_ai_decisions" },
   { path: "/review", el: <ReviewQueue />, perm: "override_decisions" },
   { path: "/activity", el: <Activity_ />, perm: "view_ai_decisions" },
   { path: "/customers", el: <Customers />, perm: "view_customer_list" },

@@ -175,7 +175,7 @@ export interface HandoffRow {
 
 export interface WaveRun {
   wave: number | null; first_wave: number | null; waves_run: number; by_treatment: Record<string, number>;
-  decided: number; treatment: number; control: number;
+  decided: number; treatment: number; control: number; next_try: number;
   held_for_review: number; blocked_by_guard: number; delivered: number; failed: number; learned: number;
   waves: WaveSummary[]; handoffs: HandoffRow[]; message: string | null; pool_remaining: number;
 }

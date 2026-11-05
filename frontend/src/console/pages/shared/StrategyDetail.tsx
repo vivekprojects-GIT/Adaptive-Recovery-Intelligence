@@ -266,7 +266,7 @@ export default function StrategyDetail() {
                 { label: "Treatments", value: data.treatments.map((t) => t.name).join(", ") },
                 { label: "Cadence", value: `every ${data.cadence_days} days · max ${data.max_touches} touches · ${data.tone}` },
                 { label: "Send window", value: `${data.send_window_start}:00 – ${data.send_window_end}:00` },
-                { label: "Escalation", value: data.escalate_to ? `${data.escalate_to} after ${data.escalate_after_days} days` : "none" },
+                { label: "Second try", value: data.escalate_to ? `Always ${data.escalate_to}` : "The engine picks" },
               ]} />
             </Card>
             <Card title="Experiment & governance">

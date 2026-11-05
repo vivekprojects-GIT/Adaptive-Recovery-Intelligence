@@ -69,7 +69,10 @@ def stats_from_rows(db: Session, rows, nudges: list[Nudge] | None = None) -> dic
     costs = treatment_costs(db)
     # The Propensity Router's validation share is outside the groups a strategy is
     # for: it scores the router, so it is kept out of the strategy's own result.
-    treated = [(d, o) for d, o in rows if d.group == "Treatment" and not d.validation
+    # A second try is decided only for customers the first try missed, so it has
+    # no matching control group: the comparison is first tries against control.
+    # Its payments still count in what was recovered.
+    treated = [(d, o) for d, o in rows if d.group == "Treatment" and not d.validation and d.origin != "next_try"
                and o is not None and o.reward is not None]
     control = [(d, o) for d, o in rows if d.group == "Control" and not d.validation and o is not None]
     t_paid = sum(1 for _, o in treated if o.paid)
@@ -480,12 +483,13 @@ def journey(db: Session, customer_id: int) -> dict:
     if decisions and state and state["status"] in ("Unresponsive", "Responding", "Engaged"):
         d = decisions[-1]
         k = camps.get(d.campaign_id)
-        if k and k.escalate_to and d.group == "Treatment":
-            when = _dt(d.decided_at) + timedelta(days=k.escalate_after_days)
-            nxt = {"action": f"Escalate to {treatments.get(k.escalate_to)}",
+        if k and d.group == "Treatment" and d.origin != "next_try":
+            when = _dt(d.decided_at) + timedelta(days=k.evaluation_days)
+            nxt = {"action": (f"Second try: {treatments.get(k.escalate_to)}" if k.escalate_to
+                              else "Second try: the engine picks a treatment not tried yet"),
                    "when": when.isoformat(timespec="seconds"),
-                   "reason": f"No payment {k.escalate_after_days} days after the first touch, "
-                             f"per {k.campaign_id}'s escalation rule."}
+                   "reason": f"If nothing is paid in {k.evaluation_days} days, {k.campaign_id}'s next wave "
+                             f"gives this customer one more try with a different treatment."}
     nudges = db.query(Nudge).filter(Nudge.customer_id == customer_id).all()
     paid = db.query(Outcome).filter(Outcome.customer_id == customer_id, Outcome.paid.is_(True)).all()
     eng = db.query(EngagementEvent).filter(EngagementEvent.customer_id == customer_id).count()

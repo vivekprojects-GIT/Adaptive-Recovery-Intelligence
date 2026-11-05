@@ -296,17 +296,16 @@ export default function GuidedBuild({ id }: { id?: string }) {
               <Link to="/treatments" className="inline-flex items-center gap-1 text-xs font-medium text-primary-500 hover:underline">
                 Add or edit treatments in the playbook <ArrowRight className="h-3 w-3" /></Link>
             )}
-            <Optional title="Escalation path (optional)" open={!!form.escalate_to}
-              summary={form.escalate_to ? `${name(form.escalate_to)} after ${form.escalate_after_days} days with no payment` : "No escalation"}>
+            <Optional title="Second try (optional)" open={!!form.escalate_to}
+              summary={form.escalate_to ? `Always ${name(form.escalate_to)}` : "The engine picks from the treatments not tried yet"}>
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Escalate to">
+                <Field label="Next treatment">
                   <Select value={form.escalate_to ?? ""} onChange={(v) => set("escalate_to", v || null)}
-                    options={[{ value: "", label: "No escalation" }, ...treatments.filter((t) => t.status === "Active" || t.code === form.escalate_to)
+                    options={[{ value: "", label: "Let the engine pick" }, ...treatments.filter((t) => t.status === "Active" || t.code === form.escalate_to)
                       .map((t) => ({ value: t.code, label: `${t.name} (${t.channel})${t.status === "Retired" ? " - retired" : ""}` }))]} />
                 </Field>
-                <Field label="After (days with no payment)"><input id="escalate-after" type="number" min={1} disabled={!form.escalate_to} className={inputCls} value={form.escalate_after_days} onChange={(e) => set("escalate_after_days", Number(e.target.value))} /></Field>
               </div>
-              <p className="text-2xs leading-4 text-fg-3">Escalations count toward contact limits and cost. Many digital payers settle in the second week, so escalating early often pays for calls that were not needed.</p>
+              <p className="text-2xs leading-4 text-fg-3">When a customer does not pay inside the evaluation window, they get one more try with a different treatment.</p>
             </Optional>
           </div>
         )}
@@ -319,7 +318,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
                   ["Audience", `${form.target_cohorts.map((c) => cohorts.find((x) => x.cohort_id === c)?.name).join(", ") || "Nothing picked"}${limits ? ` · ${limits}` : ""}`],
                   ["Who it contacts", "Likely responsive customers, sent by the Propensity Router"],
                   ["Treatments", form.treatment_codes.map(name).join(", ") || "None picked"],
-                  ["Escalation path", form.escalate_to ? `${name(form.escalate_to)} after ${form.escalate_after_days} days` : "No escalation"],
+                  ["Second try", form.escalate_to ? `Always ${name(form.escalate_to)}` : "The engine picks"],
                 ].map(([k, v]) => <div key={k} className="flex gap-4 px-3 py-2"><dt className="w-32 shrink-0 text-fg-3">{k}</dt><dd className="min-w-0 text-fg">{v}</dd></div>)}
               </dl>
             </div>

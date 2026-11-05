@@ -36,7 +36,7 @@ export default function Approvals() {
               ]} />
               <KV items={[
                 { label: "Cadence", value: `every ${s.cadence_days}d · max ${s.max_touches} · ${s.tone}` },
-                { label: "Escalation", value: s.escalate_to ? `${s.escalate_to} after ${s.escalate_after_days}d` : "none" },
+                { label: "Second try", value: s.escalate_to ? `Always ${s.escalate_to}` : "The engine picks" },
                 { label: "Control share", value: pct(s.control_pct, 0) },
                 { label: "Target / window", value: `${pct(s.recovery_target, 0)} in ${s.evaluation_days} days · waves of ${num(s.wave_size)}` },
               ]} />

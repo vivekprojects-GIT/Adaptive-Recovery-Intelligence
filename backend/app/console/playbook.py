@@ -253,12 +253,13 @@ def ingest_handoff(db: Session, actor: str = "system", trigger: str = "manual",
                    sizes: dict[str, int] | None = None, seed: int | None = None) -> dict:
     """Generate the next cycle's delinquent accounts, cohort by cohort, with the
     same behavioural mix as the original handoff."""
-    from ..seed import COHORTS, FIRST, LAST, _draw, draw_product, fill_account  # same generator as the initial data
+    from ..seed import COHORTS, FIRST, LAST, _draw, bank_risk, draw_product, fill_account  # same generator as the initial data
     from ..cards import assign_account_numbers
     sizes = sizes or HANDOFF_SIZES
     n_prev = db.query(func.count(Handoff.handoff_id)).scalar() or 0
     rng = random.Random(seed if seed is not None else 7_000 + n_prev)
     prng = random.Random((seed if seed is not None else 7_000 + n_prev) + 1)   # products, kept apart
+    rrng = random.Random((seed if seed is not None else 7_000 + n_prev) + 2)   # the bank's risk score
     counts: dict[str, int] = {}
     arrived: list = []
     for co in COHORTS:
@@ -283,6 +284,7 @@ def ingest_handoff(db: Session, actor: str = "system", trigger: str = "manual",
                     break
             cand.product = draw_product(prng)
             fill_account(cand, prng)
+            cand.client_risk_score, cand.client_risk_band = bank_risk(cand, rrng)
             cand.nudge_score = nudge_score(cand)
             cand.self_cure_score = self_cure_score(cand)
             cand.segment = segment_for(cand)

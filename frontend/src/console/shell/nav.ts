@@ -21,6 +21,7 @@ import {
   Lock,
   MessageSquare,
   Plug,
+  CirclePlay,
   Route as RouteIcon,
   ScrollText,
   Send,
@@ -63,6 +64,7 @@ export const NAV: Record<Role, { section?: string; items: NavItem[] }[]> = {
     ] },
     { section: "Execution", items: [
       { to: "/campaigns", label: "Live Campaigns", icon: FlaskConical, badge: (b) => b.live_campaigns },
+      { to: "/live-run", label: "Live Run", icon: CirclePlay, perm: "view_ai_decisions" },
       { to: "/review", label: "Review Queue", icon: ClipboardCheck, perm: "override_decisions", badge: (b) => b.pending_review },
       { to: "/agencies", label: "Collection Agencies", icon: Briefcase },
       { to: "/nudges", label: "Nudges", icon: Send, perm: "view_ai_decisions" },

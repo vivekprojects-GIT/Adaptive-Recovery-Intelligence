@@ -204,6 +204,7 @@ export function waveMessage(r: WaveRun, names: Record<string, string>): string {
   const added = r.handoffs.reduce((n, h) => n + h.total, 0);
   return `${which}: ${num(r.decided)} decided, ${num(r.control)} to control.`
     + (arms ? ` Treated: ${arms}.` : "")
+    + (r.next_try ? ` ${num(r.next_try)} of them are second tries for customers the first treatment missed.` : "")
     + (r.held_for_review ? ` ${r.held_for_review} held for review.` : "")
     + (r.blocked_by_guard ? ` ${r.blocked_by_guard} stopped by the contact guard.` : "")
     + (added ? ` The audience was running out, so ${r.handoffs.length === 1 ? "a new handoff" : `${r.handoffs.length} handoffs`} arrived automatically (+${num(added)} accounts).` : "");

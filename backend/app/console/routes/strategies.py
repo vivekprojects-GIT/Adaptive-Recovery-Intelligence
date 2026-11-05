@@ -468,7 +468,7 @@ def run_wave(cid: str, count: int = Query(1, ge=1, le=10), user: User = Depends(
             waves.append(out)
         compliance.scan(db)
     keys = ("decided", "treatment", "control", "held_for_review", "blocked_by_guard", "delivered", "failed",
-            "learned")
+            "learned", "next_try")
     total = {k: sum(w[k] for w in waves) for k in keys}
     by_treatment: dict[str, int] = {}
     for w in waves:

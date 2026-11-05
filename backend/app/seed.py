@@ -72,6 +72,25 @@ PRODUCT_MIX = [("Consumer Credit Card", 0.45), ("Retail Card", 0.25), ("Co-Brand
 PRODUCTS = [p for p, _ in PRODUCT_MIX]
 
 
+# The bank rates risk with its own score: payment record, how much of the limit
+# is used, and how late the account is. So customers equally late can sit in
+# different bands; a cohort's band is only its most common one.
+BAND_CUTS = ((40, "Low"), (66, "Medium"), (84, "High"))
+RISK_ANCHOR = {"C1": 28, "C2": 51, "C3": 67, "C4": 90}
+
+
+def risk_band(score: float) -> str:
+    return next((band for cut, band in BAND_CUTS if score < cut), "Very high")
+
+
+def bank_risk(c: models.Customer, rng: random.Random) -> tuple[float, str]:
+    """The bank's risk score (0-100, higher is riskier) and band for a generated account."""
+    s = (RISK_ANCHOR[c.cohort_id] + 35 * (0.9 - c.payment_history) + 3 * (c.missed_payments - 1)
+         + 12 * (c.utilization - 0.7) + rng.gauss(0, 7))
+    s = round(min(98.0, max(2.0, s)), 1)
+    return s, risk_band(s)
+
+
 def sample_cohort(days_past_due: int) -> str:
     """The handoff cohort for one of the workbook's sample accounts."""
     return "C2" if days_past_due < 45 else "C3" if days_past_due < 90 else "C4"
@@ -202,13 +221,15 @@ def seed(reset: bool = True) -> dict:
                                         client_risk_band=co["client_risk_band"],
                                         client_risk_score=round(srng.uniform(*co["risk"]), 1), **f))
 
-        prng, brng = random.Random(1_042), random.Random(2_042)
+        prng, brng, rrng = random.Random(1_042), random.Random(2_042), random.Random(3_042)
         for c in rows:
             if not c.is_persona and c.account_number is None:
                 c.product = draw_product(prng)
                 fill_account(c, brng)
             elif c.delinquent_amount is None:
                 c.delinquent_amount = cards.delinquent_amount(c.product, c.balance, c.days_past_due)
+            if not c.is_persona:   # the three personas are the same band on purpose
+                c.client_risk_score, c.client_risk_band = bank_risk(c, rrng)
         cards.assign_account_numbers(db, rows)
         for c in rows:
             c.nudge_score = nudge_score(c)
