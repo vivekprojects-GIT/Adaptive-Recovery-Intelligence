@@ -1,0 +1,3 @@
+arrangement_id,account_id,arrangement_type,status,start_date,end_date,instalment_amount,promise_to_pay_status,promise_to_pay_date,promise_to_pay_amount,updated_at
+AR-3301,A-90032,PAYMENT_PLAN,ACTIVE,2026-10-15,2027-01-15,437.00,NONE,,,2026-11-05T22:10:00Z
+AR-3288,A-90033,PROMISE_TO_PAY,ACTIVE,2026-11-04,2026-11-12,,PENDING,2026-11-12,35.00,2026-11-04T14:02:00Z

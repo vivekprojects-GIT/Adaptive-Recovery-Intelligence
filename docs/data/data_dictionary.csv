@@ -1,0 +1,91 @@
+table,column,type,key,required,description
+party,party_id,VARCHAR(64),PK,yes,Nova's customer id. Every other customer-level table joins on it
+party,full_name,VARCHAR(60),,no,Used only to greet the customer in a message
+party,customer_segment,VARCHAR(40),,no,"The bank's own segment. Stored, not used to decide"
+party,timezone,VARCHAR(40),,yes,"IANA name, e.g. America/Chicago. Send times and quiet hours use it"
+party,app_user,BOOLEAN,,yes,Active mobile-app user in the last 90 days
+party,sms_responsive,BOOLEAN,,yes,Has replied to or tapped an SMS before
+party,hardship_flag,BOOLEAN,,yes,A hardship indicator is on file. Opens hardship treatments
+party,preferred_channel,VARCHAR(10),,no,"App, SMS, Email or Phone, as the customer stated it"
+party,updated_at,TIMESTAMP,,yes,When these values were last confirmed
+account,account_id,VARCHAR(64),PK,yes,Nova's account id. The key for every decision the agent makes
+account,party_id,VARCHAR(64),FK -> party,yes,The customer who owns the account
+account,product,VARCHAR(20),,yes,"Consumer Credit Card, Small Business Card, Retail Card or Co-Brand Card. Decides which strategies and agencies apply"
+account,account_status,VARCHAR(20),,yes,"Open, Closed or Charged off"
+account,opened_date,DATE,,yes,Gives tenure
+account,credit_limit,"DECIMAL(12,2)",,yes,Gives utilisation
+account,updated_at,TIMESTAMP,,yes,When the row last changed
+account_daily_snapshot,account_id,VARCHAR(64),"PK, FK -> account",yes,The account
+account_daily_snapshot,as_of_date,DATE,PK,yes,The day these values were true
+account_daily_snapshot,current_balance,"DECIMAL(12,2)",,yes,Outstanding balance
+account_daily_snapshot,days_past_due,INTEGER,,yes,0-720. Routes the account to a days-late group and strategy
+account_daily_snapshot,amount_past_due,"DECIMAL(12,2)",,yes,Arrears amount. Quoted in messages
+account_daily_snapshot,cycles_delinquent,INTEGER,,no,Billing cycles behind
+account_daily_snapshot,prior_delinquencies_12m,INTEGER,,yes,"Missed payments in the last 12 months, 0-12"
+account_daily_snapshot,on_time_payment_ratio,"DECIMAL(4,3)",,yes,"Share of the last 12 months' payments made on time, 0-1"
+account_daily_snapshot,delinquency_bucket,VARCHAR(20),,no,The bank's own bucket label. Stored only
+account_daily_snapshot,risk_segment,VARCHAR(10),,yes,"The bank's risk band: Low, Medium, High or Very high. Never recomputed"
+account_daily_snapshot,risk_score,"DECIMAL(5,2)",,no,"The bank's score, 0-100, higher is riskier. Stored only"
+account_daily_snapshot,loaded_at,TIMESTAMP,,yes,When Nova loaded the row
+contact_consent,party_id,VARCHAR(64),"PK, FK -> party",yes,The customer
+contact_consent,channel,VARCHAR(10),PK,yes,"SMS, EMAIL or CALL"
+contact_consent,allowed,BOOLEAN,,yes,false blocks every treatment on that channel. SMS also covers SMS + App
+contact_consent,source,VARCHAR(30),,no,"Where the customer gave or withdrew consent, e.g. Online banking, Call centre"
+contact_consent,confirmed_at,TIMESTAMP,,yes,When Nova last confirmed the value
+restriction,restriction_id,VARCHAR(64),PK,yes,Nova's id for the restriction
+restriction,party_id,VARCHAR(64),FK -> party,yes,The customer
+restriction,account_id,VARCHAR(64),FK -> account,no,Set when the restriction covers one account only
+restriction,restriction_type,VARCHAR(30),,yes,"VULNERABLE, CEASE_COMMUNICATION, BANKRUPTCY, ATTORNEY_REPRESENTED, DECEASED, SCRA_PROTECTED, DISPUTE_PENDING or AGENCY_PLACED. VULNERABLE sends the customer to a person"
+restriction,active,BOOLEAN,,yes,Only active rows stop treatment
+restriction,effective_from,DATE,,yes,When it started
+restriction,effective_to,DATE,,no,"When it ended, if it has"
+restriction,confirmed_at,TIMESTAMP,,yes,When Nova last confirmed the row
+data_freshness,party_id,VARCHAR(64),"PK, FK -> party",yes,The customer
+data_freshness,consent_as_of,TIMESTAMP,,yes,When contact_consent was last refreshed
+data_freshness,contact_history_as_of,TIMESTAMP,,yes,When contact_history was last complete
+data_freshness,restrictions_as_of,TIMESTAMP,,yes,"When restriction was last checked, including ""none found"""
+data_freshness,arrangement_as_of,TIMESTAMP,,no,When arrangement was last refreshed. Logged only
+arrangement,arrangement_id,VARCHAR(64),PK,yes,Nova's id for the arrangement
+arrangement,account_id,VARCHAR(64),FK -> account,yes,The account it covers
+arrangement,arrangement_type,VARCHAR(20),,yes,"PAYMENT_PLAN, DEFERRAL, SETTLEMENT or PROMISE_TO_PAY"
+arrangement,status,VARCHAR(12),,yes,"ACTIVE, COMPLETED, BROKEN or CANCELLED"
+arrangement,start_date,DATE,,yes,First day in force
+arrangement,end_date,DATE,,no,Last day in force
+arrangement,instalment_amount,"DECIMAL(12,2)",,no,"Amount per instalment, for plans"
+arrangement,promise_to_pay_status,VARCHAR(10),,no,"NONE, PENDING, KEPT or BROKEN"
+arrangement,promise_to_pay_date,DATE,,no,Date the customer promised to pay
+arrangement,promise_to_pay_amount,"DECIMAL(12,2)",,no,Amount promised
+arrangement,updated_at,TIMESTAMP,,yes,When the row last changed
+contact_history,contact_id,VARCHAR(64),PK,yes,Nova's id for the contact
+contact_history,party_id,VARCHAR(64),FK -> party,yes,The customer contacted
+contact_history,account_id,VARCHAR(64),FK -> account,no,The account it was about
+contact_history,channel,VARCHAR(12),,yes,"SMS, EMAIL, CALL, APP_PUSH, LETTER or VISIT"
+contact_history,source_system,VARCHAR(30),,yes,"Who made it, e.g. BAU_DIALLER, LETTER_SERVICE, AGENCY, DIGITAL"
+contact_history,contacted_at,TIMESTAMP,,yes,When it was sent (UTC)
+contact_history,local_hour,INTEGER,,yes,"Hour in the customer's time zone, 0-23. Checked against permitted contact hours"
+contact_history,status,VARCHAR(12),,yes,"SENT, DELIVERED or FAILED"
+contact_history,opted_out,BOOLEAN,,yes,The customer opted out in response. Opt-outs are permanent
+payment,payment_id,VARCHAR(64),PK,yes,Nova's payment id. Each id counts once
+payment,account_id,VARCHAR(64),FK -> account,yes,The account paid
+payment,amount,"DECIMAL(12,2)",,yes,Amount paid
+payment,payment_date,DATE,,yes,Date paid. Decides whether it fell inside the window
+payment,status,VARCHAR(10),,yes,POSTED or REVERSED. A reversed payment counts as not paid
+payment,reversal_of,VARCHAR(64),FK -> payment,no,"For a reversal, the payment it reverses"
+payment,payment_channel,VARCHAR(20),,no,"Online, App, Branch, Phone or Agency"
+payment,posted_at,TIMESTAMP,,yes,When the payment posted in Nova
+charge_off,account_id,VARCHAR(64),"PK, FK -> account",yes,The charged-off account
+charge_off,charge_off_date,DATE,,yes,When it was charged off
+charge_off,charge_off_balance,"DECIMAL(12,2)",,yes,Balance at charge-off
+charge_off,recovered_to_date,"DECIMAL(12,2)",,yes,Total recovered since charge-off
+charge_off,recovery_status,VARCHAR(24),,yes,"Active Recovery, Partial Recovery, Payment Plan, Settlement Agreement or Paid in Full"
+charge_off,updated_at,TIMESTAMP,,yes,When the row last changed
+agency,agency_id,VARCHAR(12),PK,yes,Agency id
+agency,name,VARCHAR(80),,yes,Agency name
+agency,fee_rate,"DECIMAL(4,3)",,yes,"Share of recoveries paid as fee, 0-1"
+agency,products,VARCHAR(200),,yes,"Card businesses it is contracted for, separated by |"
+agency,min_dpd,INTEGER,,yes,Earliest days past due it may take an account
+agency,capacity,INTEGER,,yes,Most open placements at once
+agency,placement_days,INTEGER,,yes,Days before an account returns to the bank
+agency,status,VARCHAR(10),,yes,Active or Suspended
+agency,contract_ref,VARCHAR(30),,no,The bank's contract reference
+agency,audited_at,DATE,,no,Last compliance audit

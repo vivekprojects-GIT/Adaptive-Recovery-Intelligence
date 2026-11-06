@@ -1,0 +1,5 @@
+account_id,party_id,product,account_status,opened_date,credit_limit,updated_at
+A-90031,P-55210,Consumer Credit Card,Open,2019-03-12,4000.00,2026-11-06T05:40:00Z
+A-90032,P-55211,Small Business Card,Open,2016-08-01,15000.00,2026-11-06T05:40:00Z
+A-90033,P-55212,Retail Card,Open,2023-01-20,1500.00,2026-11-06T05:40:00Z
+A-90034,P-55213,Co-Brand Card,Charged off,2014-05-30,9000.00,2026-09-02T08:00:00Z

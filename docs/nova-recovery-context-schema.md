@@ -1,19 +1,16 @@
 # Recovery Agent data schema for Nova
 
-As of 6 November 2026. The source of truth is the code: `backend/app/console/contract.py` (what Nova sends), `backend/app/console/nova.py` (payment outcome) and `backend/app/console/mcp_server.py` (the tools).
+As of 6 November 2026.
 
 ## Purpose
 
-Nova sends one delinquent account's context per request, as **RecoveryContext v1**. The Recovery Agent sends back the recovery action. Later, Nova reports whether the customer paid. That is the whole boundary between the two systems.
+Nova is the Recovery Agent's data source, and nothing more. For each account, the agent reads the view below from Nova's tables and makes its decisions on its own side. Nova does not call the agent, and it does not act on the agent's decisions.
 
-- **Nova owns what is true about the customer.** That covers balances, arrears, risk band, consent, restrictions and contact history. The Recovery Agent never recomputes these. It also keeps no copy of Nova's source tables. It only freezes the context of each request together with its decision.
-- **The Recovery Agent owns the decision.** That covers eligibility rules, Thompson sampling over the treatments the business approved, the decision log, outcomes and learning.
-- **Transport:** MCP tools at `/mcp`, authenticated with a bearer token. A REST facade would call the same functions.
-- **Two versions are accepted:** v1 (nested, below) and v0 (the original flat `account`). Both are normalised to one record. For v1, missing or stale guardrail data **fails closed**. For v0 the same checks are logged, but they never block.
+The tables behind this view, with an ER diagram and sample rows, are in [Nova data model for the Recovery Agent](nova-data-model.md). One CSV per table is in [`data/`](data/).
 
-Only three things are strictly required: `account.account_id`, `account.current_balance` and `delinquency.days_past_due`. A v1 request also needs `request_id` and `as_of_timestamp`. Anything else that is missing gets a stated, conservative default, and that default is listed back in the response under `assumed`.
+Only three fields are strictly required: `account.account_id`, `account.current_balance` and `delinquency.days_past_due`. If an optional field is missing, the agent fills in a stated, conservative default. If guardrail data is missing or stale, the agent fails closed: it blocks the affected treatments rather than contacting the customer.
 
-## What Nova sends: RecoveryContext v1
+## One account, as the agent reads it from Nova
 
 One JSON object per account, with eight blocks. **Use** says what the Recovery Agent does with each field. *Decide* means it changes the action. *Guardrail* means it can block a treatment. *Stored* means it is kept for lineage but not used to decide.
 
@@ -21,8 +18,6 @@ One JSON object per account, with eight blocks. **Use** says what the Recovery A
 
 | Field | Type | Required | Use |
 | --- | --- | --- | --- |
-| `contract_version` | `"v1"` | yes | Selects the v1 reader |
-| `request_id` | string, max 64 | yes | Idempotency: a repeated id returns the decision already made |
 | `as_of_timestamp` | ISO 8601 datetime | yes | When the data was true in Nova |
 | `source_system` | string, max 40 | no | Stored (lineage) |
 
@@ -125,8 +120,6 @@ These record when each guardrail input was last confirmed in Nova. In v1, if con
 
 ```json
 {
-  "contract_version": "v1",
-  "request_id": "nova-20261106-000184",
   "as_of_timestamp": "2026-11-06T06:00:00Z",
   "source_system": "nova-cards",
   "party": { "party_id": "P-55210", "name": "Whitney Callahan" },
@@ -151,55 +144,6 @@ These record when each guardrail input was last confirmed in Nova. In v1, if con
 
 The agent drops protected attributes (race, religion, and so on) and sensitive identifiers (card numbers, SSNs) on arrival. Nova should not send them.
 
-## Calls and what comes back
-
-Nova calls six MCP tools. The contact itself is recorded, but no channel gateway is connected yet, so nothing is delivered.
-
-| Tool | Nova sends | Records? |
-| --- | --- | --- |
-| `get_recovery_strategy` | one `context` (v1) or `account` (v0) | yes |
-| `preview_recovery_strategy` | the same | no, it is a what-if |
-| `get_recovery_strategies` | `contexts` and/or `accounts`, up to 100 per call | yes; one bad account does not fail the batch |
-| `report_payment_outcome` | the payment report below | yes, and this is how the model learns |
-| `get_decision` | `decision_id` or `account_id` | no |
-| `get_decision_updates` | `after` cursor, `limit` 1–500 | no; returns approvals, rejections and overrides made by people |
-
-Two more tools are read-only: `list_live_strategies` and `list_treatments`.
-
-### Decision response (main fields)
-
-| Field | Meaning |
-| --- | --- |
-| `decision_id` | Keep it. It is used to report the outcome |
-| `action` | What Nova should do (values in the next section) |
-| `summary` | One plain sentence explaining the action |
-| `strategy` | `strategy_id`, `name`, `version`, `evaluation_days` |
-| `group` | Treatment, Control or Excluded |
-| `treatment` | Code, name and channel of the chosen treatment |
-| `selection_probability` | How often Thompson sampling picks this treatment for accounts like this one |
-| `alternatives` | The other allowed treatments, with their probabilities |
-| `blocked_treatments` | Each treatment the rules removed, with `reason_code` and reason |
-| `message` | The text of the contact |
-| `contact` | Channel, `send_at`, status and the send-time guard result |
-| `review` | Whether a person must approve, and the approval status |
-| `assumed` | Every default the agent filled in |
-| `next_step` | What to call next, and when |
-
-### Payment outcome (Nova → Recovery Agent)
-
-Nova reports this after the strategy's `evaluation_days` window, for treated **and** control accounts. Control outcomes are the baseline that uplift is measured against.
-
-| Field | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `decision_id` | string | one of these two | Preferred |
-| `account_id` | string | one of these two | The latest decision for the account is used |
-| `paid` | boolean | yes | |
-| `amount` | number ≥ 0 | no | Defaults to the `amount_past_due` that was sent |
-| `payment_date` | date | no | Decides whether the payment fell inside the window |
-| `payment_status` | Posted · Reversed | no, default Posted | A reversal counts as not paid |
-| `payment_id` | string, max 64 | no | Each id counts once, and partial payments add up. Without an id, a new report replaces the last one |
-| `cure_flag` | boolean | no | Nova's own view. It is recorded next to the agent's own, which is calculated from payments and arrears |
-
 ## Allowed values and rules
 
 | Field | Values |
@@ -210,24 +154,8 @@ Nova reports this after the strategy's `evaluation_days` window, for treated **a
 | `payment_status` | Posted · Reversed |
 | Days-past-due group (computed) | C1: 1–29 · C2: 30–59 · C3: 60–89 · C4: 90+ |
 
-### Action values Nova must handle
-
-| `action` | What Nova does |
-| --- | --- |
-| `contact` | Send the treatment. Report the outcome after the window |
-| `awaiting_approval` | Wait. A person approves plans, deferrals and hardship offers. Poll `get_decision_updates` |
-| `control_bau` | Keep the account on business as usual. Still report the outcome |
-| `contact_blocked` | No allowed treatment, or the send-time check held it |
-| `contact_failed` | The delivery check failed |
-| `restricted` | A restriction is on file. No automated contact |
-| `refer_to_specialist` | Vulnerable customer. Route the account to a person |
-| `blocked_stale_data` | v1 only: guardrail data is missing or too old. Refresh it and resend |
-| `rejected` · `cancelled` | A reviewer declined the offer, or it was withdrawn. Nothing was sent |
-| `no_action` | No live strategy covers this account |
-
 ### Rules worth knowing
 
-- **Idempotent.** Sending the same `account_id` while a decision is still open, or repeating a `request_id`, returns the existing decision. The customer is not contacted twice.
-- **Contact cap.** No more than 7 contacts in 7 days across all systems. Nova's counts are added to the agent's own contacts.
-- **Nothing is lost silently.** Unknown fields, aliases used and assumed values are all recorded with the decision. Accepted aliases include `dpd`, `balance`, `risk_score`, `customer_segment` and `product_type`.
+- **Contact cap.** No more than 7 contacts in 7 days across all systems. Nova's contact history counts toward the cap together with the agent's own contacts.
+- **Nothing is lost silently.** Unknown fields and assumed values are recorded with each decision.
 - **Compliance placeholders.** The 24-hour freshness limits, and the rule that every restriction stops every treatment, are the most conservative reading. Compliance still has to approve them.

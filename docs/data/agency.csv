@@ -1,0 +1,3 @@
+agency_id,name,fee_rate,products,min_dpd,capacity,placement_days,status,contract_ref,audited_at
+AGY-01,Harbor Point Recoveries,0.250,Consumer Credit Card|Co-Brand Card,90,400,90,Active,MVB-AGY-2024-01,2026-06-30
+AGY-02,Summit Ridge Collections,0.300,Small Business Card,120,150,120,Active,MVB-AGY-2025-04,2026-03-15

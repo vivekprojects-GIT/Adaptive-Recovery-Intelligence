@@ -1,0 +1,5 @@
+party_id,full_name,customer_segment,timezone,app_user,sms_responsive,hardship_flag,preferred_channel,updated_at
+P-55210,Whitney Callahan,Mass market,America/Chicago,true,true,false,SMS,2026-11-06T05:40:00Z
+P-55211,Derek Ostrowski,Small business,America/New_York,false,false,true,Phone,2026-11-06T05:40:00Z
+P-55212,Marisol Vega,Mass market,America/Denver,true,false,false,App,2026-11-06T05:40:00Z
+P-55213,Gordon Pike,Affluent,America/Los_Angeles,false,true,false,Email,2026-11-06T05:40:00Z
