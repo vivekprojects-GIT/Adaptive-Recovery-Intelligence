@@ -1,6 +1,6 @@
-from sqlalchemy import String, Integer, Float, Boolean, Text
+from sqlalchemy import Boolean, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
-from .core.database import Base
+from .core.database import Base, fk
 
 
 class Cohort(Base):
@@ -20,7 +20,7 @@ class Customer(Base):
     __tablename__ = "customers"
 
     customer_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    cohort_id: Mapped[str] = mapped_column(String(10), index=True)
+    cohort_id: Mapped[str] = mapped_column(String(10), fk("cohorts.cohort_id"), index=True)
     name: Mapped[str] = mapped_column(String(60))
     balance: Mapped[float] = mapped_column(Float)
     credit_limit: Mapped[float] = mapped_column(Float)
@@ -54,8 +54,10 @@ class Customer(Base):
 
 
 class Strategy(Base):
-    """An intervention strategy in the client's playbook, with its historical record."""
-    __tablename__ = "strategies"
+    """A treatment in the playbook (S1 Reminder SMS ...): its offer, channel,
+    cost and historical record. Stored in the `treatments` table; the class
+    keeps its original name because the engine refers to it everywhere."""
+    __tablename__ = "treatments"
 
     code: Mapped[str] = mapped_column(String(10), primary_key=True)
     name: Mapped[str] = mapped_column(String(80))

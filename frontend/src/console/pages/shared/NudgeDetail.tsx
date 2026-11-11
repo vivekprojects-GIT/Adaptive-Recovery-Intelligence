@@ -24,7 +24,7 @@ export default function NudgeDetail() {
   const n = data.nudge;
   return (
     <>
-      <PageHeader title="Nudge Detail" subtitle={`${n.nudge_id} · ${n.customer} · ${n.campaign_id}`}
+      <PageHeader title="Nudge detail" subtitle={`${n.nudge_id} · ${n.customer} · ${n.campaign_id}`}
         crumbs={[{ label: "Nudges", to: "/nudges" }, { label: n.nudge_id }]}
         actions={<Link to={`/journeys/${n.customer_id}`} className="text-[13px] font-medium text-primary-500 hover:underline">Customer journey →</Link>} />
       <Page>

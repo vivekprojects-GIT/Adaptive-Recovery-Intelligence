@@ -311,7 +311,7 @@ function Journey({ data, account, onAccount, title, tabs }: {
               <header className="flex items-start gap-3 border-b border-line px-5 py-4">
                 <StepIcon step={step} />
                 <div className="min-w-0">
-                  <p className="text-2xs font-medium uppercase tracking-[0.08em] text-fg-3">Business journey · step {ORDER.indexOf(step) + 1}</p>
+                  <p className="text-2xs font-medium text-fg-3">Business journey · step {ORDER.indexOf(step) + 1}</p>
                   <h3 className="text-[17px] font-semibold leading-6 text-fg">{STEP[step].title}</h3>
                   <p className="text-sm text-fg-2">{STEP[step].lead}</p>
                 </div>
@@ -325,7 +325,7 @@ function Journey({ data, account, onAccount, title, tabs }: {
 
                 {step === "segment" && <>
                   <div data-rise className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-lg bg-primary-50 px-4 py-3">
-                    <span className="text-2xs font-medium uppercase tracking-[0.08em] text-primary-500">Segment</span>
+                    <span className="text-2xs font-medium text-primary-500">Segment</span>
                     <span className="text-[15px] font-semibold text-fg">{account.segment.name}</span>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -378,12 +378,12 @@ function Journey({ data, account, onAccount, title, tabs }: {
                     <Fact label="Timing" value={t.timing} />
                   </div>
                   {chosen !== "R2" && <Callout icon={ShieldCheck}>{chosen === "R1"
-                    ? "A settlement changes what the customer owes, so a reviewer approves it in the Review Queue before it goes out. The person who proposed it cannot approve it."
+                    ? "A settlement changes what the customer owes, so a reviewer approves it in the Review queue before it goes out. The person who proposed it cannot approve it."
                     : "A specialist takes the account, reviews the customer's situation, and agrees the next step with them by phone."}</Callout>}
                   <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
                     <Preview account={account} code={chosen} share={data.rules.settlement_share} />
                     <div data-rise>
-                      <p className="mb-2 text-2xs font-medium uppercase tracking-[0.08em] text-fg-3">Checked before anything is sent</p>
+                      <p className="mb-2 text-2xs font-medium text-fg-3">Checked before anything is sent</p>
                       <ul className="space-y-2">
                         {["Inside the permitted hours, 08:00 to 21:00 local time", "Under the weekly contact limit",
                           "No opt-out, dispute or vulnerability flag", "Wording approved for recovery messages"].map((c) => (
@@ -427,11 +427,11 @@ function Journey({ data, account, onAccount, title, tabs }: {
                     : `${byCode[current.code].name} ${current.outcome === "paid" ? "worked" : "did not work"} this time, so CARE adds ${current.outcome === "paid" ? "a success" : "a failure"} to its record for this segment.`}</Lead>
                   <BeliefCurves name={current.code === CONTROL ? "no contact" : byCode[current.code].name} before={before[current.code]} after={beliefs[current.code]} />
                   <div data-rise>
-                    <p className="mb-2 text-2xs font-medium uppercase tracking-[0.08em] text-fg-3">Uplift over no contact, in points (extra payers per 100 customers)</p>
+                    <p className="mb-2 text-2xs font-medium text-fg-3">Uplift over no contact, in points (extra payers per 100 customers)</p>
                     <UpliftBars treatments={data.treatments.filter((x) => codes.includes(x.code))} before={before} after={beliefs} />
                   </div>
                   <div data-rise>
-                    <p className="mb-2 text-2xs font-medium uppercase tracking-[0.08em] text-fg-3">Chance each treatment is the best</p>
+                    <p className="mb-2 text-2xs font-medium text-fg-3">Chance each treatment is the best</p>
                     <ChanceBars treatments={data.treatments.filter((x) => codes.includes(x.code))} before={chanceBefore} after={chance} />
                   </div>
                   {current.outcome === "feedback" && <Callout icon={MessageCircle}>The customer's request is kept on the account: they want to pay monthly. That limits what CARE offers next.</Callout>}
@@ -458,7 +458,7 @@ function Journey({ data, account, onAccount, title, tabs }: {
                   <RuleCheck text={decision.rule} />
                   <div data-rise className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-primary-500 bg-primary-50 px-5 py-4">
                     <div>
-                      <p className="text-2xs font-medium uppercase tracking-[0.08em] text-primary-500">Next best strategy</p>
+                      <p className="text-2xs font-medium text-primary-500">Next best strategy</p>
                       <p className="text-[17px] font-semibold text-fg">{byCode[decision.chosen].name}</p>
                       <p className="text-sm text-fg-2">{byCode[decision.chosen].channel} · {byCode[decision.chosen].timing}</p>
                     </div>
@@ -471,7 +471,7 @@ function Journey({ data, account, onAccount, title, tabs }: {
             {/* ---------------- systems ---------------- */}
             <section className="rounded-xl border border-line bg-surface shadow-card">
               <header className="border-b border-line px-5 py-4">
-                <p className="text-2xs font-medium uppercase tracking-[0.08em] text-fg-3">Technical journey</p>
+                <p className="text-2xs font-medium text-fg-3">Technical journey</p>
                 <h3 className="text-[17px] font-semibold leading-6 text-fg">Systems at work</h3>
                 <p className="text-sm text-fg-2">Which systems take part, and what they pass to each other</p>
               </header>
@@ -579,7 +579,7 @@ function FlowStepper({ step, visited, outcome, onPick }: {
           <path d={`M${X.next + W / 2} ${MID - H / 2 - 2}V22Q${X.next + W / 2} 12 ${X.next + W / 2 - 10} 12H${X.decide + W / 2 + 10}Q${X.decide + W / 2} 12 ${X.decide + W / 2} 22V${MID - H / 2 - 4}`}
             strokeWidth="1.5" strokeDasharray="5 4" fill="none" className="stroke-line-strong" markerEnd="url(#sj-arrow)" />
         </svg>
-        <span className="absolute -translate-x-1/2 rounded-full border border-line bg-surface px-2.5 py-0.5 text-2xs text-fg-3"
+        <span className="absolute -translate-x-1/2 rounded-md border border-line bg-surface px-2 py-0.5 text-2xs text-fg-3"
           style={{ left: (X.decide + X.next + W) / 2, top: 3 }}>Learns, then decides again</span>
 
         {ORDER.map((s, i) => {
@@ -589,7 +589,7 @@ function FlowStepper({ step, visited, outcome, onPick }: {
               aria-label={`Step ${i + 1}: ${STEP[s].title}`}
               className={clsx("absolute flex flex-col items-center justify-center gap-1.5 rounded-xl border px-1.5 text-center transition-[background-color,border-color,box-shadow] duration-200",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-300",
-                st === "on" && "border-primary-500 bg-primary-500 text-white shadow-[0_6px_16px_-8px_rgba(29,54,90,0.6)]",
+                st === "on" && "border-primary-500 bg-primary-500 text-white",
                 st === "done" && "border-primary-500/60 bg-surface text-fg hover:bg-primary-50",
                 st === "idle" && "border-line bg-surface-sunken text-fg-3",
                 click ? "cursor-pointer" : "cursor-default",
@@ -663,7 +663,7 @@ function Sequence({ active, flows }: { active: Sys[]; flows: Flow[] }) {
                         right ? "-right-0.5 border-l-[7px] border-l-primary-500" : "-left-0.5 border-r-[7px] border-r-primary-500")} />
                     </span>
                   )}
-                  <span className="absolute top-0 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full border-2 border-surface bg-primary-500 text-[10.5px] font-semibold text-white"
+                  <span className="absolute top-0 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full border-2 border-surface bg-primary-500 text-2xs font-semibold text-white"
                     style={{ left: `${(a + 0.5) * 20}%` }}>{i + 1}</span>
                 </div>
                 <div data-wire-label className="relative mt-1 rounded-lg border border-line bg-surface px-3 py-2">
@@ -750,7 +750,7 @@ function TreatmentCard({ t, belief, uplift, chance, allowed, draw, chosen }: {
     <div data-rise className={clsx("relative flex flex-col rounded-xl border p-4 transition-colors",
       chosen ? "border-primary-500 bg-primary-50 shadow-[inset_0_0_0_1px_theme(colors.primary.500)]" : "border-line",
       !allowed && "bg-surface-sunken")}>
-      {chosen && <span className="absolute -top-2.5 left-4 rounded-full bg-primary-500 px-2 py-0.5 text-[10.5px] font-semibold text-white">Chosen</span>}
+      {chosen && <span className="absolute -top-2.5 left-4 rounded-sm bg-primary-500 px-1.5 py-0.5 text-2xs font-medium text-white">Chosen</span>}
       <p className={clsx("text-sm font-semibold", allowed ? "text-fg" : "text-fg-3")}>{t.name}</p>
       <p className="text-xs text-fg-3">{allowed ? t.channel : "Not allowed by the rules"}</p>
       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -775,7 +775,7 @@ function Preview({ account, code, share }: { account: Account; code: string; sha
   if (code === "R3") {
     return (
       <div data-rise className="rounded-xl border border-line p-4">
-        <p className="mb-3 flex items-center gap-2 text-2xs font-medium uppercase tracking-[0.08em] text-fg-3"><Phone className="h-3.5 w-3.5" />Specialist call plan</p>
+        <p className="mb-3 flex items-center gap-2 text-2xs font-medium text-fg-3"><Phone className="h-3.5 w-3.5" />Specialist call plan</p>
         <ol className="space-y-2 text-sm text-fg-2">
           {[`Call ${firstName(account)} within two working days`, "Confirm identity and listen to their situation",
             `Agree a way to clear ${money(account.remaining)}: a plan, a settlement, or hardship support`, "Record the outcome on the account"].map((s, i) => (
@@ -787,7 +787,7 @@ function Preview({ account, code, share }: { account: Account; code: string; sha
   }
   return (
     <div data-rise className="rounded-xl border border-line bg-surface-sunken p-4">
-      <p className="mb-3 flex items-center gap-2 text-2xs font-medium uppercase tracking-[0.08em] text-fg-3"><Smartphone className="h-3.5 w-3.5" />What the customer receives</p>
+      <p className="mb-3 flex items-center gap-2 text-2xs font-medium text-fg-3"><Smartphone className="h-3.5 w-3.5" />What the customer receives</p>
       <div className="max-w-[300px] rounded-2xl rounded-tl-md bg-surface px-4 py-3 text-sm leading-6 text-fg shadow-card">
         {message(account, code, share)}
       </div>
@@ -821,7 +821,7 @@ function BeliefCurves({ name, before, after }: { name: string; before: Belief; a
         <path d={path(yb)} fill="none" strokeWidth="2" className="stroke-primary-500" />
         <line x1="0" x2={w} y1={h} y2={h} className="stroke-line" />
         {ticks.map((v, i) => (
-          <text key={i} x={((v - lo) / (hi - lo)) * w} y={h + 14} textAnchor={i === 0 ? "start" : i === 2 ? "end" : "middle"} className="fill-fg-3 text-[10.5px]">{pct(v, 0)}</text>
+          <text key={i} x={((v - lo) / (hi - lo)) * w} y={h + 14} textAnchor={i === 0 ? "start" : i === 2 ? "end" : "middle"} className="fill-fg-3 text-2xs">{pct(v, 0)}</text>
         ))}
       </svg>
       <p className="text-2xs text-fg-3">Payment rate. The narrower the curve, the surer CARE is.</p>
@@ -1033,7 +1033,7 @@ function tech(step: Step, a: Account, d: { eligible: string[]; chosen: string; r
       { from: "recovery", to: "host", msg: "No contact this attempt. The account is recorded as held back, so its outcome counts in the comparison group." },
     ] } : { active: ["recovery", "exec", "host"], flows: [
       { from: "recovery", to: "exec", msg: `${t.name} for ${a.account_number}. Channel: ${t.channel}. Timing: ${t.timing}.` },
-      ...(t.code === "R1" ? [{ from: "exec" as Sys, to: "exec" as Sys, msg: "Held in the Review Queue until a second person approves the settlement." }] : []),
+      ...(t.code === "R1" ? [{ from: "exec" as Sys, to: "exec" as Sys, msg: "Held in the Review queue until a second person approves the settlement." }] : []),
       { from: "exec", to: "host", msg: "The contact is recorded against the account, so the bank's own teams see it." },
     ] };
     case "response": return { active: ["exec", "host", "learn"], flows: [

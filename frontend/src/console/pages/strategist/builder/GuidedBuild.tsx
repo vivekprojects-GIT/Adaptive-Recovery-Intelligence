@@ -235,7 +235,7 @@ export default function GuidedBuild({ id }: { id?: string }) {
               <div className="rounded-lg border border-primary-500/40 bg-primary-50 px-3 py-2.5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-2xs font-medium uppercase tracking-[0.08em] text-primary-500">Target accounts from a question</p>
+                    <p className="text-2xs font-medium text-primary-500">Target accounts from a question</p>
                     <p className="mt-0.5 text-sm font-medium text-fg">"{form.target_query.question}"</p>
                     <p className="mt-0.5 text-xs text-fg-2">Only accounts that match this question, and are as late as picked below, are in the audience. It came from the Customers list.</p>
                   </div>

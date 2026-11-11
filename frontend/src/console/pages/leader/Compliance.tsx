@@ -40,7 +40,7 @@ export default function Compliance() {
         actions={<>
           {can("resolve_violations") && <Button icon={<RefreshCw className="h-3.5 w-3.5" />} loading={busy === "scan"}
             onClick={() => run("scan", () => api.post<{ new_violations: number }>("/compliance/scan"), (r) => `Scan complete: ${r.new_violations} new.`).then(reload)}>Scan now</Button>}
-          {can("export_reports") && <Button icon={<Download className="h-3.5 w-3.5" />} onClick={() => run("x", () => api.download("/reports/compliance.csv", "ari-compliance.csv"), "Downloaded.")}>Export Report</Button>}
+          {can("export_reports") && <Button icon={<Download className="h-3.5 w-3.5" />} onClick={() => run("x", () => api.download("/reports/compliance.csv", "ari-compliance.csv"), "Downloaded.")}>Export report</Button>}
           <Button variant="danger" onClick={() => setFilter("Open")}>{k.open} open issues</Button>
         </>} />
       <Page>

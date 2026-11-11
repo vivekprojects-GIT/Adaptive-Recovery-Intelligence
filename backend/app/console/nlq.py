@@ -104,6 +104,13 @@ def read(question: str) -> dict:
     """The conditions a question asks for, what was not understood, and the SQL."""
     r = Reader(question)
 
+    # Days-late groups by name: "the 30 days late group", "90+ days late bucket".
+    group_words = r"\s*days?\s*(?:late|past\s*due)\s*(?:group|bucket|cohort|segment)"
+    for pattern, cohort in ((rf"\b1\s*(?:-|to)\s*29{group_words}", "C1"), (rf"\b30{group_words}", "C2"),
+                            (rf"\b60{group_words}", "C3"), (rf"\b90\s*\+?{group_words}", "C4")):
+        if r.take(pattern):
+            r.add("cohort_id", "=", cohort)
+
     # Days past due: "over 60 days past due", "90+ dpd", "between 30 and 60 days late".
     days = r"\s*(?:days?|dpd)(?:\s*(?:past due|late|overdue|delinquent|behind))?"
     m = r.take(rf"between\s*(\d+)\s*(?:and|to|-)\s*(\d+){days}")
@@ -138,7 +145,7 @@ def read(question: str) -> dict:
     m = r.take(r"(\d+)\s*(\+|or\s*more|or\s*fewer|or\s*less)\s*missed\s*payments?")
     if m:
         r.add("missed_payments", ">=" if m.group(2) in ("+", "or more") or "more" in m.group(2) else "<=", int(m.group(1)))
-    m = r.take(rf"(?:customers?\s*for|tenure(?:\s*of)?|with\s*(?:us|the bank)\s*for|been\s*with\s*us\s*for)\s*{CMP}?\s*(\d+)\s*\+?\s*years?")
+    m = r.take(rf"(?:customers?\s*for|tenure(?:\s*of)?|with\s*(?:us|the bank)(?:\s*for)?|been\s*with\s*us(?:\s*for)?)\s*{CMP}?\s*(\d+)\s*\+?\s*years?")
     if m:
         r.add("tenure_years", CMP_OP.get(m.group(1) or "", ">="), int(m.group(2)))
 
@@ -167,7 +174,7 @@ def read(question: str) -> dict:
 
     # CARE's fit group and route.
     for pattern, group in ((r"likely\s*(?:to\s*)?respon\w*|persuadable", "Persuadable"),
-                           (r"self[- ]?cure|sure\s*things?|pay\s*(?:anyway|on\s*their\s*own)", "Sure Thing"),
+                           (r"(?:likely\s*(?:to\s*)?)?self[- ]?cur\w*|sure\s*things?|pay\s*(?:anyway|on\s*their\s*own)", "Sure Thing"),
                            (r"needs?\s*support|lost\s*causes?", "Lost Cause"),
                            (r"do\s*not\s*contact|sleeping\s*dogs?", "Sleeping Dog")):
         if r.take(pattern):
@@ -193,10 +200,12 @@ def read(question: str) -> dict:
         r.add("sms_responsive", "=", True)
 
     # Words that only frame the question are fine to leave; anything else was not understood.
+    r.take(r"(?:in\s+|over\s+)?(?:the\s+)?(?:last|past)\s+(?:year|12\s*months|twelve\s*months)")
+    r.take(r"\bhow\s+(?:many|much)\b|\bwhat\s+(?:is|are)\b")
     left = re.sub(r"\b(show|me|find|list|give|get|all|the|a|an|accounts?|customers?|people|cards?|card|holders?|"
                   r"with|who|whose|that|are|is|have|has|and|or|in|on|of|for|to|by|their|they|them|which|where|"
                   r"any|our|we|please|account|from|plus|than|it|still|also|currently|only|those|these|"
-                  r"credit|business|book|portfolio|segment|group|days?|past|due)\b", " ", r.text)
+                  r"credit|business|book|portfolio|segment|group|days?|past|due|sent|routed|been|there|count|number)\b", " ", r.text)
     left = re.sub(r"[^a-z0-9$%+.\- ]", " ", left)
     unread = " ".join(left.split())
     return {"conditions": r.conditions, "not_understood": unread or None,

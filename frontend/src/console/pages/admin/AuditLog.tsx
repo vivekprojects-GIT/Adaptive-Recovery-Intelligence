@@ -23,7 +23,7 @@ export default function AuditLog() {
   if (error) return <ErrorState message={error} onRetry={reload} />;
   return (
     <>
-      <PageHeader title="Audit Log" subtitle="Every user and system action, in order. Read-only."
+      <PageHeader title="Audit log" subtitle="Every user and system action, in order. Read-only."
         actions={can("export_reports") && <Button icon={<Download className="h-3.5 w-3.5" />} loading={busy === "x"} onClick={() => run("x", () => api.download("/reports/audit.csv", "ari-audit.csv"), "Downloaded.")}>Export</Button>} />
       <Page>
         <div className="flex flex-wrap items-end gap-2">

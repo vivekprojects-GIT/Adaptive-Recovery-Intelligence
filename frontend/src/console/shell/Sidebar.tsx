@@ -33,12 +33,12 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
                       className={clsx("relative flex items-center gap-3 rounded-md py-2 text-[13px] outline-none transition focus-visible:ring-2 focus-visible:ring-white/40",
                         collapsed ? "justify-center px-0" : "px-3",
                         active ? "bg-white/10 font-medium text-white" : "text-primary-100/85 hover:bg-white/[0.06] hover:text-white")}>
-                      {active && <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-r-full bg-[#12abdb]" />}
+                      {active && <span className="absolute inset-y-2 left-0 w-0.5 rounded-r-sm bg-white/80" />}
                       <Icon className={clsx("h-[17px] w-[17px] shrink-0", active ? "text-white" : "text-primary-200/80")} />
                       {!collapsed && <span className="flex-1">{i.label}</span>}
                       {badge > 0 && (collapsed
-                        ? <span className="absolute right-2.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#12abdb]" />
-                        : <span className="num min-w-5 rounded-full bg-white/10 px-1.5 text-center text-2xs font-semibold text-white">{badge}</span>)}
+                        ? <span className="absolute right-2.5 top-1.5 h-1.5 w-1.5 rounded-full bg-white/70" />
+                        : <span className="num text-2xs text-primary-100/85">{badge}</span>)}
                     </Link>
                   </li>
                 );

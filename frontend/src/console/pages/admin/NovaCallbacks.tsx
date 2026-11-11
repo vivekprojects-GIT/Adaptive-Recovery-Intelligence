@@ -55,7 +55,7 @@ export function NovaCallbacks() {
             <dt className="text-xs text-fg-3">Callback URL</dt>
             <dd className="mt-0.5 break-all">{data.url
               ? <span className="font-mono text-xs">{data.url}</span>
-              : <span className="text-fg-2">Not set. Set <Link to="/admin/config" className="text-primary-500 hover:underline">Nova callback URL</Link> in Platform Config.</span>}</dd>
+              : <span className="text-fg-2">Not set. Set <Link to="/admin/config" className="text-primary-500 hover:underline">Nova callback URL</Link> in Platform configuration.</span>}</dd>
           </div>
           <div>
             <dt className="text-xs text-fg-3">Signing secret <span className="text-fg-3">({data.secret_source})</span></dt>

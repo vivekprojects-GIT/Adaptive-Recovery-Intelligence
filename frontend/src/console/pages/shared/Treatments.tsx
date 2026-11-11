@@ -133,7 +133,7 @@ function Editor({ target, schema, onClose, onSaved }: {
           <div className="flex items-start justify-between gap-4 rounded-lg border border-line px-3 py-2.5">
             <div>
               <p className="text-[13px] font-medium">A person approves each offer</p>
-              <p className="mt-0.5 text-2xs leading-4 text-fg-3">On by default for plans, deferrals and hardship support, which change what the customer owes. Approved offers go to the Review Queue first.</p>
+              <p className="mt-0.5 text-2xs leading-4 text-fg-3">On by default for plans, deferrals and hardship support, which change what the customer owes. Approved offers go to the Review queue first.</p>
             </div>
             <Toggle checked={form.human_review} label="Human approval" onChange={(v) => { setReviewTouched(true); set("human_review", v); }} />
           </div>
@@ -228,7 +228,7 @@ export default function TreatmentsPage() {
 
   return (
     <>
-      <PageHeader title="Treatment Playbook"
+      <PageHeader title="Treatment playbook"
         subtitle="The approved actions CARE may take. A strategy picks which of these it may use; CARE learns which works for whom."
         actions={manage && <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => setEditing("new")}>New treatment</Button>} />
       <Page>
@@ -236,7 +236,7 @@ export default function TreatmentsPage() {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Kpi label="Active treatments" value={active.length} sub={`${all.length - active.length} retired`} />
           <Kpi label="Learning from scratch" value={active.filter((t) => t.historical_n === 0).length} sub="no track record: flat prior" />
-          <Kpi label="Need human approval" value={active.filter((t) => t.human_review).length} sub="offers go to the Review Queue" />
+          <Kpi label="Need human approval" value={active.filter((t) => t.human_review).length} sub="offers go to the Review queue" />
           <Kpi label="Used by live strategies" value={active.filter((t) => t.usage.live_strategies > 0).length} sub={`of ${active.length} active`} />
         </div>
 

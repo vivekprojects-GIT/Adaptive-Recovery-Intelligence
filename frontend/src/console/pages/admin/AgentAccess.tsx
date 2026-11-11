@@ -129,7 +129,7 @@ function ResultView({ r, report, busy, onReport }: {
       {r.note && <p className="text-2xs leading-4 text-fg-3">{r.note}</p>}
       {!!r.assumed?.length && (
         <details className="text-2xs text-fg-3">
-          <summary className="cursor-pointer font-medium text-fg-2">{r.assumed.length} value{r.assumed.length === 1 ? "" : "s"} assumed - Nova did not send them</summary>
+          <summary className="cursor-pointer font-medium text-fg-2">{r.assumed.length} value{r.assumed.length === 1 ? "" : "s"} assumed because they were not sent</summary>
           <ul className="mt-1 list-disc space-y-0.5 pl-5">{r.assumed.map((x) => <li key={x}>{x}</li>)}</ul>
         </details>
       )}
@@ -142,11 +142,11 @@ function ResultView({ r, report, busy, onReport }: {
         </details>
       )}
       {r.action === "awaiting_approval" && (
-        <p className="text-xs text-fg-2">A person approves the offer in the <Link to="/review" className="font-medium text-primary-500 hover:underline">Review Queue</Link>; then the outcome can be reported.</p>
+        <p className="text-xs text-fg-2">A person approves the offer in the <Link to="/review" className="font-medium text-primary-500 hover:underline">Review queue</Link>; then the outcome can be reported.</p>
       )}
       {canReport && (
         <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
-          <span className="text-xs text-fg-2">Report the outcome, as Nova would:</span>
+          <span className="text-xs text-fg-2">Report the outcome:</span>
           <Button size="sm" loading={busy === "paid-true"} onClick={() => onReport(true)}>Paid</Button>
           <Button size="sm" loading={busy === "paid-false"} onClick={() => onReport(false)}>Not paid</Button>
         </div>
@@ -158,7 +158,101 @@ function ResultView({ r, report, busy, onReport }: {
   );
 }
 
-/** API & Integrations: how an agent such as Nova's reaches CARE over MCP. */
+type AskAnswer = {
+  answer: string; how_it_was_answered: string; understood: string[]; not_understood: string | null; sql: string; accounts: number;
+  total_balance: number; total_past_due: number; by_days_late: Record<string, number>; by_card_business: Record<string, number>;
+};
+type Shown = { headline: string; rows?: [string, string][]; ask?: AskAnswer; raw: unknown };
+
+const QUESTIONS = [
+  "retail card accounts over 60 days past due",
+  "high risk customers who use the app with a balance above $5,000",
+  "small business card accounts with a hardship flag",
+];
+
+/** Graph examples. Each is a real read-only MCP call; none lists a customer. */
+const GRAPH: { id: string; label: string; tool: string; args: Record<string, unknown>; show: (r: any) => Omit<Shown, "raw"> }[] = [
+  { id: "taxonomy", label: "Taxonomy", tool: "get_taxonomy", args: {},
+    show: (r) => ({ headline: `${num(r.nodes)} things joined by ${num(r.edges)} links, across ${r.relationships.length} relationship types.`,
+      rows: r.taxonomy.children.map((c: any) => [c.class, `${num(c.total)} · ${c.children.map((k: any) => k.class).join(", ") || c.description}`]) }) },
+  { id: "by-treatment", label: "Decisions by treatment", tool: "count_by", args: { node_class: "Decision", group_by: "CHOSE" },
+    show: (r) => ({ headline: `${num(r.total)} decisions, grouped by the treatment chosen. "(none)" is control or excluded.`,
+      rows: r.groups.map((g: any) => [g.group, num(g.count)]) }) },
+  { id: "s3-paid", label: "Split Payment Plan → paid", tool: "traverse_graph",
+    args: { start: "treatment:S3", path: ["~CHOSE", "RESULTED_IN"], where: { paid: true } },
+    show: (r) => ({ headline: `${num(r.total)} decisions that chose Split Payment Plan ended in a payment.`,
+      rows: [["Path followed", "Split Payment Plan ← chosen by decisions → resulted in outcomes, paid only"]] }) },
+  { id: "agency", label: "Agency to card business", tool: "how_connected",
+    args: { a: "agency:AGY-01", b: "product:consumer-credit-card" },
+    show: (r) => ({ headline: r.connected ? `Connected in ${r.steps.length} step${r.steps.length === 1 ? "" : "s"}.` : "Not connected.",
+      rows: r.steps.map((s: any) => [s.from.label, `${s.rel.replace("~", "← ").replace(/_/g, " ").toLowerCase()} → ${s.to.label}`]) }) },
+];
+
+function AskCard({ path, getToken, onCalled }: { path: string; getToken: () => Promise<string | null>; onCalled: () => void }) {
+  const { run, busy } = useAction();
+  const [question, setQuestion] = useState(QUESTIONS[0]);
+  const [shown, setShown] = useState<Shown | null>(null);
+  const [showRaw, setShowRaw] = useState(false);
+  const call = (key: string, tool: string, args: Record<string, unknown>, show: (r: any) => Omit<Shown, "raw">) =>
+    run(key, async () => {
+      const t = await getToken();
+      if (!t) throw new Error("Could not read the access token.");
+      const r = await mcpCall<any>(path, t, tool, args);
+      setShown({ ...show(r.data), raw: r.raw }); setShowRaw(false); onCalled();
+      return r.data;
+    });
+  const ask = () => call("ask", "ask_portfolio", { question, limit: 1 }, (r: AskAnswer) => ({ headline: r.answer, ask: r }));
+  const a = shown?.ask;
+  const split = (title: string, m: Record<string, number>) => (
+    <div className="min-w-0">
+      <p className="text-2xs font-medium text-fg-3">{title}</p>
+      <ul className="mt-1 space-y-0.5">
+        {Object.entries(m).map(([k, v]) => <li key={k} className="flex justify-between gap-3 text-xs"><span className="text-fg-2">{k}</span><span className="num">{num(v)}</span></li>)}
+      </ul>
+    </div>
+  );
+  return (
+    <Card title="Try it: ask about the data"
+      subtitle="Read-only MCP tools: a plain-English question about the accounts, or the recovery knowledge graph. Totals only here; an agent also gets the matching account numbers, never names.">
+      <div className="flex flex-wrap gap-2">
+        <input value={question} onChange={(e) => setQuestion(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") ask(); }}
+          className={`${inputCls} min-w-0 flex-1`} aria-label="Question about the accounts" />
+        <Button variant="primary" icon={<Send className="h-3.5 w-3.5" />} loading={busy === "ask"} onClick={ask}>Ask</Button>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+        {QUESTIONS.map((q) => <button key={q} onClick={() => setQuestion(q)} className="text-xs text-primary-500 hover:underline">{q}</button>)}
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span className="text-xs text-fg-3">Or explore the graph:</span>
+        {GRAPH.map((g) => <Button key={g.id} size="sm" loading={busy === g.id} onClick={() => call(g.id, g.tool, g.args, g.show)}>{g.label}</Button>)}
+      </div>
+      {shown && (
+        <div className="mt-4 space-y-3 border-t border-line pt-3">
+          <p className="text-sm font-medium text-fg">{shown.headline}</p>
+          {a && (
+            <>
+              <p className="text-xs leading-5 text-fg-2">{a.how_it_was_answered}</p>
+              {!!a.understood.length && <div className="flex flex-wrap gap-1.5">{a.understood.map((u) => <Chip key={u} tone="neutral">{u}</Chip>)}</div>}
+              <div className="grid gap-4 sm:grid-cols-2">{split("By days late", a.by_days_late)}{split("By card business", a.by_card_business)}</div>
+              <div><p className="mb-1 text-2xs font-medium text-fg-3">The SQL it ran</p>
+                <pre className="overflow-x-auto rounded-lg bg-surface-sunken px-3 py-2 font-mono text-[11px] leading-4">{a.sql}</pre></div>
+            </>
+          )}
+          {shown.rows && (
+            <ul className="divide-y divide-line rounded-lg border border-line">
+              {shown.rows.map(([k, v], i) => <li key={i} className="flex gap-3 px-3 py-1.5 text-xs"><span className="w-44 shrink-0 font-medium text-fg">{k}</span><span className="text-fg-2">{v}</span></li>)}
+            </ul>
+          )}
+          <button onClick={() => setShowRaw((x) => !x)} className="text-xs font-medium text-primary-500 hover:underline">{showRaw ? "Hide" : "Show"} raw MCP response</button>
+          {showRaw && !a && <pre className="max-h-72 overflow-auto rounded-lg bg-surface-sunken p-3 font-mono text-[11px] leading-4">{JSON.stringify(shown.raw, null, 2)}</pre>}
+          {showRaw && a && <p className="text-xs text-fg-3">Hidden here: the raw answer lists account numbers, and this workspace does not show customer data.</p>}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** API and integrations: how an agent such as Nova's reaches CARE over MCP. */
 export function AgentAccess() {
   const { data: s, error, reload } = useApi<McpStatus>("/admin/mcp");
   const { run, busy } = useAction();
@@ -231,7 +325,7 @@ async with streamablehttp_client("${endpoint}",
   return (
     <div className="space-y-4">
       <Card title={<span className="flex items-center gap-2"><Plug className="h-4 w-4 text-fg-3" />Agent access · MCP</span>}
-        subtitle="How Nova's agent, or any MCP client, sends an account and gets the recovery strategy back - then reports the payment so CARE learns."
+        subtitle="How any MCP client sends an account and gets the recovery action back, asks questions about the data, and reports payments so CARE learns."
         actions={<Chip tone={live ? "good" : "neutral"}>{live ? `Active · last call ${ago(s.stats.last_call_at)}` : s.stats.last_call_at ? `Idle · last call ${ago(s.stats.last_call_at)}` : "Waiting for the first call"}</Chip>}>
         <div className="grid gap-5 lg:grid-cols-[1.25fr_1fr]">
           <dl className="space-y-2.5 text-[13px]">
@@ -256,11 +350,11 @@ async with streamablehttp_client("${endpoint}",
               </dd>
             </div>
             <p className="pl-[124px] text-2xs leading-4 text-fg-3">
-              {s.token_source === "environment" ? "Set by ARI_MCP_TOKEN in the server environment." : "Generated by CARE and kept in platform config. Revealing or rotating it is recorded in the audit log."} Every call is audited as the Nova agent.
+              {s.token_source === "environment" ? "Set by ARI_MCP_TOKEN in the server environment." : "Generated by CARE and kept in platform config. Revealing or rotating it is recorded in the audit log."} Every call is recorded in the audit log.
             </p>
           </dl>
           <div className="grid grid-cols-2 gap-2.5 self-start sm:grid-cols-3">
-            {[["Calls, last 24h", s.stats.calls_24h], ["Accounts from Nova", s.stats.accounts], ["Decisions", s.stats.decisions],
+            {[["Calls, last 24h", s.stats.calls_24h], ["Accounts sent", s.stats.accounts], ["Decisions", s.stats.decisions],
               ["Awaiting approval", s.stats.awaiting_approval], ["Outcomes reported", s.stats.outcomes_reported], ["Calls, all time", s.stats.calls_total]]
               .map(([label, value]) => (
                 <div key={label as string} className="rounded-lg bg-surface-sunken px-3 py-2">
@@ -272,8 +366,8 @@ async with streamablehttp_client("${endpoint}",
       </Card>
 
       <div className="grid gap-4 xl:grid-cols-[1.15fr_1fr]">
-        <Card title="Try it: send an account as Nova would"
-          subtitle="A real MCP call to this server with the access token. Whatever it records appears in Decisions, the Review Queue and the strategy's learning.">
+        <Card title="Try it: send an account"
+          subtitle="A real MCP call to this server with the access token. Whatever it records appears in Decisions, the Review queue and the strategy's learning.">
           <Pills value={sample} onChange={pick} options={Object.entries(SAMPLES).map(([id, x]) => ({ id, label: x.label }))} />
           <textarea rows={11} value={text} spellCheck={false} onChange={(e) => setText(e.target.value)}
             className={`${inputCls} mt-3 h-auto py-2 font-mono text-xs leading-5`} aria-label="Account sent to CARE" />
@@ -307,7 +401,9 @@ async with streamablehttp_client("${endpoint}",
         </div>
       </div>
 
-      <Card title="Recent calls" subtitle="From the audit log. Every MCP call is recorded as the Nova agent." flush>
+      <AskCard path={s.path} getToken={getToken} onCalled={reload} />
+
+      <Card title="Recent calls" subtitle="From the audit log. Every MCP call is recorded in the audit log." flush>
         <Table>
           <thead><tr><Th>When</Th><Th>Tool</Th><Th>What happened</Th></tr></thead>
           <tbody>
@@ -328,7 +424,7 @@ async with streamablehttp_client("${endpoint}",
               .then((r) => { setRotating(false); if (r) { setToken(r.token); setShown(true); reload(); } })}>Rotate token</Button>
         </>}>
         <p className="text-[13px] leading-5 text-fg-2">
-          A new token is issued and the current one stops working immediately. Every agent that calls CARE - Nova's included - needs the new token before its next call.
+          A new token is issued and the current one stops working immediately. Every agent that calls CARE needs the new token before its next call.
         </p>
       </Modal>
     </div>

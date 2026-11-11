@@ -1,4 +1,4 @@
-/** Collections Journey: the demo's storyline, told with the collections book's own
+/** Collections journey: the demo's storyline, told with the collections book's own
  *  numbers. It starts from the problem, walks the journey as it runs today, shows
  *  how information flows through CARE, how the target base is found, how a
  *  campaign runs on it, where CARE steps in, and what that changes. The recovery
@@ -57,7 +57,7 @@ export default function JourneyPage() {
   const tab = params.get("tab") === "recovery" ? "recovery" : "collections";
   const tabs = <Tabs tabs={[{ id: "collections", label: "Collections" }, { id: "recovery", label: "Recovery" }]} active={tab}
     onChange={(t) => setParams(t === "recovery" ? { tab: "recovery" } : {})} />;
-  return tab === "recovery" ? <StrategyJourney title="Collections Journey" tabs={tabs} /> : <CollectionsStory tabs={tabs} />;
+  return tab === "recovery" ? <StrategyJourney title="Collections journey" tabs={tabs} /> : <CollectionsStory tabs={tabs} />;
 }
 
 function CollectionsStory({ tabs }: { tabs: ReactNode }) {
@@ -90,7 +90,7 @@ function CollectionsStory({ tabs }: { tabs: ReactNode }) {
   }, [step, data]);
 
   const header = (
-    <PageHeader title="Collections Journey"
+    <PageHeader title="Collections journey"
       subtitle="The collections story from the problem to the result, told with Meridian Valley Bank's own accounts"
       meta={tabs} />
   );
@@ -136,7 +136,7 @@ function CollectionsStory({ tabs }: { tabs: ReactNode }) {
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-500 text-white">
               {(() => { const I = STEP[step].icon; return <I className="h-5 w-5" />; })()}</span>
             <div>
-              <p className="text-2xs font-medium uppercase tracking-[0.08em] text-fg-3">Step {i + 1}</p>
+              <p className="text-2xs font-medium text-fg-3">Step {i + 1}</p>
               <h3 className="text-[19px] font-semibold leading-6 text-fg">{STEP[step].title}</h3>
               <p className="text-sm text-fg-2">{STEP[step].lead}</p>
             </div>
@@ -202,7 +202,7 @@ function Today({ d }: { d: Data }) {
     <>
       <ProcessLane />
       <div data-rise>
-        <p className="mb-2 text-2xs font-medium uppercase tracking-[0.08em] text-fg-3">What the bank's collections system hands over today</p>
+        <p className="mb-2 text-2xs font-medium text-fg-3">What the bank's collections system hands over today</p>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {d.cohorts.map((c) => (
             <div key={c.cohort_id} className="rounded-lg border border-line px-4 py-3">
@@ -264,7 +264,7 @@ function Flow() {
         {node(Database, "Nova", "The bank's data layer: one record per account")}
         {arrow("Account details, sensitive IDs removed")}
         <div className="rounded-xl border-2 border-primary-500 bg-primary-50 p-3">
-          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-primary-500"><Cpu className="h-3.5 w-3.5" />CARE</p>
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-primary-500"><Cpu className="h-3.5 w-3.5" />CARE</p>
           <div className="grid grid-cols-2 gap-2">
             {[["Score", "Likely to respond, likely to pay anyway"], ["Route", "Strategy, business as usual, hardship, no contact"],
               ["Decide", "Treatment per customer, control group held back"], ["Guard", "Contact rules checked before every send"]].map(([t, s]) => (
@@ -311,7 +311,7 @@ function TargetBase({ d }: { d: Data }) {
         ))}
       </div>
       <div data-rise>
-        <p className="mb-2 text-2xs font-medium uppercase tracking-[0.08em] text-fg-3">Same days late, same bank risk band, three different right answers</p>
+        <p className="mb-2 text-2xs font-medium text-fg-3">Same days late, same bank risk band, three different right answers</p>
         <div className="grid gap-3 lg:grid-cols-3">
           {d.personas.map((p) => (
             <div key={p.customer_id} className="flex flex-col rounded-xl border border-line px-4 py-3">
@@ -358,7 +358,7 @@ function Campaign({ d }: { d: Data }) {
       <ol data-rise className="grid gap-3 md:grid-cols-5">
         {steps.map((s, n) => (
           <li key={s.title} className="rounded-xl border border-line px-4 py-3">
-            <div className="flex items-center gap-2"><span className="num flex h-5 w-5 items-center justify-center rounded-full bg-primary-500 text-[10.5px] font-semibold text-white">{n + 1}</span>
+            <div className="flex items-center gap-2"><span className="num flex h-5 w-5 items-center justify-center rounded-full bg-primary-500 text-2xs font-semibold text-white">{n + 1}</span>
               <s.icon className="h-4 w-4 text-primary-500" /></div>
             <p className="mt-2 text-sm font-semibold text-fg">{s.title}</p>
             <p className="text-xs leading-5 text-fg-2">{s.body}</p>
@@ -367,7 +367,7 @@ function Campaign({ d }: { d: Data }) {
       </ol>
       {rachel && dec && (
         <div data-rise className="rounded-xl border border-primary-500/40 bg-primary-50 px-5 py-4">
-          <p className="text-2xs font-medium uppercase tracking-[0.08em] text-primary-500">One real decision</p>
+          <p className="text-2xs font-medium text-primary-500">One real decision</p>
           <p className="mt-1 text-[15px] leading-7 text-fg">
             <span className="font-semibold">{rachel.name}</span> is in <span className="font-semibold">{dec.strategy}</span>.{" "}
             {dec.group === "Control" ? "The account was held back in the control group, so nothing was sent." : <>CARE chose <span className="font-semibold">{dec.treatment}</span>{dec.probability !== null ? <> ({pct(dec.probability, 0)} chance it was the best option for this customer)</> : null}.</>}
@@ -379,7 +379,7 @@ function Campaign({ d }: { d: Data }) {
       )}
       {d.strategies.length > 0 && (
         <div data-rise>
-          <p className="mb-2 text-2xs font-medium uppercase tracking-[0.08em] text-fg-3">Campaigns running now</p>
+          <p className="mb-2 text-2xs font-medium text-fg-3">Campaigns running now</p>
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
             {d.strategies.slice(0, 6).map((s) => (
               <Link key={s.campaign_id} to={`/strategies/${s.campaign_id}`} className="rounded-lg border border-line px-3 py-2 transition-colors hover:bg-surface-hover">

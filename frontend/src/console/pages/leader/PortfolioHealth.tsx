@@ -20,7 +20,7 @@ export default function PortfolioHealth() {
   const resolved = (data.pipeline.Resolved ?? 0) + (data.pipeline.Accepted ?? 0);
   return (
     <>
-      <PageHeader title="Portfolio Health" subtitle="Where every handed-over account stands" />
+      <PageHeader title="Portfolio health" subtitle="Where every handed-over account stands" />
       <Page>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Kpi label="Accounts handed over" metric="accounts_imported" value={num(data.customers)} sub={`${data.cohorts.length} cohorts`} />

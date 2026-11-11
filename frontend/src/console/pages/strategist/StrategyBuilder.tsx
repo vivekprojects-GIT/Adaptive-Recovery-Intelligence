@@ -17,12 +17,12 @@ export default function StrategyBuilder() {
   const navigate = useNavigate();
   return (
     <>
-      <PageHeader title="Strategy Builder" subtitle={id ? `${id} · editing` : "Start from a suggestion, clone a strategy, or build one"}
+      <PageHeader title="Strategy builder" subtitle={id ? `${id} · editing` : "Start from a suggestion, clone a strategy, or build one"}
         crumbs={[{ label: "Strategies", to: "/strategies" }, { label: "Builder" }]} />
       <div className="bg-surface px-6"><Tabs<Tab> active={tab} onChange={(t) => { setTab(t); if (t !== "guided" && id) navigate("/builder"); }} tabs={[
         { id: "suggested", label: "Suggested", icon: <Lightbulb className="h-3.5 w-3.5" /> },
-        { id: "library", label: "Strategy Library", icon: <BookOpen className="h-3.5 w-3.5" /> },
-        { id: "guided", label: "Guided Build", icon: <Wrench className="h-3.5 w-3.5" /> },
+        { id: "library", label: "Strategy library", icon: <BookOpen className="h-3.5 w-3.5" /> },
+        { id: "guided", label: "Guided build", icon: <Wrench className="h-3.5 w-3.5" /> },
         { id: "ai", label: "Draft from a brief", icon: <FilePenLine className="h-3.5 w-3.5" /> },
       ]} /></div>
       <Page>

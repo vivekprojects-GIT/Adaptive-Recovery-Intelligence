@@ -31,8 +31,8 @@ export default function AdminDashboard() {
   const h = data.health;
   return (
     <>
-      <PageHeader title="Admin Dashboard" subtitle={`Platform management · ${me?.user.name}`}
-        actions={<Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => navigate("/admin/users?invite=1")}>Add User</Button>} />
+      <PageHeader title="Admin dashboard" subtitle={`Platform management · ${me?.user.name}`}
+        actions={<Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => navigate("/admin/users?invite=1")}>Add user</Button>} />
       <Page>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Kpi label="Total users" value={k.users} sub={`${k.active_users} active`} />

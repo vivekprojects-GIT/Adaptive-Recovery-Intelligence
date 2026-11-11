@@ -42,10 +42,10 @@ export default function ReviewQueue() {
 
   return (
     <>
-      <PageHeader title="Review Queue" subtitle="Decisions waiting for a person: large balances and forbearance offers" />
+      <PageHeader title="Review queue" subtitle="Decisions waiting for a person: large balances and forbearance offers" />
       <Page>
         <Banner tone="info" title="Why these wait">
-          A person approves every decision for a balance at or above the review threshold ($10,000, set in Platform Config), and every payment plan, deferral or hardship referral, because these change what a customer owes or when. Below the threshold, other treatments run automatically. Nothing here is sent until you approve it. Approving re-checks consent, contact limits and any vulnerability flag against the newest data from Nova, then sends it. While channel delivery is not connected, the send is recorded and no message reaches the customer. Rejecting records why and sends nothing.
+          A person approves every decision for a balance at or above the review threshold ($10,000, set in Platform configuration), and every payment plan, deferral or hardship referral, because these change what a customer owes or when. Below the threshold, other treatments run automatically. Nothing here is sent until you approve it. Approving re-checks consent, contact limits and any vulnerability flag against the newest data from Nova, then sends it. While channel delivery is not connected, the send is recorded and no message reaches the customer. Rejecting records why and sends nothing.
         </Banner>
         <Card flush title={`${data?.total ?? 0} decisions waiting${card ? ` · ${card}` : ""}`}
           actions={<Select className="w-60" value={card} onChange={setCard}

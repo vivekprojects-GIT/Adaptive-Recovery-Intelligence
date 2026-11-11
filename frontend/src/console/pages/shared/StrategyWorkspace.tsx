@@ -1,4 +1,4 @@
-/** Strategy Workspace: collections and recovery, by card business.
+/** Strategy workspace: collections and recovery, by card business.
  *  Collections works delinquent accounts before charge-off; Recovery works charged-off accounts. */
 import clsx from "clsx";
 import { ArrowRight, BarChart3, CircleDollarSign, Coins, Database, Info, PieChart, Plus, Users } from "lucide-react";
@@ -277,7 +277,7 @@ export default function StrategyWorkspace() {
   if (!meta.data) return <Spinner label="Loading workspace" />;
   return (
     <>
-      <PageHeader title={<span className="flex items-center gap-3">Strategy Workspace<Badge variant="secondary">{me?.user.role_label}</Badge></span>}
+      <PageHeader title={<span className="flex items-center gap-3">Strategy workspace<Badge variant="secondary">{me?.user.role_label}</Badge></span>}
         subtitle="Manage collections and recovery treatments by card business." />
       <Page>
         <div>

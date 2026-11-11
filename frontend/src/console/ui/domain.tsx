@@ -238,7 +238,7 @@ export function StrategyVsTreatment({ compact }: { compact?: boolean }) {
   const items = [
     { term: "Treatment", what: "One approved action CARE can take with a customer.",
       example: "A reminder SMS, an in-app nudge, a 3-instalment payment plan, an agent call.",
-      who: "Defined once in the Treatment Playbook, with its eligibility rules and cost." },
+      who: "Defined once in the Treatment playbook, with its eligibility rules and cost." },
     { term: "Strategy", what: "A plan that decides who gets which treatment, and measures the result.",
       example: "Payment Plan Offer: 30 DPD medium-risk customers, choosing between a plan, an SMS and an app nudge, with 20% kept as a control group.",
       who: "Built by a strategy analyst, approved by an executive. CARE learns which of its treatments works best." },

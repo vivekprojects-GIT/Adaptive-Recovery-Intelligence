@@ -161,8 +161,11 @@ export default function LiveRun() {
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
           <section className="min-h-[420px] rounded-xl border border-line bg-surface shadow-card">
             {trace && cur ? <EnginePanel key={frame} run={trace} a={cur.a} stage={cur.stage} />
-              : <div className="flex h-full min-h-[420px] items-center justify-center px-6 text-center text-sm text-fg-3">
-                  Pick a campaign and a scenario, then start.</div>}
+              : <div className="flex h-full min-h-[420px] flex-col items-center justify-center gap-2 px-6 text-center">
+                  <p className="text-sm font-medium text-fg">Nothing has run yet</p>
+                  <p className="max-w-md text-[13px] leading-5 text-fg-3">Pick a campaign and a scenario, then start. The run uses the live engine: its decision,
+                    message and outcome are recorded, and show up in the customer's journey, the decision audit and the strategy's results.</p>
+                </div>}
           </section>
           <PhonePanel run={trace} a={cur?.a ?? 0} stage={cur?.stage ?? null} />
         </div>
@@ -232,7 +235,7 @@ function EnginePanel({ run, a, stage }: { run: Run; a: number; stage: Stage }) {
       <header className="flex items-center gap-3 border-b border-line px-5 py-3.5">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-500 text-white"><Icon className="h-[18px] w-[18px]" /></span>
         <div className="min-w-0">
-          <p className="text-2xs font-medium uppercase tracking-[0.08em] text-fg-3">{STAGE[stage].label}{run.attempts.length > 1 ? ` · ${a === 0 ? "first" : "second"} try` : ""}</p>
+          <p className="text-2xs font-medium text-fg-3">{STAGE[stage].label}{run.attempts.length > 1 ? ` · ${a === 0 ? "first" : "second"} try` : ""}</p>
           <h3 className="text-[17px] font-semibold leading-6 text-fg">{title}</h3>
         </div>
       </header>
@@ -297,7 +300,7 @@ function Weigh({ run, at }: { run: Run; at: Attempt }) {
         <p className="text-sm text-fg-2">{ch.reason}</p>
       </div>
       <div className="space-y-2.5">
-        {ch.treatments.map((t) => (
+        {[...byRecord(ch.treatments.filter((t) => t.allowed)), ...ch.treatments.filter((t) => !t.allowed)].map((t) => (
           <div key={t.code} className={clsx("grid grid-cols-[150px_minmax(0,1fr)_92px] items-center gap-3 rounded-lg px-2 py-2",
             t.chosen && "bg-primary-50", !t.allowed && "opacity-60")}>
             <div className="min-w-0">
@@ -473,7 +476,7 @@ function PhonePanel({ run, a, stage }: { run: Run | null; a: number; stage: Stag
     <div className="flex flex-col items-center gap-2">
       <p className="label self-start lg:self-center">{run ? `${run.customer.first}'s phone` : "Customer's phone"}</p>
       <div className="relative h-[540px] w-[280px] rounded-[38px] border-[10px] border-ink bg-ink shadow-card">
-        <div className="relative flex h-full flex-col overflow-hidden rounded-[28px] bg-[#F4F5F8]">
+        <div className="relative flex h-full flex-col overflow-hidden rounded-[28px] bg-surface-sunken">
           <div className="flex items-center justify-between px-5 pb-1 pt-2.5 text-[11px] font-semibold text-fg">
             <span>{bubbles.length ? bubbles[bubbles.length - 1].when.split(", ")[1] : "9:41"}</span>
             <span className="h-4 w-16 rounded-full bg-ink" />
@@ -481,7 +484,7 @@ function PhonePanel({ run, a, stage }: { run: Run | null; a: number; stage: Stag
           </div>
           <div className="border-b border-line bg-surface px-4 py-2 text-center">
             <p className="text-[12px] font-semibold text-fg">{BANK}</p>
-            <p className="text-[10px] text-fg-3">Messages</p>
+            <p className="text-2xs text-fg-3">Messages</p>
           </div>
           <div ref={inbox} className={clsx("flex-1 space-y-2.5 overflow-y-auto px-3 py-3", pay && pay.step >= 1 && "pb-48")}>
             {!bubbles.length && <p className="pt-24 text-center text-xs text-fg-3">No new messages</p>}
@@ -503,7 +506,7 @@ function PhoneItem({ b }: { b: Bubble }) {
       <p className="mb-1 text-center text-[9.5px] text-fg-3">{b.when}</p>
       {Icon ? (
         <div className="rounded-2xl bg-surface px-3 py-2.5 shadow-card">
-          <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-fg-3"><Icon className="h-3 w-3" />{b.channel === "App push" ? `${BANK} app` : "Call"}</p>
+          <p className="flex items-center gap-1.5 text-2xs font-semibold text-fg-3"><Icon className="h-3 w-3" />{b.channel === "App push" ? `${BANK} app` : "Call"}</p>
           <p className="mt-1 text-[12px] leading-4 text-fg">{body}</p>
         </div>
       ) : (
@@ -524,7 +527,7 @@ function PaySheet({ run, at, step }: { run: Run; at: Attempt; step: number }) {
       <span className="mx-auto mb-3 block h-1 w-9 rounded-full bg-line-strong" />
       {step < 3 ? (
         <>
-          <p className="text-[10px] text-fg-3">care.bank · secure payment</p>
+          <p className="text-2xs text-fg-3">care.bank · secure payment</p>
           <p className="mt-1 text-[13px] font-semibold text-fg">{BANK}</p>
           <div className="mt-3 space-y-1.5 text-[12px]">
             <p className="flex justify-between"><span className="text-fg-3">Past due</span><span className="num">{money(run.customer.past_due)}</span></p>
@@ -550,45 +553,94 @@ function PaySheet({ run, at, step }: { run: Run; at: Attempt; step: number }) {
 
 /* ------------------------------------------------------- strategy record */
 
-/** Every treatment's record in this campaign, as the engine holds it at this step.
- *  It changes at "Learn": the outcome just recorded is counted. */
+const REDUCED = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+const ease = (p: number) => 1 - Math.pow(1 - p, 3);
+
+/** A number that moves to its new value instead of jumping. */
+function useTween(value: number, ms = 700) {
+  const [shown, setShown] = useState(value);
+  const from = useRef(value);
+  useEffect(() => {
+    const start = from.current;
+    if (REDUCED || start === value) { from.current = value; setShown(value); return; }
+    let raf = 0;
+    const t0 = performance.now();
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - t0) / ms);
+      from.current = start + (value - start) * ease(p);
+      setShown(from.current);
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value, ms]);
+  return shown;
+}
+
+const ROW = 52;   // height of one treatment row, px
+const byRecord = <T extends { mean: number; code: string }>(xs: T[]) =>
+  [...xs].sort((p, q) => q.mean - p.mean || p.code.localeCompare(q.code));
+
+/** Every treatment's record in this campaign, as the engine holds it at this step,
+ *  best record first. At "Learn" the outcome just recorded is counted: the bar and
+ *  numbers move first, then the rows settle into their new order. */
 function Record({ run, a, stage }: { run: Run; a: number; stage: Stage }) {
   const at = run.attempts[a];
   const learned = stage === "learn";
   const arms = learned ? at.arms_after : at.arms_before;
-  const changed = at.choice.chosen.code;
+  const rank = new Map(byRecord(arms).map((x, i) => [x.code, i]));
   const max = Math.min(1, Math.ceil((Math.max(...at.arms_after.map((x) => x.mean), ...at.arms_before.map((x) => x.mean)) + 0.05) * 10) / 10);
   return (
     <section className="rounded-xl border border-line bg-surface shadow-card">
       <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-5 py-3">
         <h2 className="text-sm font-semibold text-fg">What {run.strategy.name} has learned</h2>
-        <p className="text-xs text-fg-3">{learned ? "With this outcome counted" : "Before this outcome"}</p>
+        <p className="text-xs text-fg-3">{learned ? "With this outcome counted" : "Before this outcome"} · best record first</p>
       </header>
-      <div className="space-y-2.5 px-5 py-4">
-        {arms.map((x) => {
-          const before = at.arms_before.find((y) => y.code === x.code)!;
-          const delta = x.mean - before.mean;
-          const hit = learned && x.code === changed;
-          return (
-            <div key={x.code} className="grid grid-cols-[150px_minmax(0,1fr)_150px] items-center gap-3">
-              <div className="min-w-0">
-                <p className={clsx("truncate text-[13px]", hit ? "font-semibold text-fg" : "text-fg")}>{x.name}</p>
-                <p className="text-2xs text-fg-3">{num(x.learned)} results</p>
-              </div>
-              <div className="h-2.5 rounded-full bg-surface-sunken">
-                <div className={clsx("h-full rounded-full transition-[width] duration-700 ease-out", hit ? "bg-primary-500" : "bg-primary-200")}
-                  style={{ width: `${(x.mean / max) * 100}%` }} />
-              </div>
-              <p className="num text-right text-[13px]">
-                <span className="font-semibold text-fg">{pct(x.mean)}</span>
-                {hit && Math.abs(delta) >= 0.0005 && <span className="ml-1.5 text-xs text-fg-2">{delta > 0 ? "+" : "−"}{Math.abs(delta * 100).toFixed(1)} pts</span>}
-                <span className="block text-2xs text-fg-3">{pct(x.p_best, 0)} chance best</span>
-              </p>
-            </div>
-          );
-        })}
+      <div className="mx-5 my-4 grid grid-cols-[16px_minmax(0,1fr)] gap-2">
+        {/* Places stay put; the treatments slide past them into their new order. */}
+        <ol aria-hidden className="num text-[13px] text-fg-3">
+          {arms.map((_, i) => <li key={i} className="flex items-center" style={{ height: ROW }}>{i + 1}</li>)}
+        </ol>
+        <div className="relative" style={{ height: arms.length * ROW }}>
+          {arms.map((x) => (
+            <RecordRow key={x.code} arm={x} before={at.arms_before.find((y) => y.code === x.code)!} max={max}
+              rank={rank.get(x.code)!} hit={learned && x.code === at.choice.chosen.code} learned={learned} />
+          ))}
+        </div>
       </div>
+      {learned && (
+        <p className="border-t border-line px-5 py-2.5 text-2xs text-fg-3">
+          Chance best adds up to 100% across the treatments, so when one gains, the others give some up.</p>
+      )}
     </section>
+  );
+}
+
+function RecordRow({ arm, before, max, rank, hit, learned }:
+  { arm: Arm; before: Arm; max: number; rank: number; hit: boolean; learned: boolean }) {
+  const mean = useTween(arm.mean);
+  const best = useTween(arm.p_best);
+  const delta = arm.mean - before.mean;
+  const bestDelta = Math.round(arm.p_best * 100) - Math.round(before.p_best * 100);
+  return (
+    <div className="absolute inset-x-0 top-0 grid grid-cols-[150px_minmax(0,1fr)_150px] items-center gap-3"
+      style={{ height: ROW, transform: `translateY(${rank * ROW}px)`,
+        transition: REDUCED ? "none" : `transform 600ms cubic-bezier(.2,.8,.2,1) ${learned ? 750 : 0}ms` }}>
+      <div className="min-w-0">
+        <p className={clsx("truncate text-[13px]", hit ? "font-semibold text-fg" : "text-fg")}>{arm.name}</p>
+        <p className="text-2xs text-fg-3">{num(arm.learned)} results</p>
+      </div>
+      <div className="h-2.5 rounded-full bg-surface-sunken">
+        <div className={clsx("h-full rounded-full transition-[width] duration-700 ease-out motion-reduce:transition-none",
+          hit ? "bg-primary-500" : "bg-primary-200")} style={{ width: `${(arm.mean / max) * 100}%` }} />
+      </div>
+      <p className="num text-right text-[13px]">
+        <span className="font-semibold text-fg">{pct(mean)}</span>
+        {hit && Math.abs(delta) >= 0.0005 && <span className="ml-1.5 text-xs text-fg-2">{delta > 0 ? "+" : "−"}{Math.abs(delta * 100).toFixed(1)} pts</span>}
+        <span className="block text-2xs text-fg-3">{pct(best, 0)} chance best
+          {learned && bestDelta !== 0 && <span className="ml-1">({bestDelta > 0 ? "+" : "−"}{Math.abs(bestDelta)})</span>}</span>
+      </p>
+    </div>
   );
 }
 

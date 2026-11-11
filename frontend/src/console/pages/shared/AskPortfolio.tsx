@@ -88,7 +88,7 @@ export default function AskPortfolio({ question, onAnswer, onClear }: {
           <span className="text-2xs text-fg-3">Try</span>
           {EXAMPLES.map((e) => (
             <button key={e} type="button" onClick={() => void ask(e)}
-              className="cursor-pointer rounded-full border border-line px-2.5 py-1 text-xs text-fg-2 transition-colors hover:border-line-strong hover:bg-surface-hover">{e}</button>
+              className="cursor-pointer rounded-md border border-line px-2.5 py-1 text-xs text-fg-2 transition-colors hover:border-line-strong hover:bg-surface-hover">{e}</button>
           ))}
         </div>
       )}
@@ -97,7 +97,7 @@ export default function AskPortfolio({ question, onAnswer, onClear }: {
         <div className="space-y-3 border-t border-line px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="mr-1 text-2xs font-medium uppercase tracking-[0.08em] text-fg-3">Understood as</span>
+              <span className="mr-1 text-2xs font-medium text-fg-3">Understood as</span>
               {answer.labels.map((l) => (
                 <span key={l} className="rounded-md border border-primary-500/30 bg-primary-50 px-2 py-0.5 text-xs font-medium text-fg">{l}</span>
               ))}

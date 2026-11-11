@@ -12,7 +12,7 @@ export default function SystemHealth() {
   const m = data.metrics;
   return (
     <>
-      <PageHeader title="System Health" subtitle={`Measured from live requests since ${dateTime(data.started_at)}`}
+      <PageHeader title="System health" subtitle={`Measured from live requests since ${dateTime(data.started_at)}`}
         actions={<Button icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={reload}>Refresh</Button>} />
       <Page>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

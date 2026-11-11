@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Lock } from "lucide-react";
+import { Check, Lock, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { api } from "../../lib/api";
@@ -40,7 +40,8 @@ export default function RolesPermissions() {
           <p className="text-xs text-fg-3">{p.description}</p>
           <div className="mt-1 flex flex-wrap gap-1">{rolesFor(p.key).map((l) => <Chip key={l} tone="neutral">{l}</Chip>)}</div>
         </div>
-        <span className={clsx("text-xs font-medium", on ? "text-good" : "text-fg-3")}>{on ? "✓ Granted" : "✕ Denied"}</span>
+        <span className={clsx("flex w-20 items-center gap-1.5 text-xs font-medium", on ? "text-good" : "text-fg-3")}>
+          {on ? <Check className="h-4 w-4" strokeWidth={1.5} aria-hidden /> : <X className="h-4 w-4" strokeWidth={1.5} aria-hidden />}{on ? "Granted" : "Denied"}</span>
         <Toggle checked={on} disabled={isLocked && on} label={p.label}
           onChange={(v) => setMatrix((m) => ({ ...m, [role]: { ...m[role], [p.key]: v } }))} />
       </div>
@@ -49,12 +50,12 @@ export default function RolesPermissions() {
 
   return (
     <>
-      <PageHeader title="Roles & Permissions" subtitle="Configure access control policies. Enforced by the API on every request."
+      <PageHeader title="Roles and permissions" subtitle="Configure access control policies. Enforced by the API on every request."
         actions={<>
           {dirty && <Button variant="ghost" onClick={() => setMatrix(JSON.parse(JSON.stringify(data.matrix)))}>Discard</Button>}
           <Button variant="primary" disabled={!dirty} loading={busy === "save"}
             onClick={() => run("save", () => api.put<{ changed: string[] }>("/admin/roles", { matrix }), (r) => `Saved ${r.changed.length} permission change${r.changed.length === 1 ? "" : "s"}.`)
-              .then((r) => { if (r) { reload(); refresh(); } })}>Save Changes</Button>
+              .then((r) => { if (r) { reload(); refresh(); } })}>Save changes</Button>
         </>} />
       <Page>
         <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">

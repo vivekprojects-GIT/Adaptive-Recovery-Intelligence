@@ -32,8 +32,8 @@ export default function UserManagement() {
 
   return (
     <>
-      <PageHeader title="User Management" subtitle="Manage access, roles and status"
-        actions={<Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => setInvite(true)}>Invite User</Button>} />
+      <PageHeader title="User management" subtitle="Manage access, roles and status"
+        actions={<Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => setInvite(true)}>Invite user</Button>} />
       <Page>
         <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
           <Card flush>
@@ -69,7 +69,7 @@ export default function UserManagement() {
 
             <Card title="Role assignment" footer={<div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={() => setRole(sel.role)}>Cancel</Button>
-              <Button variant="primary" disabled={role === sel.role} loading={busy === "p"} onClick={() => patch({ role }, `${sel.name} is now ${ROLE_LABEL[role]}.`)}>Save Changes</Button>
+              <Button variant="primary" disabled={role === sel.role} loading={busy === "p"} onClick={() => patch({ role }, `${sel.name} is now ${ROLE_LABEL[role]}.`)}>Save changes</Button>
             </div>}>
               {sel.user_id === me?.user.user_id && <div className="mb-3"><Banner tone="info">You cannot change your own role.</Banner></div>}
               <div className="grid gap-2 sm:grid-cols-2">
@@ -84,7 +84,7 @@ export default function UserManagement() {
               </div>
             </Card>
 
-            <Card title={`Permissions for ${ROLE_LABEL[role]}`} subtitle="Defined in Roles & Permissions; shown here as a preview">
+            <Card title={`Permissions for ${ROLE_LABEL[role]}`} subtitle="Defined in Roles and permissions; shown here as a preview">
               <div className="grid gap-x-6 gap-y-1 md:grid-cols-2">
                 {data.permissions.map((p) => (
                   <div key={p.key} className="flex items-center justify-between gap-2 border-b border-line py-1.5 text-xs">

@@ -34,9 +34,11 @@ from starlette.responses import JSONResponse
 
 from ..core.config import settings
 from ..core.database import SessionLocal
-from . import callbacks, nova
+from .. import models
+from ..core import pii
+from . import callbacks, graph, nlq, nova
 from .contract import NovaAccount, RecoveryContextV1
-from .engine import ENGINE_LOCK
+from .engine import ENGINE_LOCK, arrears
 from .models import AuditEvent, Decision, ExternalCustomer, Outcome, PlatformConfig
 from .platform import audit, now
 
@@ -62,7 +64,13 @@ CARE ignored and any values it had to assume.
 
 Report every payment outcome with report_payment_outcome. Treated outcomes teach the model; control
 outcomes measure how much the strategy actually adds. Use preview_recovery_strategy to ask without
-recording anything."""
+recording anything.
+
+To ask about the data, all read-only: ask_portfolio answers a plain-English question about the accounts
+and shows the SQL it ran. The recovery knowledge graph links customers, products, segments, strategies,
+treatments, decisions, outcomes and agencies: start with get_taxonomy for its classes and relationships,
+find things with search_graph, open one with get_node, follow links with traverse_graph, count with
+count_by, and explain a link with how_connected. Accounts appear by account number and token, never by name."""
 
 server = FastMCP(name="ari-recovery-agent", instructions=INSTRUCTIONS, stateless_http=True, json_response=True,
                  log_level="WARNING")
@@ -280,6 +288,195 @@ async def list_treatments() -> dict[str, Any]:
     and whether a person must approve each offer."""
     return await _call("list_treatments", lambda db: {"treatments": nova.treatments(db)},
                        lambda r: f"Listed {len(r['treatments'])} treatments")
+
+
+# ---------------------------------------------------------------------------
+# Questions about the data: the portfolio in plain English, and the recovery
+# knowledge graph (taxonomy + typed relationships, console/graph.py). All
+# read-only. Accounts appear by account number and token, never by name.
+# ---------------------------------------------------------------------------
+def _graph(fn):
+    """A graph read, with an unknown node reported like any other refusal."""
+    def work(db: Session):
+        try:
+            return fn(db)
+        except LookupError as e:
+            raise ValueError(str(e.args[0] if e.args else e)) from None
+    return work
+
+
+def _money(v: float) -> str:
+    return f"${v:,.0f}"
+
+
+# What CARE's fit groups and routes mean, in the words an agent can pass on.
+FIT_MEANS = {"Persuadable": "CARE expects it to pay if contacted",
+             "Sure Thing": "CARE expects it to pay without help",
+             "Lost Cause": "CARE expects it to need support, such as a hardship review, to pay",
+             "Sleeping Dog": "CARE expects contact to do more harm than good"}
+ROUTE_MEANS = {"strategy": "so it is in a live strategy, where Thompson sampling picks its treatment",
+               "bau": "so it stays on the bank's business-as-usual process",
+               "hardship": "so it has been sent to the hardship team",
+               "suppress": "so it is not being contacted"}
+
+
+def _explain_account(c) -> str:
+    ref = c.account_number or f"Account {c.customer_id}"
+    due = arrears(c)
+    text = (f"{ref} is a {c.product} account {c.days_past_due} days past due, owing {_money(c.balance)}, "
+            f"of which {_money(due)} is past due. The bank rates it {c.client_risk_band.lower()} risk.")
+    fit = FIT_MEANS.get(c.segment)
+    if fit:
+        text += f" {fit}" + (f", {ROUTE_MEANS[c.route]}." if c.route in ROUTE_MEANS else ".")
+    return text
+
+
+def _ask(db: Session, question: str, limit: int) -> dict:
+    r = nlq.read(question)
+    if not r["conditions"]:
+        raise ValueError("No conditions found in that question. Ask about card business, days past due, balance, "
+                         "arrears, credit limit, risk band, fit group, route, hardship, app use, texts, missed "
+                         "payments, tenure, utilisation or on-time payments - for example: consumer card accounts "
+                         "over 60 days past due with a balance above $5,000 who use the app. For strategies, "
+                         "treatments, decisions or outcomes, use the graph tools: get_taxonomy, count_by "
+                         "(e.g. Decision by CHOSE) and traverse_graph.")
+    rows = nlq.apply(db.query(models.Customer), r["conditions"]).all()
+    balance = round(sum(c.balance for c in rows), 2)
+    owed = round(sum(arrears(c) for c in rows), 2)
+    by_group = Counter(nlq.COHORT_NAMES.get(c.cohort_id, c.cohort_id) for c in rows)
+    by_product = Counter(c.product for c in rows)
+    cap = max(1, min(limit, 50))
+    top = sorted(rows, key=lambda c: -c.balance)[:cap]
+    answer = (f"{len(rows):,} accounts match ({'; '.join(r['labels'])}). Together they owe {_money(balance)}, "
+              f"of which {_money(owed)} is past due." if rows else
+              f"No accounts match ({'; '.join(r['labels'])}).")
+    if rows:
+        answer += " By days late: " + ", ".join(f"{k} {n:,}" for k, n in by_group.most_common()) + "."
+    if r["not_understood"]:
+        answer += f" Not understood, so not applied: \"{r['not_understood']}\"."
+    n_cond = len(r["conditions"])
+    how = (f"The question was read into {n_cond} condition{'s' if n_cond != 1 else ''} on known account fields "
+           f"(see understood), run as the SQL shown, and totalled over the {len(rows):,} matching accounts. "
+           f"largest_balances lists the {len(top)} biggest balances among them, each with a plain explanation. "
+           f"Accounts are identified by account number and token; names are never returned.")
+    return {
+        "question": question,
+        "answer": answer,
+        "how_it_was_answered": how,
+        "understood": r["labels"],
+        "conditions": r["conditions"],
+        "not_understood": r["not_understood"],
+        "sql": r["sql"].replace("account_number, name, ", "account_number, "),   # agents never get names
+        "accounts": len(rows),
+        "total_balance": balance,
+        "total_past_due": owed,
+        "by_days_late": dict(by_group.most_common()),
+        "by_card_business": dict(by_product.most_common()),
+        "largest_balances": [
+            {"account": c.account_number or f"account {c.customer_id}", "node_id": f"customer:{c.customer_id}",
+             "token": pii.token(c.customer_id, "customer"), "card_business": c.product,
+             "days_past_due": c.days_past_due, "balance": round(c.balance, 2), "past_due": arrears(c),
+             "risk_band": c.client_risk_band, "fit_group": nlq.GROUPS.get(c.segment, c.segment),
+             "route": nlq.ROUTES.get(c.route, c.route), "explanation": _explain_account(c)}
+            for c in top],
+    }
+
+
+@_tool("ask_portfolio", "Ask a question about the accounts in plain English", read_only=True)
+async def ask_portfolio(
+        question: Annotated[str, Field(min_length=3, max_length=300, description=(
+            "A question about the delinquent accounts, e.g. 'retail card accounts over 60 days past due with a "
+            "balance above $2,000' or 'high risk customers who use the app'."))],
+        limit: Annotated[int, Field(ge=1, le=50, description="How many of the largest balances to list.")] = 10,
+) -> dict[str, Any]:
+    """Answer a plain-English question about the accounts: how many match, what they owe, and which they are.
+
+    The question is read into conditions on known account fields only, and the answer shows exactly what was
+    understood, what was not, and the SQL it amounts to - a question can never become arbitrary SQL. Accounts
+    are listed by account number and token, never by name.
+    """
+    return await _call("ask_portfolio", lambda db: _ask(db, question, limit),
+                       lambda r: f"Asked: {question[:100]} - {r['accounts']} accounts")
+
+
+@_tool("get_taxonomy", "Show the recovery taxonomy and relationship types", read_only=True)
+async def get_taxonomy() -> dict[str, Any]:
+    """The class tree the recovery knowledge graph is organised by (e.g. Retail Card < Card < Product, Split
+    Payment Plan < Arrangement < Treatment), with node counts, and every relationship type with what it means.
+
+    Start here: class names and relationship names from this answer are what the other graph tools take.
+    """
+    return await _call("get_taxonomy", _graph(graph.taxonomy),
+                       lambda r: f"Read the taxonomy: {r['nodes']} nodes, {r['edges']} edges")
+
+
+@_tool("search_graph", "Find things in the recovery knowledge graph", read_only=True)
+async def search_graph(
+        text: Annotated[str, Field(max_length=100, description="Words in the label or id, e.g. 'payment plan', "
+                                                               "'STR-021', 'CC10'. Empty lists the class.")] = "",
+        node_class: Annotated[str | None, Field(description="Limit to a class and its subclasses, e.g. 'Treatment', "
+                                                            "'Strategy', 'Customer', 'Agency'.")] = None,
+        limit: Annotated[int, Field(ge=1, le=50)] = 20,
+) -> dict[str, Any]:
+    """Find nodes - customers, strategies, treatments, decisions, agencies, segments - by text and class.
+
+    Each match has an id (e.g. strategy:STR-021, treatment:S3) to pass to get_node, traverse_graph or
+    how_connected.
+    """
+    return await _call("search_graph", _graph(lambda db: graph.search(db, text, node_class, limit)),
+                       lambda r: f"Searched the graph for '{text[:60]}': {r['returned']} matches")
+
+
+@_tool("get_node", "Show one node and everything it is linked to", read_only=True)
+async def get_node(
+        node_id: Annotated[str, Field(description="A node id from search_graph, e.g. 'strategy:STR-021'.")],
+        limit: Annotated[int, Field(ge=1, le=50, description="Most linked nodes listed per relationship.")] = 25,
+) -> dict[str, Any]:
+    """One node: its properties, where it sits in the taxonomy, and its relationships in both directions."""
+    return await _call("get_node", _graph(lambda db: graph.node(db, node_id, limit)),
+                       lambda r: f"Read node {node_id}")
+
+
+@_tool("traverse_graph", "Follow relationships through the knowledge graph", read_only=True)
+async def traverse_graph(
+        start: Annotated[str, Field(description="The node to start from, e.g. 'treatment:S3'.")],
+        path: Annotated[list[str], Field(min_length=1, max_length=6, description=(
+            "Relationship names to follow in order. Prefix ~ to walk one backwards: from treatment:S3, "
+            "['~CHOSE', 'RESULTED_IN'] gives the outcomes of decisions that chose it."))],
+        where: Annotated[dict[str, Any] | None, Field(description=(
+            "Filter the end nodes by property or class, e.g. {'paid': true} or {'class': 'Arrangement'}."))] = None,
+        limit: Annotated[int, Field(ge=1, le=50)] = 50,
+) -> dict[str, Any]:
+    """Walk the graph hop by hop from a start node and return the nodes reached, with the total count."""
+    return await _call("traverse_graph", _graph(lambda db: graph.traverse(db, start, path, where, limit)),
+                       lambda r: f"Traversed {start} via {' > '.join(path)}: {r['total']} nodes")
+
+
+@_tool("count_by", "Count things in the graph, grouped", read_only=True)
+async def count_by(
+        node_class: Annotated[str, Field(description="What to count, e.g. 'Decision', 'Customer', 'Outcome'.")],
+        group_by: Annotated[str, Field(description=(
+            "A relationship (e.g. 'CHOSE' groups decisions by treatment, 'HOLDS' customers by card business), "
+            "'class', or a property name (e.g. 'group', 'paid')."))],
+        where: Annotated[dict[str, Any] | None, Field(description="Filter first, e.g. {'group': 'Treatment'}.")] = None,
+        measure: Annotated[str | None, Field(description="A numeric property to sum and average per group, "
+                                                         "e.g. 'balance' or 'amount'.")] = None,
+) -> dict[str, Any]:
+    """Count the nodes of a class, grouped by a relationship or a property, optionally summing a measure."""
+    return await _call("count_by", _graph(lambda db: graph.aggregate(db, node_class, group_by, where, measure)),
+                       lambda r: f"Counted {node_class} by {group_by}: {r['total']} nodes")
+
+
+@_tool("how_connected", "Explain how two things are connected", read_only=True)
+async def how_connected(
+        a: Annotated[str, Field(description="A node id, e.g. 'agency:AGY-01'.")],
+        b: Annotated[str, Field(description="Another node id, e.g. 'product:retail-card'.")],
+        max_hops: Annotated[int, Field(ge=1, le=6)] = 5,
+) -> dict[str, Any]:
+    """The shortest chain of relationships between two nodes, hop by hop."""
+    return await _call("how_connected", _graph(lambda db: graph.shortest_path(db, a, b, max_hops)),
+                       lambda r: f"Connected {a} and {b}: {len(r['steps'])} hops" if r["connected"]
+                       else f"{a} and {b} are not connected")
 
 
 # ---------------------------------------------------------------------------

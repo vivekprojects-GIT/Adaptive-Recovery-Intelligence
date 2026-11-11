@@ -133,7 +133,7 @@ export default function StrategyAnalytics() {
 
   return (
     <>
-      <PageHeader title="Strategy Analytics"
+      <PageHeader title="Strategy analytics"
         subtitle="How every strategy is doing against its own control group, and what Thompson sampling has learned in each" />
       <Page>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">

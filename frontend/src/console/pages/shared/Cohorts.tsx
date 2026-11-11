@@ -32,7 +32,7 @@ export default function Cohorts() {
 
   return (
     <>
-      <PageHeader title="Cohorts & Handoffs"
+      <PageHeader title="Cohorts and handoffs"
         subtitle="Where CARE starts: the delinquent accounts Meridian Valley Bank's collections system hands over, cohort by cohort"
         actions={can("launch_strategy") && <Button icon={<Inbox className="h-4 w-4" />} loading={busy === "handoff"} onClick={receive}>Receive next handoff</Button>} />
       <Page>

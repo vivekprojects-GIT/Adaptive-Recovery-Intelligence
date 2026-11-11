@@ -25,9 +25,13 @@ and keeps its own decisions, strategies and results.
 
 | Document | What it covers |
 | --- | --- |
+| [docs/prd.md](docs/prd.md) | Product requirements: the problem, goals, users, every requirement with its status, dependencies, release plan and open items |
+| [docs/product-guide.md](docs/product-guide.md) | How CARE works: roles, every page, and the main flows from account to outcome, with diagrams |
+| [docs/data-schema.md](docs/data-schema.md) | How the data is organised: Nova against CARE, the tables, how they link, and which step writes each one |
 | [docs/nova-data-model.md](docs/nova-data-model.md) | The 11 tables CARE needs from Nova, with an ER diagram, column descriptions and sample rows |
 | [docs/data/](docs/data/) | One CSV of sample rows per table, plus `data_dictionary.csv` (every column) and `tables.csv` (every table) |
 | [docs/nova-recovery-context-schema.md](docs/nova-recovery-context-schema.md) | One account as CARE reads it: every field, its type, and what CARE does with it |
+| [docs/care-database-schema.md](docs/care-database-schema.md) | CARE's own database: all 30 tables and their columns, keys and types |
 
 Today CARE runs on its own SQLite database, seeded with synthetic accounts. The Nova tables replace
 that source data.
@@ -39,9 +43,9 @@ stand-in for single sign-on. Switch persona or sign out from the user menu in th
 
 | Role | Persona | Sidebar |
 | --- | --- | --- |
-| Strategy Analyst | Morgan Ellsworth (also Ryan Holcomb) | **Overview:** Dashboard · **Accounts:** Customers, Journeys, Cohorts & Handoffs · **Strategy Workspace:** Strategy Workspace, Collections Journey, Strategy Builder, My Strategies, Treatment Playbook · **Analysis:** Strategy Analytics, Scorecards, Decisions · **Execution:** Live Campaigns, Live Run, Review Queue, Collection Agencies, Nudges, Activity |
-| Executive | Jordan Whitcomb | **Overview:** Dashboard, Portfolio Health · **Accounts:** Customers, Decisions · **Strategy Workspace:** Strategy Workspace, Collections Journey, Approvals, Strategy Compare, Treatment Playbook, Strategy Workbench · **Analysis:** Strategy Analytics, Scorecards, Team Performance, Reports · **Execution:** Collection Agencies, Compliance, Security & Governance |
-| Platform Admin | Patricia Vaughn | **Overview:** Admin Dashboard, User Management, Roles & Permissions · **Configuration:** Platform Config, API & Integrations, Audit Log, Security & Governance · **Monitor:** System Health, Observability, Alert Rules |
+| Strategy analyst | Morgan Ellsworth (also Ryan Holcomb) | **Overview:** Dashboard · **Accounts:** Customers, Journeys, Cohorts and handoffs · **Strategy workspace:** Strategy workspace, Collections journey, Strategy builder, My strategies, Treatment playbook · **Analysis:** Strategy analytics, Scorecards, Decisions · **Execution:** Live campaigns, Live run, Review queue, Collection agencies, Nudges, Activity |
+| Executive | Jordan Whitcomb | **Overview:** Dashboard, Portfolio health · **Accounts:** Customers, Decisions · **Strategy workspace:** Strategy workspace, Collections journey, Approvals, Strategy compare, Treatment playbook, Strategy workbench · **Analysis:** Strategy analytics, Scorecards, Team performance, Reports · **Execution:** Collection agencies, Compliance, Security and governance |
+| Platform admin | Patricia Vaughn | **Overview:** Admin dashboard, User management, Roles and permissions · **Configuration:** Platform configuration, API and integrations, Audit log, Security and governance · **Monitor:** System health, Observability, Alert rules |
 
 - **Permissions are enforced by the API** on every request, not just hidden in the UI (`console/rbac.py`).
 - **The admin never sees customer data.** The role holds no data permissions and cannot be granted them.
@@ -55,7 +59,7 @@ red scales. Values live in `frontend/tailwind.config.js` and the `:root` block o
 
 ## What the console does
 
-**Live Run** (Execution > Live Run). Follows one customer through a live strategy step by step: pick
+**Live run** (Execution > Live run). Follows one customer through a live strategy step by step: pick
 the customer, weigh the treatments (explore or exploit), send, the customer responds, record the
 outcome, learn. It uses the same engine as every other decision and stores the result, so the run then
 appears in the customer's journey, the decision audit and the strategy's results. Two scenarios: *pays
@@ -66,8 +70,8 @@ aside for that customer and picks again.
 - Accounts fall into four days-late groups: 1–29, 30, 60 and 90+ days late (C1–C4). Risk bands vary
   within a group, using the bank's risk score.
 - Charged-off accounts, or accounts 180 or more days past due, move to **Recovery**: a tab in Collections
-  Journey and Strategy Workspace. They are tracked by what remains of the charged-off balance.
-- **Collection Agencies** proposes placements with the bank's agencies. A person always approves a
+  Journey and Strategy workspace. They are tracked by what remains of the charged-off balance.
+- **Collection agencies** proposes placements with the bank's agencies. A person always approves a
   placement, and whoever proposed it cannot approve it.
 
 **Propensity Router.** Before strategies, each customer is routed by fit group:
@@ -87,7 +91,7 @@ strategy's target audience.
   starts from it, weighted lightly. A new treatment starts flat, so it is explored on equal terms.
 - A fixed customer-fit table tilts each draw toward the customer's profile; the learner does not
   estimate those effects itself.
-- A strategy's **Arms & learning** tab shows each treatment's belief and 95% band wave by wave, and the
+- A strategy's **Arms and learning** tab shows each treatment's belief and 95% band wave by wave, and the
   chance that each is the best.
 
 **Governance.**
@@ -97,7 +101,7 @@ strategy's target audience.
 - Strategies and treatments with history are archived or retired, never deleted.
 - The treatment playbook is data, not code. Each treatment has a kind, eligibility rules, a channel, a
   cost and an approval policy.
-- Payment plans, deferrals and hardship reviews wait in the Review Queue for a person.
+- Payment plans, deferrals and hardship reviews wait in the Review queue for a person.
 - Contact rules run before Thompson sampling: consent, permanent opt-outs and the 7-in-7 contact cap
   remove treatments the customer may not receive. Each blocked treatment is recorded with a reason
   code, and the same rules run again at send time.
@@ -149,10 +153,12 @@ cd backend && .venv/Scripts/python.exe -m pip install -r requirements-dev.txt &&
 | `verify_governance.py` | Executive dashboard, agency placements (proposer cannot approve), protected attributes, encryption at rest |
 | `verify_journey.py` | One customer's journey: decision, contact, outcome, reward, score change |
 | `verify_mcp.py` | The MCP server over the real protocol |
+| `verify_mcp_questions.py` | The question tools: plain-English answers match a direct query, the knowledge graph, no names returned |
 | `verify_payments.py` | Payment outcomes: partial payments, duplicates, reversals, out-of-window, cure flag |
 | `verify_query.py` | Plain-English questions: allowed fields only, exact matches, result becomes a target |
 | `verify_router.py` | Propensity Router routing, the validation share, scorecards |
 | `verify_search.py` | Header search: each role finds only what it may open |
+| `verify_schema.py` | Table names, enforced foreign keys, real time types, and the upgrade of an older database |
 | `verify_suggestions.py` | Suggested strategies: evidence, drafting, approval |
 | `verify_thompson.py` | Treatment playbook, strategy lifecycle and versions, Thompson sampling |
 
@@ -213,7 +219,7 @@ backend/app/
     rules.py       guardrails and eligibility, every rule for every candidate treatment
     engine.py      control split, Thompson sampling, execution, learning
     router.py      Propensity Router
-    liverun.py     Live Run
+    liverun.py     Live run
     recovery.py    charged-off accounts
     agencies.py    collection agencies and placements
     nlq.py         plain-English questions
@@ -235,14 +241,14 @@ frontend/src/console/
 
 ## Agent access (MCP)
 
-CARE is also an **MCP server**, so another agent can send one account and get the recovery action back
-without the console.
+CARE is also an **MCP server**. Another agent can send one account and get the recovery action back,
+or ask questions about the data, without the console.
 
 | | |
 | --- | --- |
 | Endpoint | `http://localhost:8000/mcp` locally, `https://<host>/api/mcp` on Render |
 | Transport | Streamable HTTP, stateless, JSON responses |
-| Auth | `Authorization: Bearer <token>`. An admin reveals, copies or rotates it under **API & Integrations**; `ARI_MCP_TOKEN` overrides it |
+| Auth | `Authorization: Bearer <token>`. An admin reveals, copies or rotates it under **API and integrations**; `ARI_MCP_TOKEN` overrides it |
 | Input | One account as described in [docs/nova-recovery-context-schema.md](docs/nova-recovery-context-schema.md). Only `account_id`, `days_past_due` and `current_balance` are required; anything missing is defaulted and listed back under `assumed` |
 
 | Tool | What it does |
@@ -253,6 +259,22 @@ without the console.
 | `report_payment_outcome` | The payment result, which the model learns from |
 | `get_decision`, `get_decision_updates` | A decision's current state, and the decisions a person changed |
 | `list_live_strategies`, `list_treatments` | What CARE is running, and the treatments it chooses from |
+
+**Questions about the data** (all read-only, and none returns a customer's name):
+
+| Tool | What it does |
+| --- | --- |
+| `ask_portfolio` | A plain-English question about the accounts. Returns how many match, what they owe, a breakdown by days late and card business, the largest balances by account number, and the SQL it ran. Only known fields can be queried, and words it cannot read are reported back, not guessed |
+| `get_taxonomy` | The class tree of the recovery knowledge graph (e.g. Retail Card < Card < Product) and every relationship type |
+| `search_graph` | Find customers, strategies, treatments, decisions, agencies or segments by text and class |
+| `get_node` | One node, where it sits in the taxonomy, and everything it is linked to |
+| `traverse_graph` | Follow relationships hop by hop, e.g. from a treatment to the decisions that chose it to their outcomes |
+| `count_by` | Count a class grouped by a relationship or property, e.g. decisions by treatment |
+| `how_connected` | The shortest chain of relationships between two things |
+
+The knowledge graph (`console/graph.py`) is rebuilt from the tables whenever they change, so it always
+matches what the console shows. **API and integrations → Try it: ask about the data** runs these tools from
+the console.
 
 The same rules apply as in the console. `tests/verify_mcp.py` checks the whole path over the real
 protocol, and `tools/nova_agent_demo.py` plays a caller against the running app.
@@ -277,5 +299,7 @@ On the free tier:
 ## Stack
 
 **Backend:** Python 3.12, FastAPI, SQLAlchemy 2.0, NumPy, the MCP Python SDK. SQLite locally; set
-`DATABASE_URL` for Postgres.
+`DATABASE_URL` for Postgres. Every link between tables is a declared foreign key, enforced on SQLite too; times are
+real `TIMESTAMP WITH TIME ZONE` and `DATE` columns on Postgres. Startup upgrades an older database in place
+(`app/core/migrate.py`).
 **Frontend:** React 19 + TypeScript, Vite, Tailwind CSS, Recharts, React Router.

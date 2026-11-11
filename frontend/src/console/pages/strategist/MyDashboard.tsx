@@ -78,8 +78,8 @@ export default function MyDashboard() {
   const k = data.kpis;
   return (
     <>
-      <PageHeader title="My Dashboard" subtitle={`Strategist workspace · ${me?.user.name}`}
-        actions={<Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => navigate("/builder")}>New Strategy</Button>} />
+      <PageHeader title="My dashboard" subtitle={`Strategist workspace · ${me?.user.name}`}
+        actions={<Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => navigate("/builder")}>New strategy</Button>} />
       <Page>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Kpi label="My strategies" value={k.strategies} sub={`${k.live} live`} />
@@ -102,7 +102,7 @@ export default function MyDashboard() {
               <div className="rounded-lg border border-line border-l-[3px] border-l-primary-500 bg-surface p-4 shadow-card">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-2xs font-semibold tracking-wide text-primary-600">
+                    <p className="text-2xs font-medium text-primary-600">
                       Draft in progress · {data.draft.campaign_id} · step {Math.min(stepsDone(data.draft.steps_completed) + 1, STEPS.length)} of {STEPS.length}
                     </p>
                     <p className="mt-1 text-[15px] font-semibold text-fg">{data.draft.name}</p>
@@ -113,7 +113,7 @@ export default function MyDashboard() {
               </div>
             )}
 
-            <Card title="My Strategies" flush actions={<Link to="/strategies" className="text-xs font-medium text-primary-500 hover:underline">View all</Link>}>
+            <Card title="My strategies" flush actions={<Link to="/strategies" className="text-xs font-medium text-primary-500 hover:underline">View all</Link>}>
               <Table>
                 <thead><tr><Th>Strategy</Th><Th>Status</Th><Th align="right">Accounts</Th><Th>Recovery vs control</Th><Th>Channels</Th><Th>Last edited</Th></tr></thead>
                 <tbody>
@@ -127,7 +127,7 @@ export default function MyDashboard() {
                       <Td className="text-xs text-fg-3">{ago(s.updated_at)}</Td>
                     </Tr>
                   ))}
-                  {!data.strategies.length && <Empty cols={6}>No strategies yet. Build one in the Strategy Builder.</Empty>}
+                  {!data.strategies.length && <Empty cols={6}>No strategies yet. Build one in the Strategy builder.</Empty>}
                 </tbody>
               </Table>
             </Card>
@@ -137,8 +137,8 @@ export default function MyDashboard() {
             </Card>
           </div>
 
-          <Card title={<span className="flex items-center gap-1.5"><Lightbulb className="h-4 w-4 text-fg-3" />Leadership Insights</span>}
-            subtitle="From the Strategy Workbench, sent by your executive">
+          <Card title={<span className="flex items-center gap-1.5"><Lightbulb className="h-4 w-4 text-fg-3" />Leadership insights</span>}
+            subtitle="From the Strategy workbench, sent by your executive">
             <div className="space-y-2.5">
               {data.insights.map((i) => <InsightCard key={i.insight_id} i={i} onDone={reload} />)}
               {!data.insights.length && <p className="py-6 text-center text-xs text-fg-3">No insights yet.</p>}

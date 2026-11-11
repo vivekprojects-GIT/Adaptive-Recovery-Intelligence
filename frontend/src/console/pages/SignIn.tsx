@@ -28,7 +28,7 @@ export default function SignIn() {
   return (
     <div className="flex min-h-full">
       {/* brand panel */}
-      <section className="brand-gradient relative hidden w-[46%] max-w-[640px] flex-col justify-between overflow-hidden p-10 text-white lg:flex">
+      <section className="relative hidden bg-ink w-[46%] max-w-[640px] flex-col justify-between overflow-hidden p-10 text-white lg:flex">
         <BrandMark onDark size="lg" />
         <div className="relative">
           <h1 className="sr-only">{PRODUCT_NAME}: Collection and Recovery Agent</h1>

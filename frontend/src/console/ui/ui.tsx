@@ -478,7 +478,7 @@ export function Avatar({ name, size = "md", tone = 0 }: { name: string; size?: "
   const idx = tone || [...name].reduce((s, c) => s + c.charCodeAt(0), 0);
   return (
     <span className={clsx("inline-flex shrink-0 items-center justify-center rounded-full font-semibold",
-      size === "sm" ? "h-6 w-6 text-[10px]" : "h-8 w-8 text-xs", palettes[idx % palettes.length])}>{initials(name)}</span>
+      size === "sm" ? "h-6 w-6 text-2xs" : "h-8 w-8 text-xs", palettes[idx % palettes.length])}>{initials(name)}</span>
   );
 }
 

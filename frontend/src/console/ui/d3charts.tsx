@@ -68,16 +68,16 @@ function useDrawIn(ref: RefObject<SVGPathElement | null>, key: string) {
 function Tooltip({ x, y, width, children }: { x: number; y: number; width: number; children: ReactNode }) {
   const left = Math.min(Math.max(x + 12, 4), Math.max(4, width - 196));
   return (
-    <div className="pointer-events-none absolute z-10 w-[184px] rounded-md border border-[#dfe4ec] bg-white/95 px-2.5 py-2 text-[11px] shadow-[0_6px_16px_rgba(16,24,40,0.12)]"
+    <div className="pointer-events-none absolute z-10 w-[184px] rounded-md border border-line bg-white/95 px-2.5 py-2 text-[11px] shadow-pop"
       style={{ left, top: Math.max(0, y) }}>{children}</div>
   );
 }
 
 const Row = ({ color, name, value, dash }: { color: string; name: string; value: string; dash?: boolean }) => (
   <div className="flex items-center justify-between gap-3 py-0.5">
-    <span className="flex items-center gap-1.5 text-[#46546a]">
+    <span className="flex items-center gap-1.5 text-fg-2">
       <span className="inline-block h-[3px] w-3 rounded-full" style={{ background: dash ? "transparent" : color, borderTop: dash ? `2px dashed ${color}` : undefined }} />{name}</span>
-    <span className="num font-semibold text-[#16202e]">{value}</span>
+    <span className="num font-semibold text-fg">{value}</span>
   </div>
 );
 
@@ -123,7 +123,7 @@ export function Sparkline({ data, color, format, height = 40 }: { data: (number 
       )}
       {ok && hover !== null && (() => {
         const p = pts.find((q) => q.i === hover)!;
-        return <div className="pointer-events-none absolute -top-7 rounded bg-[#16202e] px-1.5 py-0.5 text-[10px] font-medium text-white"
+        return <div className="pointer-events-none absolute -top-7 rounded bg-fg px-1.5 py-0.5 text-2xs font-medium text-white"
           style={{ left: Math.min(Math.max(x(p.i) - 30, 0), width - 64) }}>{format(p.v)}</div>;
       })()}
     </div>
@@ -165,7 +165,7 @@ export function TimeSeries({ weeks, series, format, height = 228, hover, onHover
       .x((r) => cx(r.i)).y0((r) => y(r.b as number)).y1((r) => y(r.a as number)).curve(d3.curveMonotoneX)(rows);
   })();
 
-  if (!has) return <div className="flex items-center justify-center rounded border border-dashed border-[#e2e7ee] text-xs text-[#6b778a]" style={{ height }}>{emptyText ?? "No data in these weeks"}</div>;
+  if (!has) return <div className="flex items-center justify-center rounded border border-dashed border-line text-xs text-fg-3" style={{ height }}>{emptyText ?? "No data in these weeks"}</div>;
   return (
     <div ref={ref} className="relative" style={{ height }}
       onMouseLeave={() => onHover(null)}
@@ -218,7 +218,7 @@ export function TimeSeries({ weeks, series, format, height = 228, hover, onHover
       )}
       {hover !== null && width > 0 && (
         <Tooltip x={m.l + cx(hover)} y={m.t} width={width}>
-          <p className="mb-1 font-semibold text-[#16202e]">Week of {weekLabel(weeks[hover])}</p>
+          <p className="mb-1 font-semibold text-fg">Week of {weekLabel(weeks[hover])}</p>
           {series.map((s) => <Row key={s.key} color={s.color} name={s.name} dash={s.kind === "dash"}
             value={s.values[hover] === null ? "—" : format(s.values[hover] as number)} />)}
         </Tooltip>
@@ -245,7 +245,7 @@ export function Sankey({ nodes, links, colorOf, height = 340, format }: {
       .nodeSort(() => null).extent([[1, 6], [width - 1, height - 6]]);
     return layout({ nodes: nodes.map((n) => ({ ...n })), links: links.map((l) => ({ ...l })) });
   }, [nodes, links, width, height]);
-  if (!links.length) return <div className="flex items-center justify-center rounded border border-dashed border-[#e2e7ee] text-xs text-[#6b778a]" style={{ height }}>No accounts</div>;
+  if (!links.length) return <div className="flex items-center justify-center rounded border border-dashed border-line text-xs text-fg-3" style={{ height }}>No accounts</div>;
   const active = (l: SLink) => !hover || hover.link === l || hover.node === l.source || hover.node === l.target;
   return (
     <div ref={ref} className="relative" style={{ height }} onMouseLeave={() => setHover(null)}>
@@ -276,11 +276,11 @@ export function Sankey({ nodes, links, colorOf, height = 340, format }: {
       {hover && graph && (
         <Tooltip x={hover.x} y={hover.y - 10} width={width}>
           {hover.link ? <>
-            <p className="font-semibold text-[#16202e]">{(hover.link.source as SNode).label} → {(hover.link.target as SNode).label}</p>
-            <p className="num mt-0.5 text-[#46546a]">{format(hover.link.value)} accounts · {Math.round((hover.link.value / ((hover.link.source as SNode).value || 1)) * 100)}% of {(hover.link.source as SNode).label.toLowerCase()}</p>
+            <p className="font-semibold text-fg">{(hover.link.source as SNode).label} → {(hover.link.target as SNode).label}</p>
+            <p className="num mt-0.5 text-fg-2">{format(hover.link.value)} accounts · {Math.round((hover.link.value / ((hover.link.source as SNode).value || 1)) * 100)}% of {(hover.link.source as SNode).label.toLowerCase()}</p>
           </> : hover.node && <>
-            <p className="font-semibold text-[#16202e]">{hover.node.label}</p>
-            <p className="num mt-0.5 text-[#46546a]">{format(hover.node.value ?? 0)} accounts</p>
+            <p className="font-semibold text-fg">{hover.node.label}</p>
+            <p className="num mt-0.5 text-fg-2">{format(hover.node.value ?? 0)} accounts</p>
           </>}
         </Tooltip>
       )}
@@ -333,8 +333,8 @@ export function Heatmap({ rows, weeks, color, format }: {
       )}
       {hover && width > 0 && (
         <Tooltip x={labelW + hover.c * (cellW + gap)} y={headH + hover.r * (cellH + gap) + cellH + 4} width={width}>
-          <p className="font-semibold text-[#16202e]">{rows[hover.r].label}</p>
-          <p className="text-[#46546a]">Week of {weekLabel(weeks[hover.c])}: <span className="num font-semibold text-[#16202e]">{format(rows[hover.r].values[hover.c])}</span></p>
+          <p className="font-semibold text-fg">{rows[hover.r].label}</p>
+          <p className="text-fg-2">Week of {weekLabel(weeks[hover.c])}: <span className="num font-semibold text-fg">{format(rows[hover.r].values[hover.c])}</span></p>
         </Tooltip>
       )}
     </div>

@@ -18,6 +18,7 @@ from .console.routes import router as console_router
 from .console.seed import seed_console
 from .core.config import settings
 from .core.database import Base, SessionLocal, engine
+from .core.migrate import upgrade
 from .seed import seed
 
 # Imported for their side effect: registering the tables with Base.metadata.
@@ -27,6 +28,7 @@ _TABLE_MODULES = (models, console_models)
 def startup() -> None:
     """Create the schema, load the base data on an empty database, then bring
     the console data and reference settings up to date."""
+    upgrade(engine, Base.metadata)   # rename and rebuild tables an older database still has
     Base.metadata.create_all(engine)
     db = SessionLocal()
     try:

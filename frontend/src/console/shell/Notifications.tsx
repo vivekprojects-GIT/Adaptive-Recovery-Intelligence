@@ -27,10 +27,10 @@ export function Notifications() {
   const total = items.reduce((s, i) => s + i.count, 0);
   return (
     <div ref={ref} className="relative">
-      <button onClick={() => setOpen((o) => !o)} aria-label="Notifications"
+      <button onClick={() => setOpen((o) => !o)} aria-label={total > 0 ? `Notifications, ${total} need attention` : "Notifications"}
         className="relative flex h-9 w-9 items-center justify-center rounded-md text-fg-2 hover:bg-surface-hover hover:text-fg">
         <Bell className="h-[18px] w-[18px]" />
-        {total > 0 && <span className="num absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#dd1d46] px-1 text-[9px] font-semibold text-white">{total > 99 ? "99+" : total}</span>}
+        {total > 0 && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-primary-400 ring-2 ring-surface" aria-hidden />}
       </button>
       {open && (
         <div className="absolute right-0 top-11 z-50 w-[360px] overflow-hidden rounded-lg border border-line bg-surface text-fg shadow-pop">
@@ -39,7 +39,7 @@ export function Notifications() {
             {items.map((i) => (
               <li key={i.label}>
                 <Link to={i.to} onClick={() => setOpen(false)} className="flex items-center justify-between gap-3 px-4 py-2.5 text-[13px] hover:bg-surface-hover">
-                  <span>{i.label}</span><span className="num rounded-full bg-primary-50 px-2 text-xs font-medium text-primary-500">{i.count}</span>
+                  <span>{i.label}</span><span className="num text-xs text-fg-3">{i.count}</span>
                 </Link>
               </li>
             ))}

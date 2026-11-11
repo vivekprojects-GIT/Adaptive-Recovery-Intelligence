@@ -84,7 +84,7 @@ export default function DecisionAudit() {
 
   return (
     <>
-      <PageHeader title="Decision Audit" subtitle={`${d.decision_id} · ${d.strategy} · ${d.customer}${d.origin === "mcp" ? " · asked by Nova over MCP" : ""}`}
+      <PageHeader title="Decision audit" subtitle={`${d.decision_id} · ${d.strategy} · ${d.customer}${d.origin === "mcp" ? " · asked by Nova over MCP" : ""}`}
         crumbs={[{ label: "Decisions", to: "/decisions" }, { label: d.decision_id }]}
         actions={<>
           <Link to={`/journeys/${d.customer_id}`}><Button variant="secondary" icon={<ArrowLeft className="h-3.5 w-3.5" />}>Customer</Button></Link>

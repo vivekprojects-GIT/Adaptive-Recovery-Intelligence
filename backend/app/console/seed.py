@@ -137,7 +137,7 @@ def ensure_console(db: Session) -> None:
     without it, treatments added in the console would be unknown after a restart."""
     # Additive only: new nullable columns. New tables (feature_snapshots,
     # eligibility_evals) are created by create_all at startup.
-    added_columns = [("campaigns", "parent_id", "VARCHAR(12)"),
+    added_columns = [("strategies", "parent_id", "VARCHAR(12)"),
                      ("customers", "route", "VARCHAR(12)"),
                      ("customers", "product", "VARCHAR(20) DEFAULT 'Consumer Credit Card'"),
                      ("customers", "route_validation", "BOOLEAN DEFAULT 0"),
@@ -153,7 +153,7 @@ def ensure_console(db: Session) -> None:
                      ("customers", "account_number", "VARCHAR(64)"),
                      ("customers", "delinquent_amount", "FLOAT"),
                      ("recovery_accounts", "account_number", "VARCHAR(64)"),
-                     ("campaigns", "target_query", "TEXT")]
+                     ("strategies", "target_query", "TEXT")]
     try:
         for table, column, ddl in added_columns:
             cols = {r[1] for r in db.execute(text(f"PRAGMA table_info({table})"))}

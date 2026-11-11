@@ -124,8 +124,7 @@ def _contact(db: Session, nudge: Nudge, day0: datetime) -> dict:
 
 
 def _attempt(db: Session, camp: Campaign, c, at: datetime, rng, seq: Seq, *, set_aside: str | None,
-             origin: str, want_paid: bool, want_quiet: bool, want_sms: bool = False,
-             want_click: bool = False) -> dict | None:
+             origin: str, want_paid: bool, want_quiet: bool) -> dict | None:
     """Decide, send and observe one treatment for one customer. None when the
     run did not turn out as the scenario needs (the caller rolls back)."""
     arms_before = _standing(db, camp)
@@ -137,8 +136,6 @@ def _attempt(db: Session, camp: Campaign, c, at: datetime, rng, seq: Seq, *, set
     dec = decide_one(db, camp, c, decision_id=seq.decision(), wave=camp.waves_run + 1, decided_at=at, rng=rng,
                      arms_state=state, human_review=human_review_codes(db), auto_approve=False, origin=origin)
     if dec.group != "Treatment" or not dec.treatment_code or dec.review_status == "pending":
-        return None
-    if want_sms and not channel_of(db, dec.treatment_code).startswith("SMS"):
         return None
     if set_aside is None and not want_paid and not engine.next_try_state(
             db, camp, c, {k: None for k in jl(camp.treatment_codes) if k != dec.treatment_code}):
@@ -152,11 +149,8 @@ def _attempt(db: Session, camp: Campaign, c, at: datetime, rng, seq: Seq, *, set
     out = db.query(Outcome).filter(Outcome.decision_id == dec.decision_id).one()
     contacts = [_contact(db, n, at) for n in db.query(Nudge).filter(Nudge.decision_id == dec.decision_id)
                 .order_by(Nudge.scheduled_at).all()]
-    events = {e["event"] for e in contacts[0]["events"]}
     if out.paid != want_paid or not out.learned:
         return None
-    if want_click and "Clicked" not in events:
-        return None   # the scenario shows the customer tapping through to pay
     if want_quiet and any(x["events"] for x in contacts):
         return None
     named = camp.escalate_to if origin == "next_try" else None
@@ -168,6 +162,26 @@ def _attempt(db: Session, camp: Campaign, c, at: datetime, rng, seq: Seq, *, set
             "arms_before": arms_before, "arms_after": _standing(db, camp)}
 
 
+# Channels the customer's phone on the screen can show.
+ON_PHONE = ("SMS", "SMS + App", "App push", "Outbound call")
+
+
+def _fit(scenario: str, one: dict, has_sms: bool) -> int | None:
+    """How well a run shows the scenario: 0 is the run it is after, higher is a
+    fallback, None does not show it. The first scenario looks for a text message
+    the customer taps through to pay; failing that, any message the phone shows
+    that the customer taps; failing that, one they pay after without tapping."""
+    if scenario == "retry":
+        return 0
+    channel = one["choice"]["chosen"]["channel"]
+    if channel not in ON_PHONE:
+        return None
+    tapped = any(e["event"] == "Clicked" for e in one["contacts"][0]["events"])
+    if tapped and (channel.startswith("SMS") or not has_sms):
+        return 0
+    return 1 if tapped else 2
+
+
 def run(db: Session, cid: str, scenario: str) -> dict | None:
     """One scenario on one live strategy. Returns the full trace, or None when
     no waiting customer turns out the way the scenario needs."""
@@ -175,44 +189,63 @@ def run(db: Session, cid: str, scenario: str) -> dict | None:
     pool = undecided_pool(db, camp)
     waiting, audience = len(pool), len(target_customers(db, camp))
     threshold = cfg_float(db, "human_review_balance_threshold")
-    candidates = [c for c in pool if c.balance < threshold and not getattr(c, "route_validation", False)
+    candidates = [c.customer_id for c in pool if c.balance < threshold and not getattr(c, "route_validation", False)
                   and _bucket(camp.campaign_id, c.customer_id) >= camp.control_pct][:CANDIDATES]
     window = camp.evaluation_days
     now = datetime.now(UTC).replace(second=0, microsecond=0)
     # Dated so the last outcome lands today: the run replays the days it covers.
     start = now - timedelta(days=window if scenario == "pays" else 2 * window + 1)
-    # The first scenario is a text message that works, when the strategy has one to send.
-    want_sms = scenario == "pays" and any(a["channel"].startswith("SMS") for a in _standing(db, camp))
-    for c in candidates:
-        cust_id = c.customer_id
+    has_sms = any(a["channel"].startswith("SMS") for a in _standing(db, camp))
+
+    def play(cust_id: str, draw: int):
+        """One customer, one draw. The same inputs give the same run, so the
+        best fallback can be played again after it was rolled back."""
+        camp, c = db.get(Campaign, cid), db.get(models.Customer, cust_id)
+        seed = int(hashlib.sha256(f"live:{cid}:{cust_id}:{scenario}:{draw}".encode()).hexdigest()[:8], 16)
+        rng = np.random.default_rng(seed)
+        seq = Seq(db)
+        one = _attempt(db, camp, c, start, rng, seq, set_aside=None, origin="wave",
+                       want_paid=scenario == "pays", want_quiet=scenario == "retry")
+        if not one:
+            return None
+        two = None
+        if scenario == "retry":
+            # The miss is closed off the way a wave closes it: the next try is decided.
+            db.get(Outcome, one["outcome"]["outcome_id"]).escalated = True
+            second_at = start + timedelta(days=window + 1)
+            two = _attempt(db, camp, c, second_at, rng, seq, set_aside=one["choice"]["chosen"]["code"],
+                           origin="next_try", want_paid=True, want_quiet=False)
+            if not two:
+                return None
+            two["day"] = window + 1
+            for x in two["contacts"]:
+                x["day"] += window + 1
+        fit = _fit(scenario, one, has_sms)
+        return None if fit is None else (fit, [x for x in (one, two) if x], c)
+
+    def keep(attempts, c) -> dict:
+        camp = db.get(Campaign, cid)
+        wave = camp.waves_run + 1
+        if engine._treated_in_wave(db, camp, wave) >= camp.wave_size:
+            camp.waves_run = wave
+        db.commit()
+        return {"scenario": scenario, "started": engine.iso(start),
+                "strategy": {"id": camp.campaign_id, "name": camp.name, "audience": audience,
+                             "waiting": waiting, "window_days": window, "tone": camp.tone},
+                "customer": _customer(c), "attempts": attempts}
+
+    best = None   # (fit, customer, draw) of the best fallback seen
+    for cust_id in candidates:
         for draw in range(DRAWS):
-            seed = int(hashlib.sha256(f"live:{cid}:{cust_id}:{scenario}:{draw}".encode()).hexdigest()[:8], 16)
-            rng = np.random.default_rng(seed)
-            seq = Seq(db)
-            wave = camp.waves_run + 1
-            one = _attempt(db, camp, c, start, rng, seq, set_aside=None, origin="wave",
-                           want_paid=scenario == "pays", want_quiet=scenario == "retry", want_sms=want_sms,
-                           want_click=scenario == "pays")
-            two = None
-            if one and scenario == "retry":
-                # The miss is closed off the way a wave closes it: the next try is decided.
-                db.get(Outcome, one["outcome"]["outcome_id"]).escalated = True
-                second_at = start + timedelta(days=window + 1)
-                two = _attempt(db, camp, c, second_at, rng, seq, set_aside=one["choice"]["chosen"]["code"],
-                               origin="next_try", want_paid=True, want_quiet=False)
-                if two:
-                    two["day"] = window + 1
-                    for x in two["contacts"]:
-                        x["day"] += window + 1
-            if not one or (scenario == "retry" and not two):
-                db.rollback()
-                camp, c = db.get(Campaign, cid), db.get(models.Customer, cust_id)
-                continue
-            if engine._treated_in_wave(db, camp, wave) >= camp.wave_size:
-                camp.waves_run = wave
-            db.commit()
-            return {"scenario": scenario, "started": engine.iso(start),
-                    "strategy": {"id": camp.campaign_id, "name": camp.name, "audience": audience,
-                                 "waiting": waiting, "window_days": window, "tone": camp.tone},
-                    "customer": _customer(c), "attempts": [x for x in (one, two) if x]}
+            got = play(cust_id, draw)
+            if got and got[0] == 0:
+                return keep(got[1], got[2])
+            if got and (best is None or got[0] < best[0]):
+                best = (got[0], cust_id, draw)
+            db.rollback()
+    if best:
+        got = play(best[1], best[2])
+        if got:
+            return keep(got[1], got[2])
+        db.rollback()
     return None

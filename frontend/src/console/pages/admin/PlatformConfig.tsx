@@ -31,7 +31,7 @@ export default function PlatformConfig() {
   };
   return (
     <>
-      <PageHeader title="Platform Config" subtitle="Platform-wide decisioning and contact settings"
+      <PageHeader title="Platform configuration" subtitle="Platform-wide decisioning and contact settings"
         actions={<>
           {changed.length > 0 && <Button variant="ghost" onClick={() => setVals(Object.fromEntries(data.map((i) => [i.key, i.value])))}>Discard</Button>}
           <Button variant="primary" disabled={!changed.length} loading={busy === "s"}

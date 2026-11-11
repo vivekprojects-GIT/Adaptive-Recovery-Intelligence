@@ -47,9 +47,9 @@ export default function StrategyCompare() {
 
   return (
     <>
-      <PageHeader title="Strategy Comparison" subtitle="Compare up to three strategies on what they caused, not just what they recovered"
+      <PageHeader title="Strategy comparison" subtitle="Compare up to three strategies on what they caused, not just what they recovered"
         actions={can("export_reports") && <Button variant="primary" icon={<Download className="h-3.5 w-3.5" />} loading={busy === "x"}
-          onClick={() => run("x", () => api.download("/reports/portfolio.csv", "ari-strategies.csv"), "Downloaded.")}>Export Report</Button>} />
+          onClick={() => run("x", () => api.download("/reports/portfolio.csv", "ari-strategies.csv"), "Downloaded.")}>Export report</Button>} />
       <Page>
         <div className="flex flex-wrap items-center gap-2">
           {data.map((s, i) => (

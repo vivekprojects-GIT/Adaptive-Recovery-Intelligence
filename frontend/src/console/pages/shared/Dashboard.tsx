@@ -14,7 +14,7 @@ import { money, num, pct, pp, timeOnly, weekLabel } from "../../lib/format";
 import { useApi, useSession } from "../../lib/session";
 import { CLIENT_BANK } from "../../ui/brand";
 import { SERIES } from "../../ui/charts";
-import { CountUp, Heatmap, Sankey, Sparkline, TimeSeries, useEntrance, type FlowNode } from "../../ui/d3charts";
+import { CountUp, Heatmap, Sankey, TimeSeries, useEntrance, type FlowNode } from "../../ui/d3charts";
 import { Button, ErrorState, MetricInfo, Select, useAction } from "../../ui/ui";
 import { InsightCard } from "../strategist/MyDashboard";
 
@@ -70,11 +70,11 @@ function Tile({ title, metric, subtitle, figure, children, className, table, act
 }) {
   const [asTable, setAsTable] = useState(false);
   return (
-    <section data-tile className={clsx("flex min-w-0 flex-col rounded-md border border-[#e2e7ee] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]", className)}>
+    <section data-tile className={clsx("flex min-w-0 flex-col rounded-md border border-line bg-white shadow-card", className)}>
       <header className="flex items-start justify-between gap-3 px-4 pb-1 pt-3">
         <div className="min-w-0">
-          <h2 className="flex items-center gap-1 text-[13px] font-semibold leading-5 text-[#16202e]">{title}{metric && <MetricInfo metric={metric} />}</h2>
-          {subtitle && <p className="text-[11px] leading-4 text-[#6b778a]">{subtitle}</p>}
+          <h2 className="flex items-center gap-1 text-[13px] font-semibold leading-5 text-fg">{title}{metric && <MetricInfo metric={metric} />}</h2>
+          {subtitle && <p className="text-[11px] leading-4 text-fg-3">{subtitle}</p>}
         </div>
         <div className="flex shrink-0 items-start gap-2">
           {figure && <div className="text-right">{figure}</div>}
@@ -82,7 +82,7 @@ function Tile({ title, metric, subtitle, figure, children, className, table, act
           {table && (
             <DropdownMenu>
               <DropdownMenuTrigger aria-label={`More options for ${title}`}
-                className="-mr-1.5 flex h-7 w-7 cursor-pointer items-center justify-center rounded text-[#6b778a] outline-none transition-colors hover:bg-[#eef2f7] hover:text-[#16202e] focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-[#eef2f7]">
+                className="-mr-1.5 flex h-7 w-7 cursor-pointer items-center justify-center rounded text-fg-3 outline-none transition-colors hover:bg-surface-hover hover:text-fg focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-surface-hover">
                 <MoreHorizontal className="h-4 w-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
@@ -102,49 +102,59 @@ function Tile({ title, metric, subtitle, figure, children, className, table, act
 
 function DataTable({ t }: { t: TableData }) {
   return (
-    <div className="max-h-[340px] overflow-auto rounded border border-[#eef1f5]">
+    <div className="max-h-[340px] overflow-auto rounded border border-line">
       <table className="w-full border-collapse text-[12px]">
-        <thead className="sticky top-0 bg-[#f8fafc]"><tr>{t.columns.map((c, i) => (
-          <th key={`${c}-${i}`} scope="col" className={clsx("whitespace-nowrap border-b border-[#d5dbe3] px-2.5 py-1.5 font-semibold text-[#46546a]", i ? "text-right" : "text-left")}>{c}</th>))}</tr></thead>
+        <thead className="sticky top-0 bg-surface-sunken"><tr>{t.columns.map((c, i) => (
+          <th key={`${c}-${i}`} scope="col" className={clsx("whitespace-nowrap border-b border-line-strong px-2.5 py-1.5 font-semibold text-fg-2", i ? "text-right" : "text-left")}>{c}</th>))}</tr></thead>
         <tbody>{t.rows.map((r, ri) => (
-          <tr key={ri} className="hover:bg-[#f3f6fa]">{r.map((v, i) => (
-            <td key={i} className={clsx("whitespace-nowrap border-b border-[#eef1f5] px-2.5 py-1.5", i ? "num text-right" : "text-[#16202e]")}>{v}</td>))}</tr>))}</tbody>
+          <tr key={ri} className="hover:bg-surface-hover">{r.map((v, i) => (
+            <td key={i} className={clsx("whitespace-nowrap border-b border-line px-2.5 py-1.5", i ? "num text-right" : "text-fg")}>{v}</td>))}</tr>))}</tbody>
       </table>
     </div>
   );
 }
 
 const Figure = ({ value, label }: { value: ReactNode; label: string }) => (
-  <p className="leading-4"><span className="num block text-[15px] font-semibold text-[#16202e]">{value}</span>
-    <span className="text-[11px] text-[#6b778a]">{label}</span></p>
+  <p className="leading-4"><span className="num block text-[15px] font-semibold text-fg">{value}</span>
+    <span className="text-[11px] text-fg-3">{label}</span></p>
 );
 
 function DeltaPill({ d, goodWhenUp }: { d: number | null | undefined; goodWhenUp: boolean | null }) {
-  if (d === null || d === undefined) return <span className="text-[11px] text-[#6b778a]">No full prior period yet</span>;
+  if (d === null || d === undefined) return <span className="text-[11px] text-fg-3">No full prior period yet</span>;
   const up = d >= 0;
   const good = goodWhenUp === null ? null : up === goodWhenUp;
   return (
-    <span className="flex items-center gap-1.5">
-      <span className={clsx("num inline-flex items-center rounded-sm px-1.5 py-px text-[11px] font-semibold",
-        good === true ? "bg-[#e5f3ea] text-[#1e6b3c]" : good === false ? "bg-[#fbe7e9] text-[#a3172d]" : "bg-[#eef1f5] text-[#46546a]")}>
+    <span className="flex items-center gap-1.5 text-2xs">
+      <span className={clsx("num font-medium", good === true ? "text-good" : good === false ? "text-bad" : "text-fg-2")}>
         {up ? "▲" : "▼"} {Math.abs(d * 100).toFixed(Math.abs(d) < 0.1 ? 1 : 0)}%
       </span>
-      <span className="text-[11px] text-[#6b778a]">vs prior period</span>
+      <span className="text-fg-3">vs prior period</span>
     </span>
   );
 }
 
-function KpiTile({ label, metric, value, format, foot, trend, color }: {
-  label: string; metric?: string; value: number; format: (v: number) => string; foot: ReactNode; trend: (number | null)[]; color: string;
+/** One figure in a ledger: a label, the figure, and what it compares against. */
+function KpiCell({ label, metric, value, format, foot }: {
+  label: string; metric?: string; value: number; format: (v: number) => string; foot: ReactNode;
 }) {
   return (
-    <div data-tile className="relative flex min-w-0 flex-col overflow-hidden rounded-md border border-[#e2e7ee] bg-white px-4 pb-2.5 pt-3.5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-      <span className="absolute inset-x-0 top-0 h-[3px]" style={{ background: color }} aria-hidden />
-      <p className="flex items-center gap-1 text-xs font-medium leading-4 text-[#46546a]">{label}{metric && <MetricInfo metric={metric} />}</p>
-      <p className="num mt-1 text-[25px] font-semibold leading-8 tracking-[-0.02em] text-[#16202e]"><CountUp value={value} format={format} /></p>
-      <div className="flex min-h-5 items-center">{foot}</div>
-      <div className="mt-2"><Sparkline data={trend} color={color} format={format} /></div>
+    <div className="flex min-w-0 flex-col px-5 py-4">
+      <p className="flex items-center gap-1 text-xs leading-4 text-fg-3">{label}{metric && <MetricInfo metric={metric} />}</p>
+      <p className="num mt-1.5 text-2xl font-medium leading-8 text-fg"><CountUp value={value} format={format} /></p>
+      <div className="mt-1 flex min-h-5 items-center">{foot}</div>
     </div>
+  );
+}
+
+/** A book's figures side by side on hairline rules: the dashboard's ledger. */
+function Ledger({ title, color, children }: { title: string; color: string; children: ReactNode }) {
+  return (
+    <section data-tile className="min-w-0 rounded-md border border-line bg-surface shadow-card">
+      <p className="flex items-center gap-2 border-b border-line px-5 py-2 text-xs font-medium text-fg-2">
+        <span className="h-2 w-2 rounded-full" style={{ background: color }} aria-hidden />{title}
+      </p>
+      <div className="grid divide-y divide-line sm:grid-cols-3 sm:divide-x sm:divide-y-0">{children}</div>
+    </section>
   );
 }
 
@@ -153,7 +163,7 @@ function KpiTile({ label, metric, value, format, foot, trend, color }: {
 function Bar({ value, max, color, label }: { value: number; max: number; color: string; label: string }) {
   return (
     <div className="flex items-center gap-2">
-      <div className="h-2 min-w-[28px] flex-1 overflow-hidden rounded-sm bg-[#eef2f7]">
+      <div className="h-2 min-w-[28px] flex-1 overflow-hidden rounded-sm bg-surface-hover">
         <div className="h-full rounded-sm" style={{ width: `${max > 0 ? Math.max(1.5, (value / max) * 100) : 0}%`, background: color }} />
       </div>
       <span className="num w-[66px] shrink-0 text-right">{label}</span>
@@ -163,7 +173,7 @@ function Bar({ value, max, color, label }: { value: number; max: number; color: 
 
 /** Actual against target over off track / watch / on track bands, with a target marker. */
 function Bullet({ value, target, max }: { value: number | null; target: number; max: number }) {
-  if (value === null) return <span className="text-[#6b778a]">No outcomes yet</span>;
+  if (value === null) return <span className="text-fg-3">No outcomes yet</span>;
   const x = (v: number) => `${Math.max(0, Math.min(100, (v / max) * 100))}%`;
   const watch = Math.max(0, target - 0.05);
   return (
@@ -173,28 +183,28 @@ function Bullet({ value, target, max }: { value: number | null; target: number; 
         <div className="absolute inset-y-0 bg-[#fbf0d9]" style={{ left: x(watch), width: `calc(${x(target)} - ${x(watch)})` }} />
         <div className="absolute inset-y-0 right-0 bg-[#e4f1e8]" style={{ left: x(target) }} />
         <div className="absolute inset-y-[4px] left-0 rounded-r-sm" style={{ width: x(value), background: "#1d365a" }} />
-        <div className="absolute inset-y-0 w-[2.5px] bg-[#16202e]" style={{ left: `calc(${x(target)} - 1px)` }} />
+        <div className="absolute inset-y-0 w-[2.5px] bg-fg" style={{ left: `calc(${x(target)} - 1px)` }} />
       </div>
-      <span className="num w-[88px] shrink-0 text-right text-xs"><span className="font-semibold text-[#16202e]">{pct(value)}</span>
-        <span className="text-[#6b778a]"> · {Math.round((value / target) * 100)}%</span></span>
+      <span className="num w-[88px] shrink-0 text-right text-xs"><span className="font-semibold text-fg">{pct(value)}</span>
+        <span className="text-fg-3"> · {Math.round((value / target) * 100)}%</span></span>
     </div>
   );
 }
 
 function StateText({ s }: { s: string | null }) {
-  if (!s) return <span className="text-[#6b778a]">—</span>;
+  if (!s) return <span className="text-fg-3">—</span>;
   const label = { on_track: "On track", watch: "Watch", off_track: "Off track" }[s] ?? s;
   return (
-    <span className={clsx("inline-flex items-center gap-1.5 whitespace-nowrap text-xs", s === "on_track" ? "text-[#46546a]" : s === "watch" ? "font-medium text-warn" : "font-medium text-bad")}>
+    <span className={clsx("inline-flex items-center gap-1.5 whitespace-nowrap text-xs", s === "on_track" ? "text-fg-2" : s === "watch" ? "font-medium text-warn" : "font-medium text-bad")}>
       <span className={clsx("h-2 w-2 rounded-full", s === "on_track" ? "bg-good" : s === "watch" ? "bg-warn" : "bg-bad")} />{label}
     </span>
   );
 }
 
-const TH = "whitespace-nowrap border-b border-[#d5dbe3] bg-[#f8fafc] px-2.5 py-2 text-[11px] font-semibold text-[#46546a]";
-const TD = "border-b border-[#eef1f5] px-2.5 py-2 text-[13px]";
-const TOT = "border-t border-[#d5dbe3] bg-[#f8fafc] px-2.5 py-2 text-[13px] font-semibold";
-const ROW = "cursor-pointer transition-colors duration-150 hover:bg-[#f3f6fa]";
+const TH = "whitespace-nowrap border-b border-line-strong bg-surface-sunken px-2.5 py-2 text-[11px] font-semibold text-fg-2";
+const TD = "border-b border-line px-2.5 py-2 text-[13px]";
+const TOT = "border-t border-line-strong bg-surface-sunken px-2.5 py-2 text-[13px] font-semibold";
+const ROW = "cursor-pointer transition-colors duration-150 hover:bg-surface-hover";
 
 /* ============================================================ narrative */
 
@@ -219,10 +229,10 @@ function Narrative({ d, showC, showR, periodLabel }: { d: Data; showC: boolean; 
   }
   if (!lines.length) return null;
   return (
-    <section data-tile className="rounded-md border border-[#e2e7ee] bg-white px-4 py-3 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-      <p className="mb-1.5 text-[11px] font-semibold text-[#6b778a]">Summary for the {periodLabel}</p>
-      <ul className="grid gap-x-8 gap-y-1.5 text-[13px] leading-5 text-[#2c3a4f] lg:grid-cols-3 [&_b]:font-semibold [&_b]:text-[#16202e]">
-        {lines.map((l, i) => <li key={i} className="flex gap-2"><span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#9aa6b8]" /><span>{l}</span></li>)}
+    <section data-tile className="rounded-md border border-line bg-white px-4 py-3 shadow-card">
+      <p className="mb-1.5 text-[11px] font-semibold text-fg-3">Summary for the {periodLabel}</p>
+      <ul className="grid gap-x-8 gap-y-1.5 text-[13px] leading-5 text-fg-2 lg:grid-cols-3 [&_b]:font-semibold [&_b]:text-fg">
+        {lines.map((l, i) => <li key={i} className="flex gap-2"><span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-line-strong" /><span>{l}</span></li>)}
       </ul>
     </section>
   );
@@ -231,7 +241,7 @@ function Narrative({ d, showC, showR, periodLabel }: { d: Data; showC: boolean; 
 /* ============================================================ skeleton */
 
 function Skeleton() {
-  const block = "animate-pulse rounded-md bg-[#e6eaf0] motion-reduce:animate-none";
+  const block = "animate-pulse rounded-md bg-line motion-reduce:animate-none";
   return (
     <div className="space-y-3 p-5" aria-busy="true" aria-label="Loading dashboard">
       <div className={clsx(block, "h-[76px]")} />
@@ -244,7 +254,7 @@ function Skeleton() {
 /* ============================================================ page */
 
 function Slicer({ label, children }: { label: string; children: ReactNode }) {
-  return <div className="flex items-center gap-2"><span className="whitespace-nowrap text-[11px] font-medium text-[#6b778a]">{label}</span>{children}</div>;
+  return <div className="flex items-center gap-2"><span className="whitespace-nowrap text-[11px] font-medium text-fg-3">{label}</span>{children}</div>;
 }
 const ITEM = "h-8 cursor-pointer px-3";
 
@@ -287,18 +297,18 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-full bg-[#f1f4f8]">
+    <div className="min-h-full bg-app">
       {/* Report header and filters */}
-      <div className="sticky top-0 z-20 border-b border-[#e2e7ee] bg-white">
+      <div className="sticky top-0 z-20 border-b border-line bg-white">
         <div className="flex flex-wrap items-center justify-between gap-3 px-6 pb-2.5 pt-4">
           <div>
-            <h1 className="text-[20px] font-semibold leading-7 tracking-[-0.01em] text-[#16202e]">Collections and recovery</h1>
-            <p className="text-xs text-[#6b778a]">{CLIENT_BANK} · data as of {timeOnly(asOf)} today{loading && data ? " · updating" : ""}</p>
+            <h1 className="text-[20px] font-semibold leading-7 tracking-[-0.01em] text-fg">Collections and recovery</h1>
+            <p className="text-xs text-fg-3">{CLIENT_BANK} · data as of {timeOnly(asOf)} today{loading && data ? " · updating" : ""}</p>
           </div>
           {can("export_reports") && <Button size="sm" icon={<Download className="h-3.5 w-3.5" />} loading={busy === "x"}
             onClick={() => run("x", () => api.download("/reports/portfolio.csv", "portfolio.csv"), "Portfolio report downloaded.")}>Export report</Button>}
         </div>
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-[#eef1f5] px-6 py-2.5" role="group" aria-label="Filters">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line px-6 py-2.5" role="group" aria-label="Filters">
           <Slicer label="Card business">
             <Select className="w-52 [&_select]:h-8 [&_select]:cursor-pointer" value={product} onChange={setProduct}
               options={[{ value: "", label: "All card businesses" }, ...(data?.filters.businesses ?? []).map((b) => ({ value: b, label: b }))]} />
@@ -330,7 +340,7 @@ export default function Dashboard() {
               className="inline-flex cursor-pointer items-center gap-1 rounded text-xs font-medium text-primary-500 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <RotateCcw className="h-3 w-3" />Clear filters</button>
           )}
-          <span className="ml-auto flex items-center gap-3 text-[11px] text-[#6b778a]" aria-hidden>
+          <span className="ml-auto flex items-center gap-3 text-[11px] text-fg-3" aria-hidden>
             {showC && <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: COLL }} />Collections</span>}
             {showR && <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: REC }} />Recovery</span>}
           </span>
@@ -339,36 +349,40 @@ export default function Dashboard() {
 
       {error ? <div className="p-6"><ErrorState message={error} onRetry={reload} /></div> : !data ? <Skeleton /> : (
         <div ref={page} className={clsx("space-y-3 p-5 transition-opacity duration-200", loading && "opacity-60")}>
-          <Narrative d={data} showC={showC} showR={showR} periodLabel={periodLabel} />
-
-          {/* KPI strip */}
-          <div className={clsx("grid gap-3 sm:grid-cols-2 md:grid-cols-3", showC && showR ? "2xl:grid-cols-6" : "")}>
-            {showC && data.kpis.collections_accounts && (
-              <KpiTile label="Accounts in collections" metric="accounts_imported" value={data.kpis.collections_accounts.value ?? 0} format={fmtNum} color={COLL}
-                foot={<span className="text-[11px] text-[#6b778a]"><span className="num font-semibold text-[#46546a]">{num(data.kpis.collections_accounts.sub ?? 0)}</span> in a strategy</span>}
-                trend={data.kpis.collections_accounts.trend} />
+          {/* The ledger: each book's figures on hairline rules */}
+          <div className={clsx("grid gap-3", showC && showR && "xl:grid-cols-2")}>
+            {showC && (
+              <Ledger title="Collections" color={COLL}>
+                {data.kpis.collections_accounts && (
+                  <KpiCell label="Accounts in collections" metric="accounts_imported" value={data.kpis.collections_accounts.value ?? 0} format={fmtNum}
+                    foot={<span className="text-2xs text-fg-3"><span className="num font-medium text-fg-2">{num(data.kpis.collections_accounts.sub ?? 0)}</span> in a strategy</span>} />
+                )}
+                {data.kpis.collected && (
+                  <KpiCell label={`Collected, ${periodLabel}`} metric="recovered" value={data.kpis.collected.value ?? 0} format={fmtK}
+                    foot={<DeltaPill d={data.kpis.collected.delta} goodWhenUp />} />
+                )}
+                {data.kpis.payment_rate && (
+                  <KpiCell label="Payment rate, treated" metric="payment_rate" value={data.kpis.payment_rate.value ?? 0} format={fmtPct1}
+                    foot={<span className="text-2xs text-fg-3">no contact {pct(data.kpis.payment_rate.control)} ·{" "}
+                      <span className={clsx("num font-medium", (data.kpis.payment_rate.lift ?? 0) >= 0 ? "text-good" : "text-bad")}>{pp(data.kpis.payment_rate.lift)}</span> over no contact</span>} />
+                )}
+              </Ledger>
             )}
-            {showC && data.kpis.collected && (
-              <KpiTile label={`Collected, ${periodLabel}`} metric="recovered" value={data.kpis.collected.value ?? 0} format={fmtK} color={COLL}
-                foot={<DeltaPill d={data.kpis.collected.delta} goodWhenUp />} trend={data.kpis.collected.trend} />
-            )}
-            {showC && data.kpis.payment_rate && (
-              <KpiTile label="Payment rate, treated" metric="payment_rate" value={data.kpis.payment_rate.value ?? 0} format={fmtPct1} color={COLL}
-                foot={<span className="text-[11px] text-[#6b778a]">no contact {pct(data.kpis.payment_rate.control)} ·{" "}
-                  <span className={clsx("num font-semibold", (data.kpis.payment_rate.lift ?? 0) >= 0 ? "text-[#1e6b3c]" : "text-[#a3172d]")}>{pp(data.kpis.payment_rate.lift)}</span> over no contact</span>}
-                trend={data.kpis.payment_rate.trend} />
-            )}
-            {showR && data.kpis.charged_off && (
-              <KpiTile label="Recovery accounts" value={data.kpis.charged_off.value ?? 0} format={fmtNum} color={REC}
-                foot={<DeltaPill d={data.kpis.charged_off.delta} goodWhenUp={null} />} trend={data.kpis.charged_off.trend} />
-            )}
-            {showR && data.kpis.recovered && (
-              <KpiTile label={`Recovered, ${periodLabel}`} metric="recovered" value={data.kpis.recovered.value ?? 0} format={fmtK} color={REC}
-                foot={<DeltaPill d={data.kpis.recovered.delta} goodWhenUp />} trend={data.kpis.recovered.trend} />
-            )}
-            {showR && data.kpis.remaining && (
-              <KpiTile label="Remaining recovery balance" value={data.kpis.remaining.value ?? 0} format={fmtK} color={REC}
-                foot={<DeltaPill d={data.kpis.remaining.delta} goodWhenUp={false} />} trend={data.kpis.remaining.trend} />
+            {showR && (
+              <Ledger title="Recovery" color={REC}>
+                {data.kpis.charged_off && (
+                  <KpiCell label="Recovery accounts" value={data.kpis.charged_off.value ?? 0} format={fmtNum}
+                    foot={<DeltaPill d={data.kpis.charged_off.delta} goodWhenUp={null} />} />
+                )}
+                {data.kpis.recovered && (
+                  <KpiCell label={`Recovered, ${periodLabel}`} metric="recovered" value={data.kpis.recovered.value ?? 0} format={fmtK}
+                    foot={<DeltaPill d={data.kpis.recovered.delta} goodWhenUp />} />
+                )}
+                {data.kpis.remaining && (
+                  <KpiCell label="Remaining recovery balance" value={data.kpis.remaining.value ?? 0} format={fmtK}
+                    foot={<DeltaPill d={data.kpis.remaining.delta} goodWhenUp={false} />} />
+                )}
+              </Ledger>
             )}
           </div>
 
@@ -386,23 +400,25 @@ export default function Dashboard() {
               <ul className="space-y-1.5">
                 {data.exceptions.slice(0, 7).map((x, i) => (
                   <li key={i}>
-                    <Link to={x.link} className="flex items-start gap-2.5 rounded-md border border-[#eef1f5] px-2.5 py-2 transition-colors duration-150 hover:border-[#dfe4ec] hover:bg-[#f6f8fb]">
+                    <Link to={x.link} className="flex items-start gap-2.5 rounded-md border border-line px-2.5 py-2 transition-colors duration-150 hover:border-line hover:bg-surface-hover">
                       <span className={clsx("mt-[5px] h-2 w-2 shrink-0 rounded-full",
-                        x.severity === "Critical" ? "bg-bad" : x.severity === "High" ? "bg-serious" : x.severity === "Medium" ? "bg-warn" : "bg-[#9aa6b8]")} />
+                        x.severity === "Critical" ? "bg-bad" : x.severity === "High" ? "bg-serious" : x.severity === "Medium" ? "bg-warn" : "bg-line-strong")} />
                       <span className="min-w-0 flex-1">
                         <span className="flex items-baseline justify-between gap-2">
-                          <span className="text-[13px] font-medium text-[#16202e]">{x.title}</span>
-                          {x.count > 1 && <span className="num shrink-0 text-xs font-semibold text-[#46546a]">{num(x.count)}</span>}
+                          <span className="text-[13px] font-medium text-fg">{x.title}</span>
+                          {x.count > 1 && <span className="num shrink-0 text-xs font-semibold text-fg-2">{num(x.count)}</span>}
                         </span>
-                        <span className="mt-0.5 block text-[11px] leading-4 text-[#6b778a]"><span className="font-medium text-[#46546a]">{x.severity}</span> · {x.detail}</span>
+                        <span className="mt-0.5 block text-[11px] leading-4 text-fg-3"><span className="font-medium text-fg-2">{x.severity}</span> · {x.detail}</span>
                       </span>
                     </Link>
                   </li>
                 ))}
-                {!data.exceptions.length && <li className="py-4 text-sm text-[#6b778a]">Nothing needs attention.</li>}
+                {!data.exceptions.length && <li className="py-4 text-sm text-fg-3">Nothing needs attention.</li>}
               </ul>
             </Tile>
           </div>
+
+          <Narrative d={data} showC={showC} showR={showR} periodLabel={periodLabel} />
 
           {/* Trends, sharing one hover week */}
           <div className={clsx("grid gap-3 lg:grid-cols-2", showC && showR ? "xl:grid-cols-3" : "")}>
@@ -459,7 +475,7 @@ export default function Dashboard() {
                   const max = Math.max(...data.businesses.flatMap((x) => [showC ? x.collections_balance : 0, showR ? x.remaining : 0]), 1);
                   return (
                     <li key={b.business}>
-                      <p className="mb-1 text-xs font-medium text-[#16202e]">{b.business}</p>
+                      <p className="mb-1 text-xs font-medium text-fg">{b.business}</p>
                       {showC && <Bar value={b.collections_balance} max={max} color={COLL} label={fmtK(b.collections_balance)} />}
                       {showR && <div className="mt-1"><Bar value={b.remaining} max={max} color={REC} label={fmtK(b.remaining)} /></div>}
                     </li>
@@ -487,7 +503,7 @@ export default function Dashboard() {
                   {data.businesses.map((b) => {
                     const max = (k: keyof Business) => Math.max(...data.businesses.map((x) => Number(x[k])));
                     return (
-                      <tr key={b.business} className={clsx(ROW, product === b.business && "bg-[#eef3f9]")} onClick={() => setProduct(product === b.business ? "" : b.business)}>
+                      <tr key={b.business} className={clsx(ROW, product === b.business && "bg-surface-hover")} onClick={() => setProduct(product === b.business ? "" : b.business)}>
                         <td className={clsx(TD, "whitespace-nowrap font-medium")}>{b.business}</td>
                         {showC && <>
                           <td className={TD}><Bar value={b.collections_accounts} max={max("collections_accounts")} color={COLL} label={num(b.collections_accounts)} /></td>
@@ -544,18 +560,18 @@ export default function Dashboard() {
                       return (
                         <tr key={s.campaign_id} className={ROW} onClick={() => navigate(`/strategies/${s.campaign_id}`)}>
                           <td className={clsx(TD, "min-w-[190px]")}><span className="whitespace-nowrap font-medium">{s.name}</span>
-                            <span className="block text-[11px] text-[#6b778a]">{s.campaign_id} · {s.status}</span></td>
+                            <span className="block text-[11px] text-fg-3">{s.campaign_id} · {s.status}</span></td>
                           <td className={clsx(TD, "num text-right")}>{num(s.treated)}</td>
                           <td className={clsx(TD, "w-[38%] min-w-[220px]")}><Bullet value={s.payment_rate} target={s.target} max={max} /></td>
-                          <td className={clsx(TD, "num text-right text-[#46546a]")}>{pct(s.target, 0)}</td>
-                          <td className={clsx(TD, "num text-right text-[#46546a]")}>{pct(s.control_rate)}</td>
-                          <td className={clsx(TD, "num whitespace-nowrap text-right font-semibold", s.lift === null ? "text-[#6b778a]" : s.lift >= 0 ? "text-[#1e6b3c]" : "text-[#a3172d]")}>
+                          <td className={clsx(TD, "num text-right text-fg-2")}>{pct(s.target, 0)}</td>
+                          <td className={clsx(TD, "num text-right text-fg-2")}>{pct(s.control_rate)}</td>
+                          <td className={clsx(TD, "num whitespace-nowrap text-right font-semibold", s.lift === null ? "text-fg-3" : s.lift >= 0 ? "text-good" : "text-bad")}>
                             {s.lift === null ? "—" : `${s.lift >= 0 ? "▲" : "▼"} ${pp(Math.abs(s.lift))}`}</td>
                           <td className={TD}><StateText s={s.state} /></td>
                         </tr>
                       );
                     })}
-                    {!data.strategies.length && <tr><td colSpan={7} className="px-4 py-6 text-center text-sm text-[#6b778a]">No strategies match these filters.</td></tr>}
+                    {!data.strategies.length && <tr><td colSpan={7} className="px-4 py-6 text-center text-sm text-fg-3">No strategies match these filters.</td></tr>}
                   </tbody>
                 </table>
               </div>

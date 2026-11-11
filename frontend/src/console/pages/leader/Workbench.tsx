@@ -48,7 +48,7 @@ export default function Workbench() {
 
   return (
     <>
-      <PageHeader title="Strategy Workbench" subtitle="Find what is underperforming, draft improvements, send them to the strategy owner" />
+      <PageHeader title="Strategy workbench" subtitle="Find what is underperforming, draft improvements, send them to the strategy owner" />
       <Page>
         <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)_280px]">
           <div className="space-y-3">

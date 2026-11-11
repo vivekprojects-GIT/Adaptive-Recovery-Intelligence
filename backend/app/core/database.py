@@ -2,7 +2,7 @@
 SQLAlchemy database) through DATABASE_URL."""
 from __future__ import annotations
 
-from sqlalchemy import create_engine
+from sqlalchemy import ForeignKey, create_engine, event
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from .config import settings
@@ -24,6 +24,13 @@ DB_PATH = DATABASE_URL.removeprefix("sqlite:///") if IS_SQLITE else None
 
 if IS_SQLITE:
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+
+    @event.listens_for(engine, "connect")
+    def _enforce_foreign_keys(dbapi_conn, _record):
+        """SQLite ignores declared foreign keys unless asked, per connection."""
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA foreign_keys = ON")
+        cur.close()
 else:
     # pool_pre_ping: a hosted database drops idle connections, so check one
     # before use instead of failing the request that gets it.
@@ -33,6 +40,13 @@ SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 class Base(DeclarativeBase):
     pass
+
+
+def fk(target: str, **kw) -> ForeignKey:
+    """A foreign key checked when the transaction commits (DEFERRABLE INITIALLY
+    DEFERRED), so rows written together may be flushed in any order, and a
+    broken link still never reaches the database."""
+    return ForeignKey(target, deferrable=True, initially="DEFERRED", **kw)
 
 
 def get_db():

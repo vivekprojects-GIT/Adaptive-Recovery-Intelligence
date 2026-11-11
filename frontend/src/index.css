@@ -64,7 +64,6 @@
   /* Figures align in columns: Inter's tabular numerals inside Ubuntu text. */
   .num { font-family: "Inter", ui-sans-serif, system-ui, sans-serif; font-variant-numeric: tabular-nums; }
   .label { @apply text-xs font-medium text-fg-3; }
-  .brand-gradient { background-image: linear-gradient(135deg, #3573c0 0%, #1c4076 55%, #121a38 100%); }
 }
 
 .recharts-surface:focus, .recharts-wrapper:focus { outline: none; }

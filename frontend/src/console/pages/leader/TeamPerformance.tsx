@@ -13,7 +13,7 @@ export default function TeamPerformance() {
   if (loading || !data) return <Spinner />;
   return (
     <>
-      <PageHeader title="Team Performance" subtitle="Strategy analysts, their strategies and what those strategies caused" />
+      <PageHeader title="Team performance" subtitle="Strategy analysts, their strategies and what those strategies caused" />
       <Page>
         <Card flush>
           <Table>
